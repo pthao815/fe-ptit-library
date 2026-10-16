@@ -18,78 +18,35 @@ import {
   TextAreaField,
   Toast,
 } from "./design-system";
-
-type Role = "reader" | "staff" | "admin";
-type NavIcon =
-  | "dashboard"
-  | "book"
-  | "bookmark"
-  | "document"
-  | "users"
-  | "settings"
-  | "search"
-  | "sparkle";
-
-const readerNavigation = [
-  "Trang chủ",
-  "Khám phá",
-  "Ngành đào tạo",
-  "Tủ sách của tôi",
-  "Lịch sử mượn",
-];
-
-const staffNavigation: Array<{ label: string; icon: NavIcon }> = [
-  { label: "Tổng quan", icon: "dashboard" },
-  { label: "Lưu thông", icon: "sparkle" },
-  { label: "Quản lý tài liệu", icon: "book" },
-  { label: "Tài liệu số", icon: "document" },
-  { label: "Đặt trước", icon: "bookmark" },
-  { label: "Bạn đọc", icon: "users" },
-  { label: "Thống kê & báo cáo", icon: "dashboard" },
-  { label: "Thông tin cá nhân", icon: "users" },
-];
-
-const adminNavigation: Array<{ label: string; icon: NavIcon }> = [
-  { label: "Tổng quan", icon: "dashboard" },
-  { label: "Tài khoản & phân quyền", icon: "users" },
-  { label: "Cấu hình nghiệp vụ", icon: "settings" },
-  { label: "Cấu hình tra cứu", icon: "search" },
-  { label: "Trạng thái chỉ mục", icon: "sparkle" },
-  { label: "Nhật ký hoạt động", icon: "document" },
-  { label: "Thông tin cá nhân", icon: "users" },
-];
-
-type Book = {
-  id: number;
-  title: string;
-  author: string;
-  year: string;
-  type: string;
-  rating: number;
-  available: boolean;
-  code: string;
-  cover: string;
-};
-
-const fieldBooks: Book[] = [
-  { id: 1, title: "Trí tuệ nhân tạo: Nền tảng và ứng dụng", author: "Nguyễn Thanh Thủy", year: "2024", type: "Sách chuyên khảo", rating: 5, available: true, code: "005.1", cover: "cover-red" },
-  { id: 2, title: "Nhập môn Khoa học dữ liệu", author: "Trần Đức Khánh", year: "2023", type: "Giáo trình", rating: 4, available: true, code: "006.3", cover: "cover-charcoal" },
-  { id: 3, title: "Mạng máy tính và hệ thống phân tán", author: "Lê Nhật Quang", year: "2024", type: "Tài liệu số", rating: 4, available: true, code: "004.6", cover: "cover-sand" },
-  { id: 4, title: "An toàn thông tin trong kỷ nguyên số", author: "Phạm Văn Cường", year: "2022", type: "Sách tham khảo", rating: 5, available: false, code: "005.8", cover: "cover-slate" },
-];
-
-const recommendationBooks = [
-  { ...fieldBooks[0], id: 11, reason: "Phù hợp với ngành Công nghệ thông tin", relevance: 96 },
-  { ...fieldBooks[2], id: 12, title: "Xử lý ngôn ngữ tự nhiên", author: "Vũ Hải Quân", reason: "Dựa trên lịch sử mượn của bạn", relevance: 91, cover: "cover-slate" },
-  { ...fieldBooks[1], id: 13, title: "Học máy: Từ lý thuyết đến thực hành", author: "Đỗ Thanh Hà", reason: "Có nội dung tương đồng với tài liệu bạn đã đọc", relevance: 88, cover: "cover-red" },
-];
-
-const newBooks: Book[] = [
-  { id: 21, title: "Điện toán đám mây hiện đại", author: "Ngô Quang Hưng", year: "2025", type: "Giáo trình", rating: 4, available: true, code: "004.7", cover: "cover-charcoal" },
-  { id: 22, title: "Kỹ thuật phần mềm hướng dịch vụ", author: "Đặng Minh Tuấn", year: "2025", type: "Tài liệu số", rating: 5, available: true, code: "005.3", cover: "cover-sand" },
-  { id: 23, title: "Thiết kế trải nghiệm người dùng", author: "Lê Thu Trang", year: "2025", type: "Sách tham khảo", rating: 4, available: true, code: "004.2", cover: "cover-slate" },
-  { id: 24, title: "Internet vạn vật và ứng dụng", author: "Phan Minh Đức", year: "2025", type: "Sách chuyên khảo", rating: 4, available: false, code: "004.6", cover: "cover-red" },
-];
+import type { Role, Book } from "./types/library";
+import { readerNavigation } from "./constants/navigation";
+import { filterGroups, contentFilterGroups, reviewLabels, libraryTabs, circulationTabs, trainingPrograms, pipelineSteps } from "./constants/library-options";
+import { detailBook, relatedSimilar, relatedBorrowed } from "./data/books";
+import type { SearchResult, ContentSearchResult } from "./data/search-results";
+import { searchResults, contentSearchResults } from "./data/search-results";
+import { documentChapters, matchItems } from "./data/document";
+import { loanBooks, reservedBooks, shelfGroups, loanHistory } from "./data/my-library";
+import { libraryNotifications } from "./data/notifications";
+import { workProfileData } from "./data/profiles";
+import { staffSummary, circulationData } from "./data/dashboard";
+import type { CatalogRecord } from "./data/catalog";
+import { catalogRecords } from "./data/catalog";
+import type { ProcessingJob } from "./data/processing-jobs";
+import { initialProcessingJobs } from "./data/processing-jobs";
+import { initialReservationGroups } from "./data/reservations";
+import { initialManagedReaders } from "./data/readers";
+import { logout } from "./utils/logout";
+import Brand from "./components/common/Brand";
+import UserMenu from "./components/common/UserMenu";
+import ShellPlaceholder from "./components/common/ShellPlaceholder";
+import BookCover from "./components/books/BookCover";
+import BookCard from "./components/books/BookCard";
+import LibraryListCard from "./components/books/LibraryListCard";
+import NotificationDropdown from "./components/notifications/NotificationDropdown";
+import WorkspaceSidebar from "./layouts/WorkspaceSidebar";
+import HomeSection from "./components/common/HomeSection";
+import ReaderHome from "./pages/reader/home/ReaderHomePage";
+import GuidelinesPage from "./pages/reader/guidelines/GuidelinesPage";
 
 function useRoleRoute() {
   const readRoute = (): { role: Role; path: string } => {
@@ -107,350 +64,6 @@ function useRoleRoute() {
 
   return route;
 }
-
-function logout() {
-  ["ptit-library-session", "ptit-library-user", "ptit-library-role"].forEach((key) => {
-    window.sessionStorage.removeItem(key);
-    window.localStorage.removeItem(key);
-  });
-  window.location.replace("#/login");
-}
-
-function Brand({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={`portal-brand ${compact ? "compact" : ""}`}>
-      <span className="portal-brand-mark"><Icon name="library" size={compact ? 21 : 24} /></span>
-      <span className="portal-brand-copy">
-        <strong>PTIT LIBRARY</strong>
-        <small>THƯ VIỆN SỐ THÔNG MINH</small>
-      </span>
-    </div>
-  );
-}
-
-function UserMenu({
-  open,
-  onToggle,
-  onLogout,
-  onProfile,
-  role,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  onLogout: () => void;
-  onProfile?: () => void;
-  role: Role;
-}) {
-  const roleName =
-    role === "reader" ? "Bạn đọc" : role === "staff" ? "Nhân viên thư viện" : "Quản trị viên";
-  const userName =
-    role === "reader" ? "Nguyễn Minh Anh" : role === "staff" ? "Nguyễn Thu Hà" : "Trần Minh Đức";
-
-  return (
-    <div className="user-menu-wrap">
-      <button className="user-trigger" onClick={onToggle} aria-expanded={open}>
-        <Avatar name={userName} />
-        <span>
-          <strong>{userName}</strong>
-          <small>{roleName}</small>
-        </span>
-        <Icon name="chevron-down" size={15} />
-      </button>
-      <Dropdown open={open}>
-        <button onClick={onProfile}><Icon name="users" />Thông tin tài khoản</button>
-        <button><Icon name="settings" />Thiết lập cá nhân</button>
-        <hr />
-        <button className="danger" onClick={onLogout}><Icon name="arrow-left" />Đăng xuất</button>
-      </Dropdown>
-    </div>
-  );
-}
-
-function ShellPlaceholder({
-  title,
-  description,
-  role,
-}: {
-  title: string;
-  description: string;
-  role: Role;
-}) {
-  return (
-    <div className="shell-content">
-      <Breadcrumb items={role === "reader" ? ["Trang chủ"] : ["Không gian làm việc", title]} />
-      <div className="shell-page-heading">
-        <div>
-          <p className="eyebrow">
-            {role === "reader" ? "THƯ VIỆN SỐ PTIT" : role === "staff" ? "NGHIỆP VỤ THƯ VIỆN" : "QUẢN TRỊ HỆ THỐNG"}
-          </p>
-          <h1>{title}</h1>
-          <p>{description}</p>
-        </div>
-        {role !== "reader" && <Badge tone={role === "staff" ? "brand" : "info"}>{role === "staff" ? "STAFF PORTAL" : "ADMIN PORTAL"}</Badge>}
-      </div>
-      <div className="shell-grid-guide" aria-label="Khu vực nội dung 12 cột">
-        <section className="shell-placeholder-card shell-span-8">
-          <span className="placeholder-label">KHU VỰC NỘI DUNG CHÍNH · 8 CỘT</span>
-          <div className="placeholder-lines"><i /><i /><i /></div>
-        </section>
-        <section className="shell-placeholder-card shell-span-4">
-          <span className="placeholder-label">THÔNG TIN HỖ TRỢ · 4 CỘT</span>
-          <div className="placeholder-lines compact"><i /><i /></div>
-        </section>
-      </div>
-      <p className="foundation-note">
-        Nội dung chi tiết sẽ được xây dựng ở giai đoạn tiếp theo. Khung hiện tại thiết lập điều hướng, phân quyền và lưới giao diện.
-      </p>
-    </div>
-  );
-}
-
-function BookCover({ book, compact = false }: { book: Book; compact?: boolean }) {
-  return (
-    <div className={`book-cover ${book.cover} ${compact ? "compact" : ""}`} aria-label={`Bìa sách ${book.title}`}>
-      <span>PTIT</span>
-      <strong>{book.title}</strong>
-      <small>{book.code}</small>
-    </div>
-  );
-}
-
-function BookCard({
-  book,
-  saved,
-  onSave,
-}: {
-  book: Book;
-  saved: boolean;
-  onSave: () => void;
-}) {
-  return (
-    <article className="book-card">
-      <div className="book-cover-wrap">
-        <BookCover book={book} />
-        <IconButton label={saved ? "Bỏ lưu tài liệu" : "Lưu tài liệu"} icon="bookmark" onClick={onSave} className={saved ? "saved" : ""} />
-      </div>
-      <div className="book-card-body">
-        <div className="book-meta"><span>{book.type}</span><i /><span>{book.year}</span></div>
-        <h3>{book.title}</h3>
-        <p>{book.author}</p>
-        <div className="book-card-footer">
-          <Rating value={book.rating} />
-          <Status tone={book.available ? "success" : "warning"}>{book.available ? "Có sẵn" : "Đang được mượn"}</Status>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function HomeSection({
-  eyebrow,
-  title,
-  subtitle,
-  action,
-  children,
-}: {
-  eyebrow?: string;
-  title: string;
-  subtitle?: string;
-  action?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="reader-section">
-      <div className="reader-section-heading">
-        <div>
-          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
-          <h2>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-        {action && <Button variant="ghost" size="sm">{action}<Icon name="chevron-right" size={16} /></Button>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function ReaderHome() {
-  const [searchMode, setSearchMode] = useState<"keyword" | "content">("keyword");
-  const [saved, setSaved] = useState<number[]>([2]);
-  const [hiddenRecommendations, setHiddenRecommendations] = useState<number[]>([]);
-  const toggleSave = (id: number) => setSaved((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
-
-  return (
-    <div className="reader-home">
-      <section className="reader-hero">
-        <div className="reader-hero-inner">
-          <Badge tone="brand"><Icon name="sparkle" size={14} /> KHÔNG GIAN TRI THỨC PTIT</Badge>
-          <h1>Khám phá kho tri thức</h1>
-          <p>Tìm kiếm tài liệu theo từ khóa hoặc mô tả nội dung bạn đang quan tâm.</p>
-          <div className="search-mode" role="tablist" aria-label="Chế độ tìm kiếm">
-            <button className={searchMode === "keyword" ? "active" : ""} onClick={() => setSearchMode("keyword")} role="tab" aria-selected={searchMode === "keyword"}><Icon name="search" size={17} />Từ khóa</button>
-            <button className={searchMode === "content" ? "active" : ""} onClick={() => setSearchMode("content")} role="tab" aria-selected={searchMode === "content"}><Icon name="sparkle" size={17} />Nội dung</button>
-          </div>
-          <div className={`hero-search ${searchMode === "content" ? "content-mode" : ""}`}>
-            <Icon name={searchMode === "content" ? "sparkle" : "search"} size={23} />
-            <input
-              aria-label="Nội dung tìm kiếm"
-              placeholder={searchMode === "content" ? "Mô tả chủ đề hoặc dán một đoạn văn bản bạn quan tâm..." : "Bạn muốn tìm hiểu điều gì?"}
-            />
-            <Button icon="search" onClick={() => { window.location.hash = searchMode === "content" ? "#/reader/content-search" : "#/reader/search"; }}>Tìm kiếm</Button>
-          </div>
-          <div className="search-support">
-            <span>{searchMode === "content" ? "Bạn có thể dùng câu hỏi tự nhiên, mô tả chủ đề hoặc một đoạn trích." : "Gợi ý: trí tuệ nhân tạo, mạng máy tính, xử lý tín hiệu..."}</span>
-            <button><Icon name="filter" size={15} />Tìm kiếm nâng cao</button>
-          </div>
-        </div>
-      </section>
-
-      <main className="reader-home-content">
-        <HomeSection
-          eyebrow="DÀNH RIÊNG CHO BẠN"
-          title="Tài liệu dành cho ngành của bạn"
-          subtitle="Được chọn dựa trên ngành đào tạo trong hồ sơ của bạn."
-          action="Xem tất cả"
-        >
-          <div className="book-grid">
-            {fieldBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book.id)} />)}
-          </div>
-        </HomeSection>
-
-        <HomeSection
-          eyebrow="ĐỀ XUẤT CÁ NHÂN HÓA"
-          title="Gợi ý dành cho bạn"
-          subtitle="Các tài liệu được lựa chọn từ ngành học và hành vi đọc của bạn."
-        >
-          <div className="recommendation-grid">
-            {recommendationBooks.filter((book) => !hiddenRecommendations.includes(book.id)).map((book) => (
-              <article className="recommendation-card" key={book.id}>
-                <BookCover book={book} compact />
-                <div className="recommendation-body">
-                  <div className="relevance"><Icon name="sparkle" size={14} /><strong>{book.relevance}% phù hợp</strong></div>
-                  <h3>{book.title}</h3>
-                  <p>{book.author}</p>
-                  <Rating value={book.rating} />
-                  <div className="recommendation-reason"><Icon name="info" size={15} />{book.reason}</div>
-                  <div className="recommendation-actions">
-                    <Button variant={saved.includes(book.id) ? "secondary" : "ghost"} size="sm" icon="bookmark" onClick={() => toggleSave(book.id)}>{saved.includes(book.id) ? "Đã lưu" : "Lưu"}</Button>
-                    <button onClick={() => setHiddenRecommendations((items) => [...items, book.id])}>Không quan tâm</button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        </HomeSection>
-
-        <HomeSection title="Tài liệu mới bổ sung" subtitle="Những tài liệu vừa được cập nhật vào bộ sưu tập thư viện." action="Khám phá tài liệu mới">
-          <div className="book-grid">
-            {newBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book.id)} />)}
-          </div>
-        </HomeSection>
-
-        <HomeSection title="Thông báo thư viện" action="Xem tất cả thông báo">
-          <div className="notice-list">
-            <article className="notice-item notice-warning"><span><Icon name="book" /></span><div><Badge tone="warning">SẮP ĐẾN HẠN</Badge><h3>01 tài liệu cần trả trước ngày 28/06/2025</h3><p>Giáo trình “Cấu trúc dữ liệu và giải thuật” sắp đến hạn trả.</p></div><Icon name="chevron-right" /></article>
-            <article className="notice-item notice-success"><span><Icon name="bookmark" /></span><div><Badge tone="success">ĐÃ SẴN SÀNG</Badge><h3>Sách đặt trước của bạn đã sẵn sàng</h3><p>Vui lòng nhận tài liệu tại quầy lưu thông trong vòng 48 giờ.</p></div><Icon name="chevron-right" /></article>
-            <article className="notice-item"><span><Icon name="bell" /></span><div><Badge tone="info">THƯ VIỆN</Badge><h3>Điều chỉnh thời gian phục vụ cuối tuần</h3><p>Thư viện mở cửa từ 08:00 đến 17:00 vào thứ Bảy tuần này.</p></div><Icon name="chevron-right" /></article>
-            <article className="notice-item notice-error"><span><Icon name="error" /></span><div><Badge tone="error">CÔNG NỢ</Badge><h3>Bạn có một khoản phí cần xử lý</h3><p>Phí quá hạn tài liệu hiện tại là 20.000đ. Liên hệ quầy để được hỗ trợ.</p></div><Icon name="chevron-right" /></article>
-          </div>
-        </HomeSection>
-      </main>
-
-      <footer className="reader-footer">
-        <div><Brand compact /><p>Học viện Công nghệ Bưu chính Viễn thông</p></div>
-        <nav aria-label="Liên kết chân trang"><button onClick={() => { window.location.hash = "#/reader/guidelines"; }}>Hướng dẫn sử dụng</button><button onClick={() => { window.location.hash = "#/reader/guidelines"; }}>Quy định thư viện</button><button>Liên hệ hỗ trợ</button></nav>
-        <small>© 2025 PTIT Library</small>
-      </footer>
-    </div>
-  );
-}
-
-type SearchResult = Book & {
-  publisher: string;
-  identifier: string;
-  subject: string;
-  description: string;
-  copies: number;
-  digital: boolean;
-};
-
-const searchResults: SearchResult[] = [
-  {
-    id: 101,
-    title: "Trí tuệ nhân tạo – Cơ sở và ứng dụng",
-    author: "Nguyễn Thanh Bình",
-    year: "2024",
-    type: "Sách",
-    rating: 5,
-    available: true,
-    code: "006.3",
-    cover: "cover-red",
-    publisher: "Nhà xuất bản Khoa học và Kỹ thuật",
-    identifier: "ISBN 978-604-67-2501-8",
-    subject: "Công nghệ thông tin",
-    description: "Trình bày các nền tảng, phương pháp và bài toán ứng dụng tiêu biểu của trí tuệ nhân tạo trong thực tiễn.",
-    copies: 3,
-    digital: true,
-  },
-  {
-    id: 102,
-    title: "Nhập môn học máy",
-    author: "Trần Minh Đức",
-    year: "2023",
-    type: "Giáo trình",
-    rating: 4,
-    available: false,
-    code: "006.31",
-    cover: "cover-charcoal",
-    publisher: "Nhà xuất bản Đại học Quốc gia Hà Nội",
-    identifier: "ISBN 978-604-342-881-3",
-    subject: "Công nghệ thông tin",
-    description: "Giáo trình nhập môn về học có giám sát, học không giám sát và các kỹ thuật đánh giá mô hình.",
-    copies: 0,
-    digital: false,
-  },
-  {
-    id: 103,
-    title: "Ứng dụng học sâu trong xử lý ngôn ngữ tự nhiên",
-    author: "Lê Hoàng Nam",
-    year: "2025",
-    type: "Sách",
-    rating: 5,
-    available: true,
-    code: "006.35",
-    cover: "cover-sand",
-    publisher: "Nhà xuất bản Bách khoa Hà Nội",
-    identifier: "ISBN 978-604-471-092-4",
-    subject: "Trí tuệ nhân tạo",
-    description: "Khảo sát mô hình học sâu hiện đại và cách ứng dụng trong phân loại văn bản, dịch máy và hỏi đáp tự động.",
-    copies: 2,
-    digital: true,
-  },
-  {
-    id: 104,
-    title: "Khai phá dữ liệu và ứng dụng",
-    author: "Phạm Thu Hà",
-    year: "2022",
-    type: "Giáo trình",
-    rating: 4,
-    available: false,
-    code: "005.74",
-    cover: "cover-slate",
-    publisher: "Nhà xuất bản Thông tin và Truyền thông",
-    identifier: "ISBN 978-604-80-7012-4",
-    subject: "Công nghệ thông tin",
-    description: "Cung cấp kiến thức về tiền xử lý dữ liệu, phân lớp, gom cụm và khai phá mẫu trong các tập dữ liệu lớn.",
-    copies: 0,
-    digital: true,
-  },
-];
-
-const filterGroups = [
-  { title: "Loại tài liệu", options: ["Tất cả", "Sách", "Giáo trình", "Luận văn / Luận án", "Bài báo / Tạp chí", "Tài liệu điện tử"] },
-  { title: "Tình trạng tài liệu", options: ["Có thể mượn", "Có bản điện tử", "Đang được mượn"] },
-  { title: "Ngôn ngữ", options: ["Tiếng Việt", "Tiếng Anh", "Ngôn ngữ khác"] },
-  { title: "Chương trình đào tạo / lĩnh vực", options: ["Công nghệ thông tin", "Kỹ thuật điện tử viễn thông", "An toàn thông tin", "Quản trị kinh doanh"] },
-];
 
 function HighlightText({ text, query }: { text: string; query: string }) {
   const normalized = query.trim();
@@ -618,43 +231,6 @@ function SearchResultsPage({ empty = false }: { empty?: boolean }) {
   );
 }
 
-type ContentSearchResult = Book & {
-  relevance: number;
-  classification: string;
-  snippetBefore: string;
-  snippetMatch: string;
-  snippetAfter: string;
-  location: string;
-  copies: string;
-  shelf: string;
-  digital: boolean;
-  borrows: number;
-  communityRating: string;
-};
-
-const contentSearchResults: ContentSearchResult[] = [
-  {
-    id: 301, title: "Trí tuệ nhân tạo trong đổi mới giáo dục đại học", author: "Nguyễn Thị Lan Hương", year: "2024", type: "Sách chuyên khảo", rating: 5, available: true, code: "378.173", cover: "cover-red",
-    relevance: 96, classification: "378.173 NG-H 2024", snippetBefore: "Kết quả nghiên cứu cho thấy ", snippetMatch: "ứng dụng AI trong giáo dục đại học", snippetAfter: " đang tạo ra những thay đổi đáng kể trong phương pháp giảng dạy, đánh giá và hỗ trợ người học theo hướng cá nhân hóa.", location: "Trang 42 · Chương 3 · Ứng dụng AI", copies: "3 / 5 bản có sẵn", shelf: "Kệ A2-03", digital: true, borrows: 24, communityRating: "4.7",
-  },
-  {
-    id: 302, title: "Chuyển đổi số và tương lai của giáo dục", author: "Trần Minh Tuấn, Phạm Thu Hà", year: "2023", type: "Tài liệu hội thảo", rating: 4, available: true, code: "370.285", cover: "cover-charcoal",
-    relevance: 91, classification: "370.285 TR-T 2023", snippetBefore: "Trong bối cảnh chuyển đổi số, ", snippetMatch: "trí tuệ nhân tạo tác động đến giáo dục đại học", snippetAfter: " không chỉ ở công nghệ mà còn ở mô hình quản trị, năng lực giảng viên và cách thức kiến tạo tri thức.", location: "Trang 18 · Phần 2 · Chuyển đổi mô hình đào tạo", copies: "1 / 2 bản có sẵn", shelf: "Kệ B1-12", digital: true, borrows: 37, communityRating: "4.5",
-  },
-  {
-    id: 303, title: "Cá nhân hóa học tập bằng công nghệ AI", author: "Lê Hoàng Anh", year: "2024", type: "Luận án tiến sĩ", rating: 5, available: false, code: "371.334", cover: "cover-slate",
-    relevance: 87, classification: "LA 371.334 LE-A 2024", snippetBefore: "Các hệ thống học tập thích ứng sử dụng dữ liệu để ", snippetMatch: "cá nhân hóa trải nghiệm giáo dục đại học", snippetAfter: ", đồng thời cung cấp cho giảng viên những chỉ báo sớm về tiến độ và nhu cầu hỗ trợ của sinh viên.", location: "Trang 76 · Chương 4 · Mô hình học tập thích ứng", copies: "0 / 1 bản có sẵn", shelf: "Kho luận án LA-04", digital: true, borrows: 12, communityRating: "4.8",
-  },
-];
-
-const contentFilterGroups = [
-  { title: "Ngành đào tạo", options: ["Công nghệ thông tin", "Khoa học máy tính", "Công nghệ giáo dục"] },
-  { title: "Dạng tài liệu", options: ["Sách", "Luận án, luận văn", "Bài báo khoa học", "Tài liệu hội thảo"] },
-  { title: "Ngôn ngữ", options: ["Tiếng Việt", "Tiếng Anh"] },
-  { title: "Năm xuất bản", options: ["2025", "2024", "2023", "Trước 2023"] },
-  { title: "Tình trạng sẵn có", options: ["Có sẵn tại thư viện", "Có thể đặt trước"] },
-];
-
 function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSearchResult; saved: boolean; onSave: () => void }) {
   const documentPage = result.id === 301 ? 42 : result.id === 302 ? 18 : 76;
   return (
@@ -729,30 +305,6 @@ function ContentSearchResultsPage({ empty = false }: { empty?: boolean }) {
     </div>
   );
 }
-
-const detailBook: Book = {
-  id: 201,
-  title: "Trí tuệ nhân tạo trong đổi mới giáo dục đại học",
-  author: "Nguyễn Thị Lan Hương",
-  year: "2024",
-  type: "Sách chuyên khảo",
-  rating: 5,
-  available: true,
-  code: "378.173",
-  cover: "cover-red",
-};
-
-const relatedSimilar: Book[] = [
-  { id: 211, title: "Cá nhân hóa học tập bằng công nghệ AI", author: "Lê Hoàng Anh", year: "2024", type: "Luận án tiến sĩ", rating: 5, available: false, code: "371.334", cover: "cover-slate" },
-  { id: 212, title: "Chuyển đổi số và tương lai của giáo dục", author: "Trần Minh Tuấn", year: "2023", type: "Tài liệu hội thảo", rating: 4, available: true, code: "370.285", cover: "cover-charcoal" },
-  { id: 213, title: "Dữ liệu lớn trong quản trị đại học", author: "Phạm Thu Hà", year: "2024", type: "Sách tham khảo", rating: 4, available: true, code: "378.1", cover: "cover-sand" },
-];
-
-const relatedBorrowed: Book[] = [
-  { id: 221, title: "Học máy: Từ lý thuyết đến thực hành", author: "Đỗ Thanh Hà", year: "2023", type: "Giáo trình", rating: 5, available: true, code: "006.31", cover: "cover-charcoal" },
-  { id: 222, title: "Thiết kế trải nghiệm học tập số", author: "Lê Thu Trang", year: "2024", type: "Sách chuyên khảo", rating: 4, available: true, code: "371.33", cover: "cover-red" },
-  { id: 223, title: "Nghiên cứu khoa học trong kỷ nguyên số", author: "Vũ Minh Đức", year: "2022", type: "Sách tham khảo", rating: 4, available: false, code: "001.42", cover: "cover-slate" },
-];
 
 function BookDetailPage() {
   const [saved, setSaved] = useState(false);
@@ -868,25 +420,6 @@ function BookDetailPage() {
     </div>
   );
 }
-
-const documentChapters = [
-  { title: "Lời nói đầu", page: 5 },
-  { title: "Chương 1 · Tổng quan về trí tuệ nhân tạo", page: 11 },
-  { title: "Chương 2 · Chuyển đổi số trong giáo dục", page: 27 },
-  { title: "Chương 3 · Ứng dụng AI", page: 39, sections: [{ title: "3.1. Hỗ trợ hoạt động giảng dạy", page: 39 }, { title: "3.2. Cá nhân hóa học tập", page: 42 }, { title: "3.3. Đánh giá người học", page: 51 }] },
-  { title: "Chương 4 · Quản trị và dữ liệu", page: 68 },
-  { title: "Chương 5 · Đạo đức và trách nhiệm", page: 94 },
-  { title: "Kết luận", page: 124 },
-  { title: "Tài liệu tham khảo", page: 131 },
-];
-
-const matchItems = [
-  { page: 42, chapter: "Chương 3 · Ứng dụng AI", section: "3.2. Cá nhân hóa học tập", before: "việc ", match: "ứng dụng AI trong giáo dục đại học", after: " đang tạo ra những thay đổi đáng kể trong phương pháp giảng dạy và hỗ trợ người học." },
-  { page: 44, chapter: "Chương 3 · Ứng dụng AI", section: "3.2. Cá nhân hóa học tập", before: "Những mô hình ", match: "trí tuệ nhân tạo trong giáo dục", after: " cần được thiết kế dựa trên nhu cầu, năng lực và bối cảnh của từng nhóm sinh viên." },
-  { page: 97, chapter: "Chương 5 · Đạo đức và trách nhiệm", section: "5.1. Nguyên tắc sử dụng AI", before: "Tính minh bạch khi ", match: "ứng dụng AI", after: " là điều kiện quan trọng để bảo đảm quyền lợi của giảng viên và người học." },
-];
-
-const reviewLabels = ["Rất không hài lòng", "Không hài lòng", "Bình thường", "Hài lòng", "Rất hài lòng"];
 
 function ReviewStarInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   return (
@@ -1104,65 +637,6 @@ function DocumentReader({ initialPage }: { initialPage: number }) {
       </div>
       {(tocOpen || matchesOpen) && <button className="reader-mobile-scrim" aria-label="Đóng bảng điều khiển" onClick={() => { setTocOpen(false); setMatchesOpen(false); }} />}
     </div>
-  );
-}
-
-const loanBooks: Array<Book & { borrowed: string; due: string; days: number; renewable: boolean }> = [
-  { id: 301, title: "Cấu trúc dữ liệu và giải thuật", author: "Nguyễn Đức Nghĩa", year: "2023", type: "Giáo trình", rating: 5, available: false, code: "005.73", cover: "cover-red", borrowed: "12/06/2025", due: "10/07/2025", days: 12, renewable: true },
-  { id: 302, title: "Mạng máy tính và hệ thống phân tán", author: "Lê Nhật Quang", year: "2024", type: "Sách chuyên khảo", rating: 4, available: false, code: "004.6", cover: "cover-charcoal", borrowed: "28/05/2025", due: "25/06/2025", days: -3, renewable: false },
-  { id: 303, title: "Nhập môn Khoa học dữ liệu", author: "Trần Đức Khánh", year: "2023", type: "Giáo trình", rating: 4, available: false, code: "006.3", cover: "cover-sand", borrowed: "08/06/2025", due: "06/07/2025", days: 8, renewable: true },
-];
-
-const reservedBooks = [
-  { ...relatedSimilar[0], id: 311, position: "02", reserved: "18/06/2025", status: "Đang chờ", expiration: "Chưa xác định" },
-  { ...relatedSimilar[1], id: 312, position: "Sẵn sàng", reserved: "11/06/2025", status: "Chờ nhận", expiration: "30/06/2025 · 17:00" },
-];
-
-const shelfGroups: Record<string, Book[]> = {
-  "Muốn đọc": [fieldBooks[0], newBooks[1], relatedSimilar[2]],
-  "Đang đọc": [relatedBorrowed[0], newBooks[2]],
-  "Đã đọc": [fieldBooks[1], relatedBorrowed[1], relatedBorrowed[2]],
-};
-
-const loanHistory = [
-  { ...relatedBorrowed[0], id: 321, borrowed: "03/04/2025", returned: "28/04/2025", returnStatus: "Đã trả đúng hạn", historyRating: 5 },
-  { ...newBooks[2], id: 322, borrowed: "11/03/2025", returned: "10/04/2025", returnStatus: "Trả muộn 2 ngày", historyRating: 4 },
-  { ...fieldBooks[3], id: 323, borrowed: "14/01/2025", returned: "08/02/2025", returnStatus: "Đã trả đúng hạn", historyRating: 0 },
-];
-
-const libraryTabs = ["Đang mượn", "Lịch sử mượn", "Đặt trước", "Muốn đọc", "Đang đọc", "Đã đọc"];
-
-function LibraryListCard({
-  book,
-  badge,
-  badgeTone = "neutral",
-  status,
-  statusHint,
-  statusTone = "success",
-  details,
-  actions,
-}: {
-  book: Book;
-  badge: string;
-  badgeTone?: "brand" | "neutral" | "success" | "warning" | "error" | "info";
-  status: string;
-  statusHint: string;
-  statusTone?: "success" | "warning" | "error" | "info";
-  details: Array<{ label: string; value: React.ReactNode }>;
-  actions: React.ReactNode;
-}) {
-  return (
-    <article className={`loan-card ${statusTone === "error" ? "overdue" : ""}`}>
-      <BookCover book={book} compact />
-      <div className="loan-card-body">
-        <div className="loan-title-row">
-          <div><Badge tone={badgeTone}>{badge}</Badge><h3>{book.title}</h3><p>{book.author}</p></div>
-          <span className={`loan-countdown ${statusTone === "error" ? "overdue" : statusTone === "success" ? "" : statusTone}`}><strong>{status}</strong><small>{statusHint}</small></span>
-        </div>
-        <dl className="loan-dates">{details.map((detail) => <div key={detail.label}><dt>{detail.label}</dt><dd>{detail.value}</dd></div>)}</dl>
-        <div className="loan-actions">{actions}</div>
-      </div>
-    </article>
   );
 }
 
@@ -1443,261 +917,6 @@ function PersonalProfilePage({ restricted = false }: { restricted?: boolean }) {
   );
 }
 
-const guidelineSections = [
-  "Hạn mức mượn",
-  "Thời hạn mượn",
-  "Gia hạn",
-  "Đặt trước",
-  "Tài liệu không được mượn về",
-  "Phạt trả muộn",
-  "Hư hỏng và mất tài liệu",
-  "Quy trình mượn",
-  "Quy trình trả",
-];
-
-function GuidelineSection({
-  index,
-  title,
-  children,
-}: {
-  index: number;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <details className="guideline-section" id={`guideline-${index}`} open>
-      <summary><span>{String(index).padStart(2, "0")}</span><strong>{title}</strong><Icon name="chevron-down" size={17} /></summary>
-      <div className="guideline-section-content">{children}</div>
-    </details>
-  );
-}
-
-function GuidelinesPage() {
-  return (
-    <div className="guidelines-page">
-      <section className="guidelines-hero">
-        <div>
-          <Breadcrumb items={["Trang chủ", "Nội quy & hướng dẫn"]} />
-          <Badge tone="brand"><Icon name="library" size={14} /> THÔNG TIN BẠN ĐỌC</Badge>
-          <h1>Nội quy &amp; hướng dẫn</h1>
-          <p>Thông tin cần biết về hạn mức, thời hạn và quy trình sử dụng tài liệu tại Thư viện PTIT.</p>
-          <div className="guidelines-meta"><span><Icon name="success" size={15} />Áp dụng cho bạn đọc Thư viện PTIT</span><span>Cập nhật: 20/06/2025</span></div>
-        </div>
-      </section>
-
-      <main className="guidelines-layout">
-        <aside className="guidelines-nav">
-          <p>NỘI DUNG TRANG</p>
-          <nav aria-label="Nội dung nội quy">{guidelineSections.map((section, index) => <button key={section} onClick={() => document.getElementById(`guideline-${index + 1}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>{String(index + 1).padStart(2, "0")}</span>{section}</button>)}</nav>
-          <div className="guideline-support"><Icon name="info" /><div><strong>Cần hỗ trợ?</strong><p>Liên hệ quầy lưu thông hoặc bộ phận hỗ trợ bạn đọc.</p><button>Thông tin liên hệ</button></div></div>
-        </aside>
-
-        <article className="guidelines-content">
-          <GuidelineSection index={1} title="Hạn mức mượn">
-            <p>Hạn mức và thời gian mượn được xác định theo nhóm bạn đọc và loại kho. Bạn đọc cần sử dụng đúng tài khoản cá nhân khi thực hiện giao dịch.</p>
-            <div className="borrowing-table-wrap">
-              <table className="borrowing-table">
-                <thead><tr><th>Nhóm bạn đọc</th><th>Phạm vi kho</th><th>Số lượng tối đa</th><th>Thời hạn</th></tr></thead>
-                <tbody>
-                  <tr><td><strong>Cán bộ, giảng viên</strong></td><td>Kho thông thường</td><td><b>07 cuốn</b></td><td><b>60 ngày</b></td></tr>
-                  <tr><td><strong>Sinh viên hệ chính quy</strong></td><td>Kho thông thường</td><td><b>08 cuốn</b></td><td><b>150 ngày</b></td></tr>
-                  <tr><td><strong>Sinh viên hệ khác / học viên cao học / nghiên cứu sinh</strong></td><td>Kho thông thường</td><td><b>05 cuốn</b></td><td><b>150 ngày</b></td></tr>
-                  <tr><td><strong>Cán bộ, giảng viên</strong></td><td><Badge tone="info">KHO MỞ</Badge></td><td><b>03 cuốn</b></td><td><b>15 ngày</b></td></tr>
-                  <tr><td><strong>Học viên, sinh viên</strong></td><td><Badge tone="info">KHO MỞ</Badge></td><td><b>02 cuốn</b></td><td><b>07 ngày</b></td></tr>
-                  <tr className="restricted-row"><td><strong>Người ngoài Học viện</strong></td><td>Chỉ đọc tại chỗ</td><td colSpan={2}><Badge tone="error">KHÔNG ĐƯỢC MƯỢN VỀ</Badge></td></tr>
-                </tbody>
-              </table>
-            </div>
-            <p className="guideline-note"><Icon name="info" size={15} />Số lượng trên là tổng số tài liệu được giữ đồng thời trên tài khoản bạn đọc.</p>
-          </GuidelineSection>
-
-          <GuidelineSection index={2} title="Thời hạn mượn">
-            <div className="guideline-card-grid">
-              <article><span><Icon name="users" /></span><div><strong>Cán bộ, giảng viên</strong><p>60 ngày với kho thông thường; 15 ngày với tài liệu kho mở.</p></div></article>
-              <article><span><Icon name="book" /></span><div><strong>Sinh viên chính quy</strong><p>150 ngày với kho thông thường; 07 ngày với tài liệu kho mở.</p></div></article>
-              <article><span><Icon name="document" /></span><div><strong>Học viên và nghiên cứu sinh</strong><p>150 ngày với kho thông thường; 07 ngày khi sử dụng kho mở.</p></div></article>
-            </div>
-            <p>Ngày hết hạn được ghi nhận trên tài khoản và biên nhận mượn. Bạn đọc nên kiểm tra mục “Thư viện của tôi” để chủ động hoàn trả đúng hạn.</p>
-          </GuidelineSection>
-
-          <GuidelineSection index={3} title="Gia hạn">
-            <ul className="guideline-list">
-              <li>Tài liệu chỉ được gia hạn khi chưa quá hạn và không có bạn đọc khác đặt trước.</li>
-              <li>Yêu cầu gia hạn cần được thực hiện trước ngày hết hạn trên tài khoản.</li>
-              <li>Thời gian gia hạn được tính từ ngày thực hiện thao tác và phụ thuộc vào nhóm bạn đọc.</li>
-              <li>Tài liệu thuộc kho mở hoặc tài liệu có giới hạn đặc biệt có thể không được gia hạn.</li>
-            </ul>
-            <div className="inline-process"><span>01<small>Mở “Thư viện của tôi”</small></span><i /><span>02<small>Chọn tài liệu đang mượn</small></span><i /><span>03<small>Chọn “Gia hạn tài liệu”</small></span></div>
-          </GuidelineSection>
-
-          <GuidelineSection index={4} title="Đặt trước">
-            <p>Bạn đọc có thể đặt trước tài liệu đang được mượn hết. Hệ thống sẽ xếp hàng theo thời điểm gửi yêu cầu và thông báo khi tài liệu sẵn sàng.</p>
-            <div className="guideline-callout info"><Icon name="bookmark" /><div><strong>Thời gian giữ tài liệu</strong><p>Sau khi nhận thông báo, bạn đọc cần đến nhận trong thời hạn được ghi trên yêu cầu đặt trước. Quá thời hạn, lượt giữ sẽ được chuyển cho người tiếp theo.</p></div></div>
-          </GuidelineSection>
-
-          <GuidelineSection index={5} title="Tài liệu không được mượn về">
-            <p>Các nhóm tài liệu sau chỉ được sử dụng tại phòng đọc hoặc theo hướng dẫn riêng của cán bộ thư viện:</p>
-            <div className="restricted-materials">
-              {["Tài liệu có dấu đỏ", "Sách tra cứu", "Luận án", "Luận văn", "Báo", "Tạp chí"].map((item) => <span key={item}><Icon name="document" size={17} />{item}</span>)}
-            </div>
-            <div className="guideline-callout warning"><Icon name="info" /><div><strong>Không mang tài liệu ra khỏi khu vực quy định</strong><p>Việc sao chụp hoặc sử dụng bản số phải tuân thủ pháp luật về bản quyền và quy định của Thư viện PTIT.</p></div></div>
-          </GuidelineSection>
-
-          <GuidelineSection index={6} title="Phạt trả muộn">
-            <div className="late-fee-alert"><span><Icon name="error" size={24} /></span><div><small>MỨC PHÍ ÁP DỤNG</small><strong>Phí phạt trả muộn: 2.000 đồng/cuốn/ngày quá hạn.</strong><p>Phí được tính theo từng tài liệu, bắt đầu từ ngày liền sau hạn trả đến ngày tài liệu được hoàn trả.</p></div></div>
-            <p>Khi còn tài liệu quá hạn hoặc công nợ chưa xử lý, tài khoản có thể bị tạm dừng quyền mượn, gia hạn và đặt trước. Bạn đọc thanh toán phí tại quầy lưu thông và nhận xác nhận hoàn tất.</p>
-          </GuidelineSection>
-
-          <GuidelineSection index={7} title="Hư hỏng và mất tài liệu">
-            <ul className="guideline-list">
-              <li>Thông báo ngay cho cán bộ thư viện khi phát hiện tài liệu bị rách, thiếu trang hoặc có dấu hiệu hư hỏng.</li>
-              <li>Không tự ý sửa chữa, dán băng keo, ghi chú hoặc đánh dấu lên tài liệu.</li>
-              <li>Trường hợp làm mất hoặc hư hỏng tài liệu, bạn đọc có trách nhiệm bồi hoàn theo giá trị và quy định hiện hành của Học viện.</li>
-              <li>Mức bồi hoàn được xác định theo tình trạng, khả năng thay thế và chi phí xử lý nghiệp vụ.</li>
-            </ul>
-          </GuidelineSection>
-
-          <GuidelineSection index={8} title="Quy trình mượn">
-            <ol className="workflow-steps">
-              <li><span>01</span><div><strong>Tra cứu tài liệu</strong><p>Tìm trên PTIT Library và kiểm tra trạng thái, vị trí kệ của bản in.</p></div></li>
-              <li><span>02</span><div><strong>Lấy tài liệu tại kho</strong><p>Ghi nhận đúng mã phân loại và vị trí; giữ trật tự khi sử dụng kho mở.</p></div></li>
-              <li><span>03</span><div><strong>Thực hiện giao dịch</strong><p>Xuất trình thẻ bạn đọc tại quầy hoặc sử dụng máy mượn tự động.</p></div></li>
-              <li><span>04</span><div><strong>Kiểm tra biên nhận</strong><p>Xác nhận tên tài liệu, số lượng và ngày hết hạn trước khi rời thư viện.</p></div></li>
-            </ol>
-          </GuidelineSection>
-
-          <GuidelineSection index={9} title="Quy trình trả">
-            <ol className="workflow-steps">
-              <li><span>01</span><div><strong>Kiểm tra thời hạn</strong><p>Chủ động xem hạn trả trong “Thư viện của tôi” và mang tài liệu đến thư viện.</p></div></li>
-              <li><span>02</span><div><strong>Hoàn trả tài liệu</strong><p>Trả tại quầy lưu thông hoặc thiết bị trả sách theo hướng dẫn.</p></div></li>
-              <li><span>03</span><div><strong>Xác nhận tình trạng</strong><p>Cán bộ thư viện kiểm tra tài liệu và cập nhật trạng thái trên hệ thống.</p></div></li>
-              <li><span>04</span><div><strong>Hoàn tất công nợ</strong><p>Thanh toán phí quá hạn hoặc xử lý hư hỏng nếu có và nhận xác nhận.</p></div></li>
-            </ol>
-          </GuidelineSection>
-        </article>
-      </main>
-    </div>
-  );
-}
-
-type LibraryNotification = {
-  id: string;
-  title: string;
-  category: string;
-  relativeTime: string;
-  sentAt: string;
-  unread: boolean;
-  icon: "book" | "bookmark" | "success";
-  tone: "brand" | "warning" | "success";
-  intro: string;
-  details: Array<{ label: string; value: string }>;
-  relatedTitle: string;
-  relatedSubtitle: string;
-  actionLabel?: string;
-  actionPath?: string;
-  expired?: boolean;
-};
-
-const libraryNotifications: Record<string, LibraryNotification> = {
-  due: {
-    id: "due",
-    title: "Tài liệu sắp đến hạn trả",
-    category: "MƯỢN VÀ TRẢ TÀI LIỆU",
-    relativeTime: "2 giờ trước",
-    sentAt: "13/10/2026 · 09:30",
-    unread: true,
-    icon: "book",
-    tone: "warning",
-    intro: "Bạn có tài liệu sắp đến hạn trả. Vui lòng kiểm tra thông tin bên dưới và hoàn tất việc trả tài liệu đúng hạn để tránh phát sinh phí phạt theo quy định của thư viện.",
-    details: [
-      { label: "Tên tài liệu", value: "Nhập môn Trí tuệ nhân tạo" },
-      { label: "Ngày mượn", value: "05/10/2026" },
-      { label: "Hạn trả", value: "15/10/2026" },
-      { label: "Trạng thái", value: "Sắp đến hạn" },
-    ],
-    relatedTitle: "Nhập môn Trí tuệ nhân tạo",
-    relatedSubtitle: "Giáo trình · Nguyễn Văn A · 2024",
-    actionLabel: "Xem chi tiết khoản mượn",
-    actionPath: "#/reader/my-library",
-  },
-  reserved: {
-    id: "reserved",
-    title: "Đặt trước tài liệu thành công",
-    category: "ĐẶT TRƯỚC TÀI LIỆU",
-    relativeTime: "Hôm qua",
-    sentAt: "12/10/2026 · 14:20",
-    unread: false,
-    icon: "bookmark",
-    tone: "brand",
-    intro: "Yêu cầu đặt trước của bạn đã được ghi nhận. Thư viện sẽ thông báo khi tài liệu có bản sẵn sàng để nhận.",
-    details: [
-      { label: "Tên tài liệu", value: "Khai phá dữ liệu và ứng dụng" },
-      { label: "Ngày đặt trước", value: "12/10/2026" },
-      { label: "Vị trí hàng chờ", value: "02" },
-      { label: "Trạng thái", value: "Đang chờ" },
-    ],
-    relatedTitle: "Khai phá dữ liệu và ứng dụng",
-    relatedSubtitle: "Giáo trình · Phạm Thu Hà · 2022",
-    actionLabel: "Xem yêu cầu đặt trước",
-    actionPath: "#/reader/my-library/reservations",
-  },
-  ready: {
-    id: "ready",
-    title: "Tài liệu đã sẵn sàng để nhận",
-    category: "ĐẶT TRƯỚC TÀI LIỆU",
-    relativeTime: "2 ngày trước",
-    sentAt: "11/10/2026 · 10:05",
-    unread: true,
-    icon: "success",
-    tone: "success",
-    intro: "Tài liệu bạn đặt trước hiện đã sẵn sàng. Vui lòng đến quầy lưu thông trong thời hạn giữ tài liệu được thông báo bên dưới.",
-    details: [
-      { label: "Tên tài liệu", value: "Trí tuệ nhân tạo – Cơ sở và ứng dụng" },
-      { label: "Trạng thái", value: "Chờ nhận" },
-      { label: "Địa điểm nhận", value: "Quầy lưu thông" },
-      { label: "Thời hạn giữ", value: "15/10/2026 · 17:00" },
-    ],
-    relatedTitle: "Trí tuệ nhân tạo – Cơ sở và ứng dụng",
-    relatedSubtitle: "Sách chuyên khảo · Nguyễn Thanh Bình · 2024",
-    actionLabel: "Xem thông tin tài liệu",
-    actionPath: "#/reader/book-detail",
-  },
-  expired: {
-    id: "expired",
-    title: "Yêu cầu đặt trước đã hết hiệu lực",
-    category: "ĐẶT TRƯỚC TÀI LIỆU",
-    relativeTime: "7 ngày trước",
-    sentAt: "06/10/2026 · 17:05",
-    unread: false,
-    icon: "bookmark",
-    tone: "warning",
-    intro: "Thời hạn nhận tài liệu đã kết thúc. Yêu cầu đặt trước này không còn hiệu lực và không thể tiếp tục xử lý.",
-    details: [
-      { label: "Tên tài liệu", value: "Mạng máy tính và hệ thống phân tán" },
-      { label: "Trạng thái hiện tại", value: "Đã hết hiệu lực" },
-    ],
-    relatedTitle: "Mạng máy tính và hệ thống phân tán",
-    relatedSubtitle: "Sách chuyên khảo · Lê Nhật Quang · 2024",
-    expired: true,
-  },
-};
-
-function NotificationDropdown({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div className="notification-dropdown" role="menu">
-      <header><div><strong>Thông báo</strong><span>2 thông báo chưa đọc</span></div><Badge tone="brand">3 MỚI NHẤT</Badge></header>
-      <div>
-        {["due", "reserved", "ready"].map((id) => {
-          const item = libraryNotifications[id];
-          return <button key={item.id} className={item.unread ? "unread" : ""} onClick={() => { onClose(); window.location.hash = `#/reader/notifications/${item.id}`; }}><span className={`notification-type ${item.tone}`}><Icon name={item.icon} size={17} /></span><span><strong>{item.title}</strong><small>{item.category} · {item.relativeTime}</small></span>{item.unread && <i />}</button>;
-        })}
-      </div>
-      <button className="all-notifications" onClick={() => { onClose(); window.location.hash = "#/reader"; }}>Tất cả thông báo<Icon name="chevron-right" size={14} /></button>
-    </div>
-  );
-}
-
 function NotificationDetailPage({ notificationId }: { notificationId: string }) {
   const notification = libraryNotifications[notificationId];
   const [read, setRead] = useState(notification ? !notification.unread : true);
@@ -1824,84 +1043,6 @@ function ReaderPortal({ path }: { path: string }) {
   );
 }
 
-function WorkspaceSidebar({
-  role,
-  collapsed,
-  mobileOpen,
-  active,
-  onActiveChange,
-  onCollapse,
-  onMobileClose,
-  onLogout,
-}: {
-  role: "staff" | "admin";
-  collapsed: boolean;
-  mobileOpen: boolean;
-  active: string;
-  onActiveChange: (label: string) => void;
-  onCollapse: () => void;
-  onMobileClose: () => void;
-  onLogout: () => void;
-}) {
-  const navigation = role === "staff" ? staffNavigation : adminNavigation;
-  return (
-    <aside className={`workspace-sidebar ${collapsed ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`}>
-      <div className="workspace-brand-row">
-        <Brand />
-        <IconButton label="Đóng điều hướng" icon="close" onClick={onMobileClose} />
-      </div>
-      <div className="workspace-label">
-        <small>{role === "staff" ? "KHÔNG GIAN NGHIỆP VỤ" : "KHÔNG GIAN QUẢN TRỊ"}</small>
-        <strong>{role === "staff" ? "Thư viện" : "Hệ thống"}</strong>
-      </div>
-      <nav className="workspace-nav" aria-label={role === "staff" ? "Điều hướng nhân viên" : "Điều hướng quản trị"}>
-        <p>ĐIỀU HƯỚNG CHÍNH</p>
-        {navigation.map((item) => (
-          <button
-            key={item.label}
-            className={active === item.label ? "active" : ""}
-            title={collapsed ? item.label : undefined}
-            onClick={() => {
-              onActiveChange(item.label);
-              onMobileClose();
-            }}
-          >
-            <Icon name={item.icon} />
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
-      <nav className="workspace-nav workspace-nav-bottom" aria-label="Tùy chọn tài khoản">
-        <button className={active === "Thông tin cá nhân" ? "active" : ""} onClick={() => { onActiveChange("Thông tin cá nhân"); onMobileClose(); }}><Icon name="users" /><span>Tài khoản</span></button>
-        <button><Icon name="settings" /><span>Cài đặt</span></button>
-        <button className="logout" onClick={onLogout}><Icon name="arrow-left" /><span>Đăng xuất</span></button>
-      </nav>
-      <button className="collapse-control" onClick={onCollapse} aria-label={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}>
-        <Icon name={collapsed ? "chevron-right" : "chevron-left"} size={17} />
-      </button>
-    </aside>
-  );
-}
-
-const staffSummary = [
-  { label: "Tổng số tài liệu", value: "48.632", change: "+286 tháng này", icon: "book" as const, tone: "brand" },
-  { label: "Đang mượn", value: "1.284", change: "2,6% tổng số bản", icon: "sparkle" as const, tone: "info" },
-  { label: "Quá hạn", value: "86", change: "12 quá hạn trên 30 ngày", icon: "error" as const, tone: "error" },
-  { label: "Đặt trước", value: "142", change: "38 lượt chờ xử lý", icon: "bookmark" as const, tone: "warning" },
-  { label: "Bạn đọc hoạt động", value: "8.947", change: "+4,8% so với kỳ trước", icon: "users" as const, tone: "success" },
-  { label: "Tài liệu số", value: "12.406", change: "24 tệp đang xử lý", icon: "document" as const, tone: "neutral" },
-];
-
-const circulationData = [
-  { day: "16/06", borrowed: 118, returned: 92, overdue: 14 },
-  { day: "17/06", borrowed: 142, returned: 126, overdue: 18 },
-  { day: "18/06", borrowed: 132, returned: 148, overdue: 16 },
-  { day: "19/06", borrowed: 176, returned: 135, overdue: 22 },
-  { day: "20/06", borrowed: 154, returned: 162, overdue: 19 },
-  { day: "21/06", borrowed: 98, returned: 86, overdue: 11 },
-  { day: "22/06", borrowed: 84, returned: 76, overdue: 9 },
-];
-
 function CirculationChart() {
   const max = 200;
   return (
@@ -1925,8 +1066,6 @@ function CirculationChart() {
     </div>
   );
 }
-
-const circulationTabs = ["Cho mượn", "Nhận trả", "Gia hạn"];
 
 function ReaderInformationCard() {
   return (
@@ -2059,23 +1198,6 @@ function CirculationScreen() {
   );
 }
 
-type CatalogRecord = Book & {
-  isbn: string;
-  copies: number;
-  digitalFiles: number;
-  recordCode: string;
-  recordStatus: "Đã xuất bản" | "Bản nháp" | "Cần bổ sung";
-};
-
-const catalogRecords: CatalogRecord[] = [
-  { id: 401, title: "Trí tuệ nhân tạo: Nền tảng và ứng dụng", author: "Nguyễn Thanh Thủy", year: "2024", type: "Sách chuyên khảo", rating: 5, available: true, code: "005.1", cover: "cover-red", isbn: "978-604-80-8932-1", copies: 5, digitalFiles: 2, recordCode: "BIB-0001842", recordStatus: "Đã xuất bản" },
-  { id: 402, title: "Cấu trúc dữ liệu và giải thuật", author: "Nguyễn Đức Nghĩa", year: "2023", type: "Giáo trình", rating: 5, available: true, code: "005.73", cover: "cover-charcoal", isbn: "978-604-67-2451-8", copies: 8, digitalFiles: 1, recordCode: "BIB-0001108", recordStatus: "Đã xuất bản" },
-  { id: 403, title: "Mạng máy tính và hệ thống phân tán", author: "Lê Nhật Quang", year: "2024", type: "Sách chuyên khảo", rating: 4, available: false, code: "004.6", cover: "cover-slate", isbn: "978-604-76-2918-4", copies: 4, digitalFiles: 1, recordCode: "BIB-0002016", recordStatus: "Đã xuất bản" },
-  { id: 404, title: "Nghiên cứu ứng dụng AI tạo sinh trong giáo dục", author: "Trần Minh Tuấn", year: "2025", type: "Báo cáo nghiên cứu", rating: 4, available: true, code: "371.33", cover: "cover-sand", isbn: "Chưa cấp ISBN", copies: 1, digitalFiles: 3, recordCode: "BIB-0002431", recordStatus: "Bản nháp" },
-  { id: 405, title: "An toàn thông tin trong kỷ nguyên số", author: "Phạm Văn Cường", year: "2022", type: "Sách tham khảo", rating: 4, available: true, code: "005.8", cover: "cover-red", isbn: "978-604-80-7216-3", copies: 4, digitalFiles: 0, recordCode: "BIB-0000964", recordStatus: "Cần bổ sung" },
-  { id: 406, title: "Thiết kế trải nghiệm người dùng", author: "Lê Thu Trang", year: "2025", type: "Giáo trình", rating: 4, available: true, code: "004.2", cover: "cover-slate", isbn: "978-604-67-3022-9", copies: 6, digitalFiles: 2, recordCode: "BIB-0002356", recordStatus: "Đã xuất bản" },
-];
-
 function MaterialsManagementPage() {
   const [searchType, setSearchType] = useState("Nhan đề");
   const [selected, setSelected] = useState<number[]>([]);
@@ -2156,16 +1278,6 @@ type DigitalFileRow = {
   access: string;
   status: string;
 };
-
-const trainingPrograms = [
-  "Công nghệ thông tin",
-  "Khoa học máy tính",
-  "An toàn thông tin",
-  "Điện tử viễn thông",
-  "Công nghệ đa phương tiện",
-  "Quản trị kinh doanh",
-  "Thương mại điện tử",
-];
 
 function BibliographicRecordForm({ edit = false }: { edit?: boolean }) {
   const [form, setForm] = useState({
@@ -2293,37 +1405,6 @@ function BibliographicRecordForm({ edit = false }: { edit?: boolean }) {
   );
 }
 
-type ProcessingJob = {
-  id: number;
-  title: string;
-  record: string;
-  file: string;
-  size: string;
-  status: "Đang chờ" | "Đang xử lý" | "Hoàn thành" | "Lỗi";
-  progress: number;
-  started: string;
-  completed: string;
-  stage: string;
-};
-
-const initialProcessingJobs: ProcessingJob[] = [
-  { id: 501, title: "Trí tuệ nhân tạo trong đổi mới giáo dục đại học", record: "BIB-0001842", file: "tri-tue-nhan-tao-giao-duc.pdf", size: "24.8 MB", status: "Hoàn thành", progress: 100, started: "22/06/2025 · 08:32", completed: "22/06/2025 · 08:39", stage: "Đã lập chỉ mục" },
-  { id: 502, title: "Mạng máy tính và hệ thống phân tán", record: "BIB-0002016", file: "mang-may-tinh-phan-tan.pdf", size: "18.2 MB", status: "Đang xử lý", progress: 68, started: "22/06/2025 · 09:14", completed: "—", stage: "Tạo biểu diễn nội dung" },
-  { id: 503, title: "Nghiên cứu ứng dụng AI tạo sinh", record: "BIB-0002431", file: "bao-cao-ai-tao-sinh-2025.pdf", size: "31.6 MB", status: "Đang xử lý", progress: 42, started: "22/06/2025 · 09:26", completed: "—", stage: "Phân đoạn tài liệu" },
-  { id: 504, title: "An toàn thông tin trong kỷ nguyên số", record: "BIB-0000964", file: "an-toan-thong-tin-scan.pdf", size: "46.1 MB", status: "Lỗi", progress: 18, started: "22/06/2025 · 08:47", completed: "22/06/2025 · 08:49", stage: "Không thể trích xuất văn bản" },
-  { id: 505, title: "Thiết kế trải nghiệm người dùng", record: "BIB-0002356", file: "thiet-ke-trai-nghiem-nguoi-dung.pdf", size: "12.4 MB", status: "Đang chờ", progress: 0, started: "—", completed: "—", stage: "Chờ tài nguyên xử lý" },
-  { id: 506, title: "Giáo trình xử lý tín hiệu số", record: "BIB-0001528", file: "xu-ly-tin-hieu-so.pdf", size: "28.7 MB", status: "Hoàn thành", progress: 100, started: "22/06/2025 · 07:51", completed: "22/06/2025 · 08:02", stage: "Đã lập chỉ mục" },
-];
-
-const pipelineSteps = [
-  { title: "Upload", description: "Tệp được tải lên và kiểm tra định dạng", status: "complete" },
-  { title: "Extract text", description: "Trích xuất văn bản và nhận dạng OCR", status: "complete" },
-  { title: "Preprocess", description: "Chuẩn hóa ký tự và loại bỏ nhiễu", status: "complete" },
-  { title: "Segment document", description: "Phân tách chương, mục và đoạn văn", status: "complete" },
-  { title: "Generate representation", description: "Tạo biểu diễn ngữ nghĩa cho nội dung", status: "processing" },
-  { title: "Index", description: "Đưa dữ liệu vào chỉ mục tìm kiếm", status: "waiting" },
-];
-
 function DigitalProcessingPage() {
   const [jobs, setJobs] = useState(initialProcessingJobs);
   const [detailJob, setDetailJob] = useState<ProcessingJob | null>(null);
@@ -2386,71 +1467,6 @@ function DigitalProcessingPage() {
     </div>
   );
 }
-
-type ReservationReader = {
-  id: number;
-  name: string;
-  code: string;
-  registered: string;
-  status: "Đang chờ" | "Đã sẵn sàng";
-  holdUntil?: string;
-};
-
-type ReservationGroup = {
-  id: number;
-  title: string;
-  author: string;
-  record: string;
-  cover: string;
-  copies: string;
-  available: boolean;
-  queue: ReservationReader[];
-};
-
-const initialReservationGroups: ReservationGroup[] = [
-  {
-    id: 601,
-    title: "Machine Learning cơ bản",
-    author: "Phạm Hoàng Anh",
-    record: "BIB-0002518",
-    cover: "cover-red",
-    copies: "1 / 4 bản có sẵn",
-    available: true,
-    queue: [
-      { id: 1, name: "Nguyễn Văn A", code: "SV-B21DCAT018", registered: "02/10/2026 · 09:14", status: "Đang chờ" },
-      { id: 2, name: "Trần Văn B", code: "SV-B21DCCN042", registered: "03/10/2026 · 14:26", status: "Đang chờ" },
-      { id: 3, name: "Lê Thu Trang", code: "SV-B22DCVT091", registered: "04/10/2026 · 08:52", status: "Đang chờ" },
-    ],
-  },
-  {
-    id: 602,
-    title: "Cấu trúc dữ liệu và giải thuật",
-    author: "Nguyễn Đức Nghĩa",
-    record: "BIB-0001108",
-    cover: "cover-charcoal",
-    copies: "1 bản đang được giữ",
-    available: false,
-    queue: [
-      { id: 4, name: "Đỗ Minh Quân", code: "SV-B20DCCN116", registered: "29/09/2026 · 10:05", status: "Đã sẵn sàng", holdUntil: "10/10/2026 · 17:00" },
-      { id: 5, name: "Vũ Ngọc Mai", code: "SV-B21DCAT064", registered: "01/10/2026 · 15:32", status: "Đang chờ" },
-    ],
-  },
-  {
-    id: 603,
-    title: "Mạng máy tính và hệ thống phân tán",
-    author: "Lê Nhật Quang",
-    record: "BIB-0002016",
-    cover: "cover-slate",
-    copies: "0 / 4 bản có sẵn",
-    available: false,
-    queue: [
-      { id: 6, name: "Hoàng Đức Long", code: "HV-CH23CNTT08", registered: "04/10/2026 · 11:47", status: "Đang chờ" },
-      { id: 7, name: "Nguyễn Thảo Linh", code: "SV-B22DCCN028", registered: "05/10/2026 · 09:21", status: "Đang chờ" },
-      { id: 8, name: "Phan Quang Huy", code: "SV-B21DCVT077", registered: "06/10/2026 · 16:03", status: "Đang chờ" },
-      { id: 9, name: "Trịnh Hà My", code: "SV-B23DCAT103", registered: "07/10/2026 · 08:16", status: "Đang chờ" },
-    ],
-  },
-];
 
 function ReservationManagementPage() {
   const [groups, setGroups] = useState(initialReservationGroups);
@@ -2532,32 +1548,6 @@ function ReservationManagementPage() {
     </div>
   );
 }
-
-type ManagedReader = {
-  id: number;
-  code: string;
-  name: string;
-  type: string;
-  program: string;
-  cardStatus: "Hoạt động" | "Bị khóa" | "Sắp hết hạn";
-  loans: number;
-  debt: number;
-  email: string;
-  phone: string;
-  birthDate: string;
-  cardExpiry: string;
-  lockReason?: string;
-  lockUntil?: string;
-};
-
-const initialManagedReaders: ManagedReader[] = [
-  { id: 701, code: "SV-B21DCAT018", name: "Nguyễn Văn An", type: "Sinh viên chính quy", program: "Công nghệ thông tin", cardStatus: "Hoạt động", loans: 6, debt: 0, email: "an.nv@student.ptit.edu.vn", phone: "0986 214 078", birthDate: "18/04/2003", cardExpiry: "31/12/2026" },
-  { id: 702, code: "SV-B20DCCN116", name: "Đỗ Minh Quân", type: "Sinh viên chính quy", program: "Khoa học máy tính", cardStatus: "Bị khóa", loans: 3, debt: 64000, email: "quan.dm@student.ptit.edu.vn", phone: "0974 882 165", birthDate: "02/11/2002", cardExpiry: "31/12/2025", lockReason: "Có tài liệu quá hạn trên 30 ngày và công nợ chưa thanh toán.", lockUntil: "Đến khi hoàn trả tài liệu và hoàn tất công nợ" },
-  { id: 703, code: "GV-CB00428", name: "Trần Thu Hà", type: "Cán bộ, giảng viên", program: "Điện tử viễn thông", cardStatus: "Hoạt động", loans: 4, debt: 0, email: "hatt@ptit.edu.vn", phone: "0912 664 320", birthDate: "27/08/1986", cardExpiry: "Không thời hạn" },
-  { id: 704, code: "HV-CH23CNTT08", name: "Hoàng Đức Long", type: "Học viên cao học", program: "Công nghệ thông tin", cardStatus: "Sắp hết hạn", loans: 2, debt: 12000, email: "long.hd@stu.ptit.edu.vn", phone: "0963 420 815", birthDate: "11/06/1998", cardExpiry: "15/07/2025" },
-  { id: 705, code: "NCS-22ATTT03", name: "Lê Ngọc Mai", type: "Nghiên cứu sinh", program: "An toàn thông tin", cardStatus: "Hoạt động", loans: 5, debt: 0, email: "mai.ln@stu.ptit.edu.vn", phone: "0904 731 266", birthDate: "09/01/1994", cardExpiry: "30/09/2027" },
-  { id: 706, code: "SV-B22DCVT091", name: "Phạm Gia Huy", type: "Sinh viên chính quy", program: "Điện tử viễn thông", cardStatus: "Hoạt động", loans: 1, debt: 0, email: "huy.pg@student.ptit.edu.vn", phone: "0981 205 447", birthDate: "21/12/2004", cardExpiry: "31/12/2027" },
-];
 
 function ReaderManagementPage() {
   const [readers, setReaders] = useState(initialManagedReaders);
@@ -2816,55 +1806,6 @@ function StaffDashboard() {
     </div>
   );
 }
-
-const workProfileData = {
-  staff: {
-    name: "Nguyễn Thu Hà",
-    employeeId: "NVTV-00128",
-    title: "Nhân viên thư viện",
-    department: "Phòng Thư viện",
-    email: "thuha@example.edu.vn",
-    phone: "09xx xxx 456",
-    address: "Hà Nội",
-    startDate: "01/08/2024",
-    username: "thuha",
-    createdAt: "01/08/2024",
-    lastLogin: "11/10/2026, 08:30",
-    authMethod: "Tài khoản thư viện",
-    roleDescription: "Thực hiện nghiệp vụ tài liệu, lưu thông và hỗ trợ bạn đọc theo phạm vi được phân công.",
-    activityTitle: "Hoạt động nghiệp vụ gần đây",
-    activityAction: "Xem lịch sử hoạt động",
-    activities: [
-      { icon: "book" as const, title: "Tiếp nhận tài liệu", description: "Nhập môn học máy", time: "11/10/2026 · 08:12", status: "Hoàn tất", tone: "success" as const },
-      { icon: "sparkle" as const, title: "Xử lý giao dịch trả tài liệu", description: "Mã giao dịch LT-20261011-084", time: "10/10/2026 · 16:42", status: "Đã xử lý", tone: "success" as const },
-      { icon: "document" as const, title: "Cập nhật thông tin tài liệu", description: "Mạng máy tính và hệ thống phân tán", time: "10/10/2026 · 14:20", status: "Đã lưu", tone: "info" as const },
-      { icon: "bookmark" as const, title: "Xử lý yêu cầu đặt trước", description: "Yêu cầu DT-01842", time: "09/10/2026 · 09:35", status: "Hoàn tất", tone: "success" as const },
-    ],
-  },
-  admin: {
-    name: "Trần Minh Đức",
-    employeeId: "QTHT-00012",
-    title: "Quản trị viên hệ thống",
-    department: "Phòng Công nghệ thông tin",
-    email: "admin@example.edu.vn",
-    phone: "09xx xxx 789",
-    address: "Hà Nội",
-    startDate: "15/03/2023",
-    username: "admin.minhduc",
-    createdAt: "15/03/2023",
-    lastLogin: "11/10/2026, 08:15",
-    authMethod: "Microsoft",
-    roleDescription: "Quản lý cấu hình hệ thống, tài khoản và quyền truy cập theo phạm vi được phân công.",
-    activityTitle: "Hoạt động quản trị gần đây",
-    activityAction: "Xem nhật ký hoạt động",
-    activities: [
-      { icon: "settings" as const, title: "Cập nhật cấu hình tìm kiếm", description: "Điều chỉnh trọng số trường nhan đề", time: "11/10/2026 · 08:05", status: "Thành công", tone: "success" as const },
-      { icon: "sparkle" as const, title: "Kiểm tra trạng thái lập chỉ mục", description: "Chỉ mục tài liệu số", time: "10/10/2026 · 17:10", status: "Bình thường", tone: "info" as const },
-      { icon: "document" as const, title: "Xem nhật ký hoạt động hệ thống", description: "Phạm vi 24 giờ gần nhất", time: "10/10/2026 · 15:25", status: "Đã xem", tone: "neutral" as const },
-      { icon: "users" as const, title: "Cập nhật thông tin tài khoản", description: "Tài khoản nhân viên NVTV-00116", time: "09/10/2026 · 10:40", status: "Hoàn tất", tone: "success" as const },
-    ],
-  },
-};
 
 function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
   const data = workProfileData[role];
