@@ -8,7 +8,6 @@ import {
   Icon,
   IconButton,
   Modal,
-  Pagination,
   Rating,
   SearchInput,
   SelectField,
@@ -18,14 +17,12 @@ import {
 } from "./design-system";
 import type { Role, Book } from "./types/library";
 import { readerNavigation } from "./constants/navigation";
-import { circulationTabs, trainingPrograms, pipelineSteps } from "./constants/library-options";
+import { circulationTabs, trainingPrograms } from "./constants/library-options";
 import { detailBook } from "./data/books";
 import { workProfileData } from "./data/profiles";
 import StaffDashboard from "./pages/staff/dashboard/StaffDashboard";
-import type { ProcessingJob } from "./data/processing-jobs";
-import { initialProcessingJobs } from "./data/processing-jobs";
-import { initialReservationGroups } from "./data/reservations";
-import { initialManagedReaders } from "./data/readers";
+import ReservationManagementPage from "./pages/staff/reservations/ReservationManagementPage";
+import ReaderManagementPage from "./pages/staff/readers/ReaderManagementPage";
 import { logout } from "./utils/logout";
 import Brand from "./components/common/Brand";
 import UserMenu from "./components/common/UserMenu";
@@ -45,6 +42,7 @@ import PersonalProfilePage from "./pages/reader/profile/PersonalProfilePage";
 import NotificationDetailPage from "./pages/reader/notifications/NotificationDetailPage";
 import ReportsScreen from "./pages/staff/reports/ReportsScreen";
 import MaterialsManagementPage from "./pages/staff/materials/MaterialsManagementPage";
+import DigitalProcessingPage from "./pages/staff/digital-processing/DigitalProcessingPage";
 
 function useRoleRoute() {
   const readRoute = (): { role: Role; path: string } => {
@@ -399,232 +397,6 @@ function BibliographicRecordForm({ edit = false }: { edit?: boolean }) {
       </div>
 
       <div className="record-form-actions"><div>{savedMessage ? <Status tone="success">{savedMessage}</Status> : <span><Icon name="info" size={14} />Các trường có dấu * là bắt buộc</span>}</div><Button variant="ghost" onClick={() => { window.location.hash = "#/staff/materials"; }}>Hủy</Button><Button variant="secondary" onClick={() => validate(true)}>Lưu nháp</Button><Button onClick={() => validate(false)}>Lưu tài liệu</Button></div>
-    </div>
-  );
-}
-
-function DigitalProcessingPage() {
-  const [jobs, setJobs] = useState(initialProcessingJobs);
-  const [detailJob, setDetailJob] = useState<ProcessingJob | null>(null);
-  const retry = (id: number) => setJobs((items) => items.map((item) => item.id === id ? { ...item, status: "Đang chờ", progress: 0, stage: "Đã thêm lại vào hàng đợi", completed: "—" } : item));
-  const counts = {
-    waiting: jobs.filter((job) => job.status === "Đang chờ").length,
-    processing: jobs.filter((job) => job.status === "Đang xử lý").length,
-    complete: jobs.filter((job) => job.status === "Hoàn thành").length,
-    error: jobs.filter((job) => job.status === "Lỗi").length,
-  };
-
-  return (
-    <div className="digital-processing-page">
-      <div className="processing-page-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Tài liệu số", "Trạng thái xử lý"]} /><p className="eyebrow">XỬ LÝ NỘI DUNG SỐ</p><h1>Trạng thái xử lý tài liệu số</h1><p>Theo dõi pipeline trích xuất nội dung và lập chỉ mục tìm kiếm.</p></div>
-        <div><Button variant="secondary" icon="settings">Cấu hình xử lý</Button><Button icon="plus">Thêm tệp xử lý</Button></div>
-      </div>
-
-      <section className="processing-summary-grid">
-        <article><span className="processing-summary-icon waiting"><Icon name="more" /></span><div><small>Đang chờ</small><strong>{counts.waiting}</strong><p>Trong hàng đợi</p></div></article>
-        <article><span className="processing-summary-icon processing"><Icon name="sparkle" /></span><div><small>Đang xử lý</small><strong>{counts.processing}</strong><p>Đang chạy pipeline</p></div></article>
-        <article><span className="processing-summary-icon complete"><Icon name="success" /></span><div><small>Hoàn thành</small><strong>{counts.complete}</strong><p>Trong phiên hôm nay</p></div></article>
-        <article><span className="processing-summary-icon failed"><Icon name="error" /></span><div><small>Lỗi</small><strong>{counts.error}</strong><p>Cần kiểm tra</p></div></article>
-      </section>
-
-      <section className="processing-table-panel">
-        <div className="processing-table-heading"><div><h2>Danh sách tác vụ</h2><p>{jobs.length} tệp · Cập nhật tự động mỗi 30 giây</p></div><div><SelectField label="Trạng thái" defaultValue="all"><option value="all">Tất cả trạng thái</option><option>Đang chờ</option><option>Đang xử lý</option><option>Hoàn thành</option><option>Lỗi</option></SelectField><IconButton label="Làm mới" icon="sparkle" /></div></div>
-        <div className="processing-table-wrap"><table className="processing-table"><thead><tr><th>Tài liệu</th><th>File</th><th>Dung lượng</th><th>Trạng thái</th><th>Tiến độ</th><th>Thời gian bắt đầu</th><th>Thời gian hoàn thành</th><th>Actions</th></tr></thead><tbody>
-          {jobs.map((job) => <tr key={job.id}>
-            <td><div className="processing-title"><span><Icon name="document" /></span><div><strong>{job.title}</strong><small>{job.record}</small></div></div></td>
-            <td><div className="processing-file"><strong>{job.file}</strong>{job.status === "Lỗi" && <small className="file-error">Không thể trích xuất văn bản</small>}</div></td>
-            <td>{job.size}</td>
-            <td><Badge tone={job.status === "Hoàn thành" ? "success" : job.status === "Lỗi" ? "error" : job.status === "Đang xử lý" ? "info" : "warning"}>{job.status}</Badge></td>
-            <td><div className="job-progress"><div><i className={`progress-value progress-${job.progress}`} /></div><span>{job.progress}%</span><small>{job.stage}</small></div></td>
-            <td>{job.started}</td>
-            <td>{job.completed}</td>
-            <td><div className="processing-actions"><Button variant="ghost" size="sm" onClick={() => setDetailJob(job)}>Chi tiết</Button>{job.status === "Lỗi" && <Button variant="secondary" size="sm" onClick={() => retry(job.id)}>Xử lý lại</Button>}</div></td>
-          </tr>)}
-        </tbody></table></div>
-        <div className="processing-footnote"><span><Icon name="info" size={14} />Pipeline đang sử dụng cấu hình mặc định · 2 tác vụ chạy song song</span><Pagination /></div>
-      </section>
-
-      <Modal open={detailJob !== null} onClose={() => setDetailJob(null)} title="Chi tiết xử lý tài liệu">
-        {detailJob && <div className="processing-detail">
-          <div className="processing-detail-file"><span className="file-icon">PDF</span><div><strong>{detailJob.file}</strong><small>{detailJob.title} · {detailJob.size}</small></div><Badge tone={detailJob.status === "Lỗi" ? "error" : detailJob.status === "Hoàn thành" ? "success" : "info"}>{detailJob.status}</Badge></div>
-          {detailJob.status === "Lỗi" && <div className="processing-error-detail"><Icon name="error" /><div><strong>Không thể trích xuất văn bản</strong><p>Tệp có thể là bản scan chất lượng thấp hoặc được bảo vệ. Kiểm tra OCR và quyền truy cập trước khi xử lý lại.</p></div></div>}
-          <div className="pipeline-heading"><p>PIPELINE XỬ LÝ</p><span>{detailJob.progress}% hoàn thành</span></div>
-          <ol className="pipeline-steps">
-            {pipelineSteps.map((step, index) => {
-              const failed = detailJob.status === "Lỗi" && index === 1;
-              const completedJob = detailJob.status === "Hoàn thành";
-              const status = completedJob ? "complete" : failed ? "failed" : detailJob.status === "Đang chờ" ? index === 0 ? "waiting" : "waiting" : step.status;
-              return <li key={step.title} className={status}><span>{status === "complete" ? <Icon name="success" size={15} /> : status === "failed" ? <Icon name="error" size={15} /> : String(index + 1).padStart(2, "0")}</span><div><strong>{step.title}</strong><p>{failed ? "Không đọc được lớp văn bản trong tệp PDF" : step.description}</p></div><small>{status === "complete" ? "Hoàn thành" : status === "processing" ? "Đang xử lý" : status === "failed" ? "Lỗi" : "Đang chờ"}</small></li>;
-            })}
-          </ol>
-          <div className="processing-technical-meta"><div><span>Job ID</span><strong>JOB-{detailJob.id}-2025</strong></div><div><span>Worker</span><strong>worker-index-02</strong></div><div><span>Ưu tiên</span><strong>Tiêu chuẩn</strong></div></div>
-          <div className="modal-actions"><Button variant="ghost" onClick={() => setDetailJob(null)}>Đóng</Button>{detailJob.status === "Lỗi" && <Button onClick={() => { retry(detailJob.id); setDetailJob(null); }}>Xử lý lại</Button>}</div>
-        </div>}
-      </Modal>
-    </div>
-  );
-}
-
-function ReservationManagementPage() {
-  const [groups, setGroups] = useState(initialReservationGroups);
-  const [searchType, setSearchType] = useState("Tài liệu");
-  const [action, setAction] = useState<{ type: "ready" | "cancel" | "transfer"; groupId: number; readerId: number } | null>(null);
-  const targetGroup = groups.find((group) => group.id === action?.groupId);
-  const targetReader = targetGroup?.queue.find((reader) => reader.id === action?.readerId);
-
-  const executeAction = () => {
-    if (!action) return;
-    setGroups((items) => items.map((group) => {
-      if (group.id !== action.groupId) return group;
-      if (action.type === "cancel") return { ...group, queue: group.queue.filter((reader) => reader.id !== action.readerId) };
-      if (action.type === "ready") return { ...group, available: false, copies: "1 bản đang được giữ", queue: group.queue.map((reader) => reader.id === action.readerId ? { ...reader, status: "Đã sẵn sàng", holdUntil: "10/10/2026 · 17:00" } : reader) };
-      const remaining = group.queue.filter((reader) => reader.id !== action.readerId);
-      return { ...group, queue: remaining, copies: remaining.length ? "Chuyển giữ cho lượt tiếp theo" : group.copies };
-    }));
-    setAction(null);
-  };
-
-  const actionTitle = action?.type === "ready" ? "Xác nhận tài liệu sẵn sàng" : action?.type === "transfer" ? "Chuyển lượt đặt trước" : "Hủy lượt đặt trước";
-
-  return (
-    <div className="reservation-management-page">
-      <div className="reservation-page-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Đặt trước"]} /><p className="eyebrow">LƯU THÔNG TÀI LIỆU</p><h1>Quản lý đặt trước</h1><p>Theo dõi hàng đợi và xử lý tài liệu sẵn sàng theo đúng thứ tự đăng ký.</p></div>
-        <Button variant="secondary" icon="settings">Thiết lập thời gian giữ</Button>
-      </div>
-
-      <section className="reservation-search-panel">
-        <div className="reservation-search-types">{["Tài liệu", "Mã bạn đọc", "Tên bạn đọc"].map((type) => <button key={type} className={searchType === type ? "active" : ""} onClick={() => setSearchType(type)}>{type}</button>)}</div>
-        <SearchInput placeholder={searchType === "Tài liệu" ? "Tìm theo nhan đề, ISBN hoặc mã biểu ghi..." : searchType === "Mã bạn đọc" ? "Nhập mã bạn đọc..." : "Nhập tên bạn đọc..."} />
-        <Button icon="search">Tìm kiếm</Button>
-      </section>
-
-      <div className="queue-policy-note">
-        <span><Icon name="info" /></span>
-        <div><strong>Hàng đợi áp dụng nguyên tắc đến trước, phục vụ trước</strong><p>Thứ tự được xác định tự động theo thời gian đăng ký và không thể kéo thả hoặc sắp xếp thủ công. Chỉ chuyển lượt khi người đứng đầu từ chối, hết thời gian giữ hoặc không còn đủ điều kiện.</p></div>
-        <Badge tone="info">FIFO</Badge>
-      </div>
-
-      <div className="reservation-queue-toolbar"><div><h2>Hàng đợi theo tài liệu</h2><p>{groups.length} tài liệu · {groups.reduce((total, group) => total + group.queue.length, 0)} lượt đang được quản lý</p></div><label><span>Hiển thị</span><select defaultValue="all"><option value="all">Tất cả hàng đợi</option><option>Có bản sẵn sàng</option><option>Đang giữ</option><option>Chưa có bản</option></select><Icon name="chevron-down" size={14} /></label></div>
-
-      <div className="reservation-group-list">
-        {groups.map((group) => (
-          <section className="reservation-group-card" key={group.id}>
-            <header>
-              <div className="reservation-book-cover"><BookCover book={{ ...detailBook, title: group.title, author: group.author, cover: group.cover }} /></div>
-              <div className="reservation-book-info"><div><Badge tone={group.available ? "success" : "neutral"}>{group.available ? "CÓ BẢN SẴN SÀNG" : "CHƯA CÓ BẢN"}</Badge><span>{group.record}</span></div><h2>{group.title}</h2><p>{group.author}</p></div>
-              <div className={`reservation-copy-status ${group.available ? "available" : ""}`}><Icon name="library" /><span><small>Tình trạng bản</small><strong>{group.copies}</strong></span></div>
-              <div className="queue-total"><small>Hàng đợi</small><strong>{String(group.queue.length).padStart(2, "0")}</strong><span>người</span></div>
-            </header>
-            {group.queue.length > 0 ? <ol className="reservation-queue">
-              {group.queue.map((reader, index) => {
-                const isFirst = index === 0;
-                return <li key={reader.id} className={`${isFirst ? "first" : ""} ${reader.status === "Đã sẵn sàng" ? "ready" : ""}`}>
-                  <span className="queue-position">{index + 1}</span>
-                  <Avatar name={reader.name} />
-                  <div className="queue-reader"><div><strong>{reader.name}</strong>{isFirst && <Badge tone="brand">ƯU TIÊN TIẾP THEO</Badge>}</div><small>{reader.code}</small></div>
-                  <dl><div><dt>Đăng ký</dt><dd>{reader.registered}</dd></div><div><dt>Trạng thái</dt><dd><Status tone={reader.status === "Đã sẵn sàng" ? "success" : "warning"}>{reader.status}</Status></dd></div>{reader.holdUntil && <div className="hold-expiration"><dt>Giữ đến</dt><dd>{reader.holdUntil}</dd></div>}</dl>
-                  <div className="queue-actions">
-                    {isFirst && group.available && reader.status === "Đang chờ" && <Button size="sm" icon="success" onClick={() => setAction({ type: "ready", groupId: group.id, readerId: reader.id })}>Xác nhận sẵn sàng</Button>}
-                    {isFirst && reader.status === "Đã sẵn sàng" && <Button variant="secondary" size="sm" onClick={() => setAction({ type: "transfer", groupId: group.id, readerId: reader.id })}>Chuyển lượt</Button>}
-                    <Button variant="ghost" size="sm" onClick={() => setAction({ type: "cancel", groupId: group.id, readerId: reader.id })}>Hủy</Button>
-                  </div>
-                </li>;
-              })}
-            </ol> : <div className="empty-queue"><Icon name="users" /><span><strong>Hàng đợi đã trống</strong><small>Không còn bạn đọc chờ tài liệu này.</small></span></div>}
-          </section>
-        ))}
-      </div>
-
-      <Modal open={action !== null} onClose={() => setAction(null)} title={actionTitle}>
-        <div className={`queue-confirmation ${action?.type === "cancel" ? "danger" : ""}`}><span><Icon name={action?.type === "ready" ? "success" : action?.type === "transfer" ? "chevron-right" : "error"} size={24} /></span><div><strong>{targetReader?.name}</strong><p>{targetGroup?.title}</p></div></div>
-        <p className="queue-confirmation-text">{action?.type === "ready" ? "Hệ thống sẽ thông báo cho bạn đọc và giữ bản tài liệu đến 10/10/2026 lúc 17:00." : action?.type === "transfer" ? "Lượt hiện tại sẽ kết thúc và quyền nhận tài liệu được chuyển cho người tiếp theo trong hàng đợi. Không thể hoàn tác." : "Lượt đặt trước sẽ bị hủy và các vị trí phía sau tự động được dịch lên theo đúng thứ tự đăng ký."}</p>
-        {action?.type === "transfer" && <div className="transfer-policy"><Icon name="info" size={15} /><span>Chỉ thực hiện khi bạn đọc từ chối, hết hạn giữ hoặc không còn đủ điều kiện.</span></div>}
-        <div className="modal-actions"><Button variant="ghost" onClick={() => setAction(null)}>Quay lại</Button><Button variant={action?.type === "cancel" ? "danger" : "primary"} onClick={executeAction}>{actionTitle}</Button></div>
-      </Modal>
-    </div>
-  );
-}
-
-function ReaderManagementPage() {
-  const [readers, setReaders] = useState(initialManagedReaders);
-  const [selectedReaderId, setSelectedReaderId] = useState<number | null>(null);
-  const [detailTab, setDetailTab] = useState("Tổng quan");
-  const [cardAction, setCardAction] = useState<{ id: number; lock: boolean } | null>(null);
-  const selectedReader = readers.find((reader) => reader.id === selectedReaderId) || null;
-  const actionReader = readers.find((reader) => reader.id === cardAction?.id);
-
-  const executeCardAction = () => {
-    if (!cardAction) return;
-    setReaders((items) => items.map((reader) => reader.id === cardAction.id ? {
-      ...reader,
-      cardStatus: cardAction.lock ? "Bị khóa" : "Hoạt động",
-      lockReason: cardAction.lock ? "Khóa thủ công bởi nhân viên thư viện để kiểm tra vi phạm." : undefined,
-      lockUntil: cardAction.lock ? "Đến khi được nhân viên mở khóa" : undefined,
-    } : reader));
-    setCardAction(null);
-  };
-
-  return (
-    <div className="reader-management-page">
-      <div className="reader-management-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Bạn đọc"]} /><p className="eyebrow">QUẢN LÝ BẠN ĐỌC</p><h1>Quản lý bạn đọc</h1><p>Tra cứu hồ sơ, kiểm soát trạng thái thẻ và lịch sử sử dụng thư viện.</p></div>
-        <div><Button variant="secondary" icon="document">Xuất danh sách</Button><Button icon="plus">Thêm bạn đọc</Button></div>
-      </div>
-
-      <section className="reader-search-filters">
-        <div className="reader-management-search"><SearchInput placeholder="Tìm theo mã bạn đọc, họ tên, email..." /><Button icon="search">Tìm kiếm</Button></div>
-        <div className="reader-filter-row">
-          <label><span>Loại bạn đọc</span><select defaultValue="all"><option value="all">Tất cả loại bạn đọc</option><option>Sinh viên chính quy</option><option>Cán bộ, giảng viên</option><option>Học viên cao học</option><option>Nghiên cứu sinh</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Ngành</span><select defaultValue="all"><option value="all">Tất cả ngành</option><option>Công nghệ thông tin</option><option>Khoa học máy tính</option><option>An toàn thông tin</option><option>Điện tử viễn thông</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Trạng thái thẻ</span><select defaultValue="all"><option value="all">Tất cả trạng thái</option><option>Hoạt động</option><option>Bị khóa</option><option>Sắp hết hạn</option></select><Icon name="chevron-down" size={14} /></label>
-          <Button variant="ghost" size="sm">Xóa bộ lọc</Button>
-        </div>
-      </section>
-
-      <section className="reader-table-panel">
-        <div className="reader-table-heading"><div><h2>Danh sách bạn đọc</h2><p>8.947 bạn đọc đang hoạt động</p></div><Badge tone="error">01 THẺ BỊ KHÓA</Badge></div>
-        <div className="reader-management-table-wrap"><table className="reader-management-table"><thead><tr><th>Mã bạn đọc</th><th>Họ tên</th><th>Loại bạn đọc</th><th>Ngành đào tạo</th><th>Trạng thái thẻ</th><th>Đang mượn</th><th>Công nợ</th><th>Actions</th></tr></thead><tbody>
-          {readers.map((reader) => <tr key={reader.id}>
-            <td><code>{reader.code}</code></td>
-            <td><div className="managed-reader-cell"><Avatar name={reader.name} size="sm" /><div><strong>{reader.name}</strong><small>{reader.email}</small></div></div></td>
-            <td><Badge>{reader.type}</Badge></td>
-            <td>{reader.program}</td>
-            <td><Status tone={reader.cardStatus === "Hoạt động" ? "success" : reader.cardStatus === "Bị khóa" ? "error" : "warning"}>{reader.cardStatus}</Status></td>
-            <td><strong>{reader.loans}</strong><small> tài liệu</small></td>
-            <td><strong className={reader.debt > 0 ? "reader-debt" : ""}>{reader.debt.toLocaleString("vi-VN")}đ</strong></td>
-            <td><div className="managed-reader-actions"><Button variant="ghost" size="sm" onClick={() => { setSelectedReaderId(reader.id); setDetailTab("Tổng quan"); }}>Xem hồ sơ</Button><Button variant={reader.cardStatus === "Bị khóa" ? "secondary" : "ghost"} size="sm" onClick={() => setCardAction({ id: reader.id, lock: reader.cardStatus !== "Bị khóa" })}>{reader.cardStatus === "Bị khóa" ? "Mở khóa" : "Khóa thẻ"}</Button><Button variant="ghost" size="sm" onClick={() => { setSelectedReaderId(reader.id); setDetailTab("Lịch sử mượn"); }}>Lịch sử mượn</Button></div></td>
-          </tr>)}
-        </tbody></table></div>
-        <div className="reader-table-pagination"><span>Hiển thị 1–6 trong tổng số 9.214 bạn đọc</span><Pagination /></div>
-      </section>
-
-      <Modal open={selectedReader !== null} onClose={() => setSelectedReaderId(null)} title="Hồ sơ bạn đọc" eyebrow="THÔNG TIN BẠN ĐỌC" className="reader-detail-modal">
-        {selectedReader && <div className="reader-profile">
-          <div className="reader-profile-header">
-            <Avatar name={selectedReader.name} size="lg" />
-            <div><div><h2>{selectedReader.name}</h2><Badge tone={selectedReader.cardStatus === "Hoạt động" ? "success" : selectedReader.cardStatus === "Bị khóa" ? "error" : "warning"}>{selectedReader.cardStatus}</Badge></div><p>{selectedReader.code} · {selectedReader.type}</p></div>
-            <Button variant={selectedReader.cardStatus === "Bị khóa" ? "secondary" : "danger"} size="sm" onClick={() => setCardAction({ id: selectedReader.id, lock: selectedReader.cardStatus !== "Bị khóa" })}>{selectedReader.cardStatus === "Bị khóa" ? "Mở khóa thẻ" : "Khóa thẻ"}</Button>
-          </div>
-          {selectedReader.cardStatus === "Bị khóa" && <div className="reader-lock-alert"><Icon name="error" /><div><strong>Thẻ bạn đọc đang bị khóa</strong><p>{selectedReader.lockReason}</p><span>Thời hạn khóa: {selectedReader.lockUntil}</span></div></div>}
-          <div className="reader-profile-tabs">{["Tổng quan", "Đang mượn", "Lịch sử mượn", "Đặt trước", "Vi phạm & công nợ"].map((tab) => <button key={tab} className={detailTab === tab ? "active" : ""} onClick={() => setDetailTab(tab)}>{tab}</button>)}</div>
-          {detailTab === "Tổng quan" && <div className="reader-profile-overview">
-            <dl className="reader-personal-info"><div><dt>Họ và tên</dt><dd>{selectedReader.name}</dd></div><div><dt>Mã bạn đọc</dt><dd>{selectedReader.code}</dd></div><div><dt>Loại bạn đọc</dt><dd>{selectedReader.type}</dd></div><div><dt>Ngành đào tạo</dt><dd>{selectedReader.program}</dd></div><div><dt>Email</dt><dd>{selectedReader.email}</dd></div><div><dt>Số điện thoại</dt><dd>{selectedReader.phone}</dd></div><div><dt>Ngày sinh</dt><dd>{selectedReader.birthDate}</dd></div><div><dt>Hạn thẻ</dt><dd>{selectedReader.cardExpiry}</dd></div></dl>
-            <div className="reader-profile-stats"><article><span>Đang mượn</span><strong>{selectedReader.loans}</strong><small>/ 08 tài liệu</small></article><article><span>Đặt trước</span><strong>02</strong><small>1 lượt chờ nhận</small></article><article><span>Công nợ</span><strong className={selectedReader.debt ? "negative" : ""}>{selectedReader.debt.toLocaleString("vi-VN")}đ</strong><small>{selectedReader.debt ? "Chưa thanh toán" : "Không có công nợ"}</small></article><article><span>Vi phạm</span><strong>{selectedReader.cardStatus === "Bị khóa" ? "02" : "00"}</strong><small>Trong 12 tháng</small></article></div>
-          </div>}
-          {detailTab === "Đang mượn" && <div className="profile-data-table"><table><thead><tr><th>Tài liệu</th><th>Ngày mượn</th><th>Hạn trả</th><th>Trạng thái</th></tr></thead><tbody><tr><td><strong>Mạng máy tính và hệ thống phân tán</strong><small>PTIT-24-02016</small></td><td>28/05/2025</td><td>25/06/2025</td><td><Badge tone="error">Quá hạn 3 ngày</Badge></td></tr><tr><td><strong>Nhập môn Khoa học dữ liệu</strong><small>PTIT-23-01564</small></td><td>08/06/2025</td><td>06/07/2025</td><td><Badge tone="success">Trong hạn</Badge></td></tr></tbody></table></div>}
-          {detailTab === "Lịch sử mượn" && <div className="profile-data-table"><table><thead><tr><th>Tài liệu</th><th>Ngày mượn</th><th>Ngày trả</th><th>Kết quả</th></tr></thead><tbody><tr><td><strong>Học máy: Từ lý thuyết đến thực hành</strong></td><td>03/04/2025</td><td>28/04/2025</td><td><Status tone="success">Đúng hạn</Status></td></tr><tr><td><strong>An toàn thông tin trong kỷ nguyên số</strong></td><td>14/01/2025</td><td>08/02/2025</td><td><Status tone="warning">Muộn 2 ngày</Status></td></tr></tbody></table></div>}
-          {detailTab === "Đặt trước" && <div className="profile-reservations"><article><span><Icon name="bookmark" /></span><div><strong>Machine Learning cơ bản</strong><p>Đăng ký 02/10/2026 · Vị trí hàng đợi: 01</p></div><Badge tone="warning">Đang chờ</Badge></article><article><span><Icon name="bookmark" /></span><div><strong>Cấu trúc dữ liệu và giải thuật</strong><p>Giữ đến 10/10/2026 · 17:00</p></div><Badge tone="success">Đã sẵn sàng</Badge></article></div>}
-          {detailTab === "Vi phạm & công nợ" && <div className="profile-violations"><div className="profile-debt-total"><span><Icon name="error" /></span><div><small>TỔNG CÔNG NỢ</small><strong>{selectedReader.debt.toLocaleString("vi-VN")}đ</strong></div><Button variant="secondary" size="sm">Ghi nhận thanh toán</Button></div><article><Badge tone="error">CHƯA XỬ LÝ</Badge><div><strong>Trả tài liệu quá hạn trên 30 ngày</strong><p>Ghi nhận ngày 20/06/2025 · Tài liệu PTIT-24-02016</p></div><span>60.000đ</span></article><article><Badge tone="warning">NHẮC NHỞ</Badge><div><strong>Trả tài liệu muộn 2 ngày</strong><p>Ghi nhận ngày 10/04/2025 · Đã hoàn trả</p></div><span>4.000đ</span></article></div>}
-        </div>}
-      </Modal>
-
-      <Modal open={cardAction !== null} onClose={() => setCardAction(null)} title={cardAction?.lock ? "Khóa thẻ bạn đọc" : "Mở khóa thẻ bạn đọc"}>
-        <div className={`card-action-confirmation ${cardAction?.lock ? "lock" : "unlock"}`}><span><Icon name={cardAction?.lock ? "error" : "success"} size={24} /></span><div><strong>{actionReader?.name}</strong><p>{actionReader?.code}</p></div></div>
-        {cardAction?.lock ? <><SelectField label="Lý do khóa thẻ" defaultValue="violation"><option value="violation">Vi phạm quy định thư viện</option><option value="debt">Công nợ chưa xử lý</option><option value="lost">Báo mất thẻ</option><option value="other">Lý do khác</option></SelectField><SelectField label="Thời hạn khóa" defaultValue="manual"><option value="manual">Đến khi nhân viên mở khóa</option><option value="7">07 ngày</option><option value="30">30 ngày</option><option value="permanent">Không thời hạn</option></SelectField></> : <p className="unlock-note">Bạn đọc sẽ được khôi phục quyền mượn, gia hạn và đặt trước sau khi mở khóa.</p>}
-        <div className="modal-actions"><Button variant="ghost" onClick={() => setCardAction(null)}>Hủy</Button><Button variant={cardAction?.lock ? "danger" : "primary"} onClick={executeCardAction}>{cardAction?.lock ? "Khóa thẻ" : "Mở khóa"}</Button></div>
-      </Modal>
     </div>
   );
 }
