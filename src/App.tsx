@@ -4,7 +4,6 @@ import {
   Badge,
   Breadcrumb,
   Button,
-  Dropdown,
   Field,
   Icon,
   IconButton,
@@ -13,7 +12,6 @@ import {
   Rating,
   SearchInput,
   SelectField,
-  Skeleton,
   Status,
   TextAreaField,
   Toast,
@@ -22,11 +20,8 @@ import type { Role, Book } from "./types/library";
 import { readerNavigation } from "./constants/navigation";
 import { circulationTabs, trainingPrograms, pipelineSteps } from "./constants/library-options";
 import { detailBook } from "./data/books";
-import { libraryNotifications } from "./data/notifications";
 import { workProfileData } from "./data/profiles";
-import { staffSummary, circulationData } from "./data/dashboard";
-import type { CatalogRecord } from "./data/catalog";
-import { catalogRecords } from "./data/catalog";
+import StaffDashboard from "./pages/staff/dashboard/StaffDashboard";
 import type { ProcessingJob } from "./data/processing-jobs";
 import { initialProcessingJobs } from "./data/processing-jobs";
 import { initialReservationGroups } from "./data/reservations";
@@ -46,6 +41,10 @@ import BookDetailPage from "./pages/reader/book-detail/BookDetailPage";
 import MaterialReviewPage from "./pages/reader/review/BookReviewPage";
 import DocumentReader from "./pages/reader/document/DocumentPage";
 import MyLibraryPage from "./pages/reader/my-library/MyLibraryPage";
+import PersonalProfilePage from "./pages/reader/profile/PersonalProfilePage";
+import NotificationDetailPage from "./pages/reader/notifications/NotificationDetailPage";
+import ReportsScreen from "./pages/staff/reports/ReportsScreen";
+import MaterialsManagementPage from "./pages/staff/materials/MaterialsManagementPage";
 
 function useRoleRoute() {
   const readRoute = (): { role: Role; path: string } => {
@@ -62,199 +61,6 @@ function useRoleRoute() {
   }, []);
 
   return route;
-}
-
-const profileInitialContact = {
-  phone: "09xx xxx 123",
-  address: "Hà Nội",
-};
-
-function PersonalProfilePage({ restricted = false }: { restricted?: boolean }) {
-  const [editing, setEditing] = useState(false);
-  const [contact, setContact] = useState(profileInitialContact);
-  const [draft, setDraft] = useState(profileInitialContact);
-  const [errors, setErrors] = useState<{ phone?: string; address?: string }>({});
-  const [toast, setToast] = useState(false);
-
-  const startEditing = () => {
-    setDraft(contact);
-    setErrors({});
-    setEditing(true);
-  };
-  const cancelEditing = () => {
-    setDraft(contact);
-    setErrors({});
-    setEditing(false);
-  };
-  const saveProfile = (event: React.FormEvent) => {
-    event.preventDefault();
-    const nextErrors = {
-      phone: draft.phone.trim() ? undefined : "Vui lòng nhập số điện thoại.",
-      address: draft.address.trim() ? undefined : "Vui lòng nhập địa chỉ.",
-    };
-    setErrors(nextErrors);
-    if (nextErrors.phone || nextErrors.address) return;
-    setContact(draft);
-    setEditing(false);
-    setToast(true);
-    window.setTimeout(() => setToast(false), 3000);
-  };
-
-  return (
-    <div className="profile-page">
-      <main className="profile-container">
-        <Breadcrumb items={["Trang chủ", "Thông tin cá nhân"]} />
-        <div className="profile-page-heading">
-          <div className="profile-heading-icon"><Icon name="users" size={23} /></div>
-          <div><p className="eyebrow">TÀI KHOẢN BẠN ĐỌC</p><h1>Thông tin cá nhân</h1><p>Quản lý thông tin tài khoản và thẻ thư viện của bạn.</p></div>
-        </div>
-
-        <section className="profile-summary-card">
-          <Avatar name="Nguyễn Minh Anh" size="lg" />
-          <div className="profile-summary-identity"><h2>Nguyễn Minh Anh</h2><p>Mã độc giả <strong>PTIT-202600128</strong></p></div>
-          <div className="profile-summary-meta"><span><small>Loại độc giả</small><strong>Sinh viên</strong></span><span><small>Khoa / Chương trình</small><strong>Công nghệ thông tin</strong></span></div>
-          <Badge tone={restricted ? "error" : "success"}><Status tone={restricted ? "error" : "success"}>{restricted ? "Đang bị khóa" : "Đang hoạt động"}</Status></Badge>
-        </section>
-
-        <div className="profile-layout">
-          <div className="profile-main-column">
-            <section className="profile-card">
-              <header className="profile-card-heading">
-                <div><span><Icon name="users" size={18} /></span><div><h2>Thông tin cá nhân</h2><p>Thông tin định danh và liên hệ trong hệ thống thư viện.</p></div></div>
-                {!editing && <Button variant="secondary" size="sm" onClick={startEditing}>Chỉnh sửa thông tin</Button>}
-              </header>
-              {(errors.phone || errors.address) && <div className="profile-form-alert"><Icon name="error" size={17} /><span>Vui lòng kiểm tra lại thông tin đã nhập.</span></div>}
-              <form className="profile-form" onSubmit={saveProfile}>
-                <div className="profile-fields-grid">
-                  <Field label="Họ và tên" value="Nguyễn Minh Anh" readOnly />
-                  <Field label="Mã độc giả" value="PTIT-202600128" readOnly />
-                  <Field label="Ngày sinh" value="15/08/2004" readOnly />
-                  <Field label="Giới tính" value="Không hiển thị" readOnly />
-                  <Field label="Email" value="minhanh@example.edu.vn" readOnly />
-                  <Field label="Số điện thoại" value={editing ? draft.phone : contact.phone} readOnly={!editing} onChange={(event) => { setDraft((current) => ({ ...current, phone: event.target.value })); setErrors((current) => ({ ...current, phone: undefined })); }} error={errors.phone} />
-                  <Field label="Địa chỉ" value={editing ? draft.address : contact.address} readOnly={!editing} onChange={(event) => { setDraft((current) => ({ ...current, address: event.target.value })); setErrors((current) => ({ ...current, address: undefined })); }} error={errors.address} />
-                  <Field label="Khoa / Chương trình đào tạo" value="Công nghệ thông tin" readOnly />
-                  <Field label="Loại độc giả" value="Sinh viên" readOnly />
-                </div>
-                <p className="profile-permission-note"><Icon name="info" size={14} />Chỉ số điện thoại và địa chỉ có thể được cập nhật. Các thông tin còn lại do Học viện và thư viện quản lý.</p>
-                {editing && <div className="profile-form-actions"><Button variant="ghost" type="button" onClick={cancelEditing}>Hủy</Button><Button type="submit">Lưu thay đổi</Button></div>}
-              </form>
-            </section>
-
-            <section className="profile-card">
-              <header className="profile-card-heading"><div><span><Icon name="settings" size={18} /></span><div><h2>Thông tin đăng nhập</h2><p>Phương thức xác thực đang được sử dụng cho tài khoản.</p></div></div></header>
-              <dl className="profile-login-details">
-                <div><dt>Tên tài khoản</dt><dd>minh.anh</dd></div>
-                <div><dt>Phương thức đăng nhập</dt><dd><Badge tone="brand">Tài khoản thư viện</Badge></dd></div>
-                <div><dt>Email liên kết</dt><dd>minhanh@example.edu.vn</dd></div>
-                <div><dt>Mật khẩu</dt><dd><span className="masked-password" aria-label="Mật khẩu đã được ẩn">••••••••••••</span></dd></div>
-              </dl>
-              <div className="profile-login-action"><Button variant="secondary" size="sm">Đổi mật khẩu</Button><p>Mật khẩu hiện tại luôn được bảo mật và không thể hiển thị.</p></div>
-            </section>
-
-            <section className="profile-card recent-activity-card">
-              <header className="profile-card-heading"><div><span><Icon name="document" size={18} /></span><div><h2>Hoạt động gần đây</h2><p>Một số giao dịch thư viện gần nhất của bạn.</p></div></div><Button variant="ghost" size="sm" onClick={() => { window.location.hash = "#/reader/my-library/history"; }}>Xem lịch sử mượn trả<Icon name="chevron-right" size={15} /></Button></header>
-              <div className="profile-activity-list">
-                <article><span className="activity-icon borrow"><Icon name="book" size={17} /></span><div><strong>Mượn tài liệu</strong><p>Nhập môn học máy</p></div><time>12/06/2026</time><Badge tone="success">Đang mượn</Badge></article>
-                <article><span className="activity-icon returned"><Icon name="success" size={17} /></span><div><strong>Trả tài liệu</strong><p>Cơ sở dữ liệu</p></div><time>08/06/2026</time><Badge tone="neutral">Đã trả</Badge></article>
-                <article><span className="activity-icon reserved"><Icon name="bookmark" size={17} /></span><div><strong>Đặt trước</strong><p>Trí tuệ nhân tạo – Cơ sở và ứng dụng</p></div><time>02/06/2026</time><Badge tone="warning">Đang chờ</Badge></article>
-              </div>
-            </section>
-          </div>
-
-          <aside className="profile-side-column">
-            <section className="profile-card library-card-panel">
-              <header className="profile-card-heading"><div><span><Icon name="library" size={18} /></span><div><h2>Thẻ thư viện</h2><p>Thông tin thẻ bạn đọc hiện tại.</p></div></div></header>
-              <div className="reader-card-visual">
-                <div><Brand compact /><Badge tone={restricted ? "error" : "success"}>{restricted ? "BỊ KHÓA" : "ĐANG HOẠT ĐỘNG"}</Badge></div>
-                <span>THẺ BẠN ĐỌC</span>
-                <strong>NGUYỄN MINH ANH</strong>
-                <p>PTIT-202600128</p>
-                <small>SINH VIÊN · CÔNG NGHỆ THÔNG TIN</small>
-              </div>
-              <dl className="reader-card-details">
-                <div><dt>Mã thẻ</dt><dd>PTIT-202600128</dd></div>
-                <div><dt>Loại độc giả</dt><dd>Sinh viên</dd></div>
-                <div><dt>Trạng thái thẻ</dt><dd><Status tone={restricted ? "error" : "success"}>{restricted ? "Đang bị khóa" : "Đang hoạt động"}</Status></dd></div>
-                <div><dt>Ngày cấp thẻ</dt><dd>01/09/2026</dd></div>
-                <div><dt>Ngày hết hạn</dt><dd>Chưa xác định</dd></div>
-              </dl>
-              <p className="library-card-note"><Icon name="info" size={14} />Thông tin thẻ được quản lý bởi thư viện. Vui lòng liên hệ nhân viên thư viện nếu cần điều chỉnh thông tin thẻ.</p>
-            </section>
-
-            <section className={`profile-card account-status-card ${restricted ? "restricted" : ""}`}>
-              <span className="account-status-icon"><Icon name={restricted ? "error" : "success"} size={23} /></span>
-              <p className="eyebrow">TRẠNG THÁI TÀI KHOẢN</p>
-              <h2>{restricted ? "Thẻ thư viện đang bị khóa" : "Đang hoạt động"}</h2>
-              <p>{restricted ? "Tài khoản hiện không thể thực hiện các giao dịch mượn hoặc đặt trước tài liệu. Vui lòng liên hệ nhân viên thư viện để được hỗ trợ." : "Tài khoản hiện có thể sử dụng các chức năng thư viện theo quyền được cấp."}</p>
-              {restricted && <div className="restricted-note"><Icon name="info" size={15} />Tài khoản đang bị hạn chế. Vui lòng liên hệ nhân viên thư viện.</div>}
-            </section>
-          </aside>
-        </div>
-      </main>
-      {toast && <div className="toast-position"><Toast title="Cập nhật thành công" onClose={() => setToast(false)}>Thông tin cá nhân đã được cập nhật.</Toast></div>}
-    </div>
-  );
-}
-
-function NotificationDetailPage({ notificationId }: { notificationId: string }) {
-  const notification = libraryNotifications[notificationId];
-  const [read, setRead] = useState(notification ? !notification.unread : true);
-  const [loadState, setLoadState] = useState<"ready" | "loading" | "error">(notificationId === "loading" ? "loading" : notificationId === "error" ? "error" : "ready");
-
-  useEffect(() => {
-    if (!notification?.unread) return;
-    const timer = window.setTimeout(() => setRead(true), 350);
-    return () => window.clearTimeout(timer);
-  }, [notification]);
-
-  const retry = () => {
-    setLoadState("loading");
-    window.setTimeout(() => setLoadState(notification ? "ready" : "error"), 700);
-  };
-
-  if (loadState === "loading") {
-    return <div className="notification-detail-page"><main className="notification-detail-container"><div className="notification-skeleton"><Skeleton className="notification-skeleton-line short" /><Skeleton className="notification-skeleton-line title" /><Skeleton className="notification-skeleton-card" /><Skeleton className="notification-skeleton-card tall" /></div></main></div>;
-  }
-  if (loadState === "error") {
-    return <div className="notification-detail-page"><main className="notification-detail-container"><div className="notification-state"><span className="error"><Icon name="error" size={28} /></span><h1>Không thể tải thông báo</h1><p>Đã xảy ra lỗi khi tải dữ liệu. Vui lòng kiểm tra kết nối và thử lại.</p><Button variant="secondary" onClick={retry}>Thử lại</Button></div></main></div>;
-  }
-  if (!notification) {
-    return <div className="notification-detail-page"><main className="notification-detail-container"><div className="notification-state"><span><Icon name="info" size={28} /></span><h1>Không tìm thấy thông báo</h1><p>Thông báo không tồn tại hoặc bạn không có quyền truy cập nội dung này.</p><Button variant="secondary" onClick={() => { window.location.hash = "#/reader"; }}>Quay lại trang chủ</Button></div></main></div>;
-  }
-
-  return (
-    <div className="notification-detail-page">
-      <main className="notification-detail-container">
-        <Breadcrumb items={["Trang chủ", "Thông báo", "Chi tiết thông báo"]} />
-        <button className="back-notifications" onClick={() => window.history.back()}><Icon name="arrow-left" size={16} />Tất cả thông báo</button>
-        <div className="notification-page-heading">
-          <div><p className="eyebrow">TRUNG TÂM THÔNG BÁO</p><h1>Chi tiết thông báo</h1></div>
-          <div><Badge tone={read ? "neutral" : "brand"}>{read ? "ĐÃ ĐỌC" : "CHƯA ĐỌC"}</Badge><span>{notification.sentAt}</span></div>
-        </div>
-
-        <article className={`notification-detail-card ${notification.unread && !read ? "unread" : ""}`}>
-          <header>
-            <span className={`notification-detail-icon ${notification.tone}`}><Icon name={notification.icon} size={24} /></span>
-            <div><Badge tone={notification.tone}>{notification.category}</Badge><h2>{notification.title}</h2><p>Gửi lúc {notification.sentAt} · {notification.relativeTime}</p></div>
-            {notification.unread && !read && <i className="unread-dot" aria-label="Chưa đọc" />}
-          </header>
-          <div className="notification-detail-body">
-            {notification.expired && <div className="expired-notice"><Icon name="info" size={17} /><div><strong>Thông báo đã hết hiệu lực</strong><p>Hành động liên quan không còn khả dụng.</p></div></div>}
-            <p>{notification.intro}</p>
-            <section><h3>Thông tin chi tiết</h3><dl>{notification.details.map((detail) => <div key={detail.label}><dt>{detail.label}</dt><dd>{detail.value}</dd></div>)}</dl></section>
-            <p className="notification-sample-note"><Icon name="info" size={14} />Thông tin trên là dữ liệu mẫu dùng để minh họa giao diện.</p>
-          </div>
-          {notification.actionLabel && !notification.expired && <footer><Button onClick={() => { window.location.hash = notification.actionPath || "#/reader"; }}>{notification.actionLabel}</Button><Button variant="ghost" onClick={() => window.history.back()}>Quay lại</Button></footer>}
-        </article>
-
-        <section className="notification-related">
-          <header><span><Icon name="document" size={18} /></span><div><h2>Thông tin liên quan</h2><p>Đối tượng được đề cập trong thông báo này.</p></div></header>
-          <div><div><strong>{notification.relatedTitle}</strong><span>{notification.relatedSubtitle}</span></div><Badge tone={notification.expired ? "neutral" : notification.tone}>{notification.details.find((detail) => detail.label.includes("Trạng thái"))?.value || notification.category}</Badge></div>
-        </section>
-      </main>
-    </div>
-  );
 }
 
 function ReaderPortal({ path }: { path: string }) {
@@ -319,30 +125,6 @@ function ReaderPortal({ path }: { path: string }) {
           />
         </main>
       )}
-    </div>
-  );
-}
-
-function CirculationChart() {
-  const max = 200;
-  return (
-    <div className="circulation-chart">
-      <div className="chart-y-axis"><span>200</span><span>150</span><span>100</span><span>50</span><span>0</span></div>
-      <div className="chart-plot">
-        <div className="chart-grid"><i /><i /><i /><i /><i /></div>
-        <div className="chart-columns">
-          {circulationData.map((item) => (
-            <div className="chart-day" key={item.day}>
-              <div className="chart-bars">
-                <span className={`bar bar-borrowed h-${Math.round(item.borrowed / max * 10)}`} title={`${item.borrowed} lượt mượn`} />
-                <span className={`bar bar-returned h-${Math.round(item.returned / max * 10)}`} title={`${item.returned} lượt trả`} />
-                <span className={`bar bar-overdue h-${Math.max(1, Math.round(item.overdue / max * 10))}`} title={`${item.overdue} quá hạn`} />
-              </div>
-              <small>{item.day}</small>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -473,70 +255,6 @@ function CirculationScreen() {
         </div>
         <label className="staff-checkbox confirmation-checkbox"><input type="checkbox" /><span>Tôi đã kiểm tra thông tin và tình trạng tài liệu</span></label>
         <div className="modal-actions"><Button variant="ghost" onClick={() => setConfirmation(null)}>Quay lại</Button><Button onClick={() => setConfirmation(null)}>{actionLabel}</Button></div>
-      </Modal>
-    </div>
-  );
-}
-
-function MaterialsManagementPage() {
-  const [searchType, setSearchType] = useState("Nhan đề");
-  const [selected, setSelected] = useState<number[]>([]);
-  const [actionMenu, setActionMenu] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CatalogRecord | null>(null);
-  const allSelected = selected.length === catalogRecords.length;
-  const toggleRow = (id: number) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
-
-  return (
-    <div className="materials-page">
-      <div className="materials-page-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Quản lý tài liệu"]} /><p className="eyebrow">QUẢN LÝ BIỂU GHI</p><h1>Quản lý tài liệu</h1><p>Biên mục, kiểm soát và cập nhật kho tài liệu thư viện.</p></div>
-        <div className="materials-top-actions"><Button variant="ghost" icon="document">Xuất dữ liệu</Button><Button variant="secondary" icon="plus">Nhập dữ liệu hàng loạt</Button><Button icon="plus" onClick={() => { window.location.hash = "#/staff/materials/new"; }}>Thêm tài liệu</Button></div>
-      </div>
-
-      <section className="materials-search-panel">
-        <div className="catalog-search-types">{["Nhan đề", "Tác giả", "ISBN", "Mã biểu ghi"].map((type) => <button key={type} className={searchType === type ? "active" : ""} onClick={() => setSearchType(type)}>{type}</button>)}</div>
-        <div className="catalog-search-row"><SearchInput placeholder={`Tìm theo ${searchType.toLowerCase()}...`} /><Button icon="search">Tìm kiếm</Button></div>
-        <div className="catalog-filter-grid">
-          <label><span>Dạng tài liệu</span><select defaultValue="all"><option value="all">Tất cả dạng tài liệu</option><option>Sách chuyên khảo</option><option>Giáo trình</option><option>Luận án, luận văn</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Ngành đào tạo</span><select defaultValue="all"><option value="all">Tất cả ngành</option><option>Công nghệ thông tin</option><option>Điện tử viễn thông</option><option>Quản trị kinh doanh</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Ngôn ngữ</span><select defaultValue="all"><option value="all">Tất cả ngôn ngữ</option><option>Tiếng Việt</option><option>Tiếng Anh</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Năm xuất bản</span><select defaultValue="all"><option value="all">Tất cả các năm</option><option>2025</option><option>2024</option><option>2023</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Trạng thái</span><select defaultValue="all"><option value="all">Tất cả trạng thái</option><option>Đã xuất bản</option><option>Bản nháp</option><option>Cần bổ sung</option></select><Icon name="chevron-down" size={14} /></label>
-          <label className="digital-filter"><input type="checkbox" /><span><strong>Có tài liệu số</strong><small>Chỉ hiện biểu ghi có tệp số</small></span></label>
-        </div>
-      </section>
-
-      <section className="catalog-table-panel">
-        <div className="catalog-table-toolbar">
-          <div><h2>Danh sách biểu ghi</h2><p>48.632 biểu ghi · Cập nhật 5 phút trước</p></div>
-          {selected.length > 0 ? <div className="bulk-actions"><strong>Đã chọn {selected.length}</strong><Button variant="ghost" size="sm">Đổi trạng thái</Button><Button variant="ghost" size="sm">Xuất dữ liệu</Button><Button variant="danger" size="sm" onClick={() => setSelected([])}>Xóa đã chọn</Button></div> : <Button variant="ghost" size="sm" icon="filter">Tùy chỉnh cột</Button>}
-        </div>
-        <div className="catalog-table-wrap">
-          <table className="catalog-table">
-            <thead><tr><th><input type="checkbox" aria-label="Chọn tất cả" checked={allSelected} onChange={() => setSelected(allSelected ? [] : catalogRecords.map((item) => item.id))} /></th><th>Cover</th><th>Nhan đề</th><th>Tác giả</th><th>ISBN</th><th>Dạng tài liệu</th><th>Số bản</th><th>Tài liệu số</th><th>Trạng thái</th><th>Actions</th></tr></thead>
-            <tbody>{catalogRecords.map((record) => (
-              <tr key={record.id} className={selected.includes(record.id) ? "selected-row" : ""}>
-                <td><input type="checkbox" aria-label={`Chọn ${record.title}`} checked={selected.includes(record.id)} onChange={() => toggleRow(record.id)} /></td>
-                <td><div className="catalog-cover"><BookCover book={record} /></div></td>
-                <td><div className="catalog-title-cell"><strong>{record.title}</strong><small>{record.recordCode} · {record.code}</small></div></td>
-                <td>{record.author}</td>
-                <td><code>{record.isbn}</code></td>
-                <td><Badge>{record.type}</Badge></td>
-                <td><button className="copy-count"><strong>{record.copies}</strong><small>Bản cá biệt</small></button></td>
-                <td>{record.digitalFiles > 0 ? <button className="digital-count"><Icon name="document" size={15} /><span><strong>{record.digitalFiles} tệp</strong><small>Đã xử lý</small></span></button> : <span className="no-digital">Chưa có</span>}</td>
-                <td><Badge tone={record.recordStatus === "Đã xuất bản" ? "success" : record.recordStatus === "Bản nháp" ? "warning" : "error"}>{record.recordStatus}</Badge></td>
-                <td><div className="catalog-row-actions"><Button variant="ghost" size="sm">Xem</Button><Button variant="ghost" size="sm" onClick={() => { window.location.hash = `#/staff/materials/edit/${record.id}`; }}>Sửa</Button><div className="catalog-more-wrap"><IconButton label="Thêm thao tác" icon="more" onClick={() => setActionMenu(actionMenu === record.id ? null : record.id)} /><Dropdown open={actionMenu === record.id}><button><Icon name="library" />Bản cá biệt</button><button><Icon name="document" />Tài liệu số</button><hr /><button className="danger" onClick={() => { setDeleteTarget(record); setActionMenu(null); }}><Icon name="error" />Xóa biểu ghi</button></Dropdown></div></div></td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-        <div className="catalog-pagination"><p>Hiển thị 1–6 trong tổng số 48.632 biểu ghi</p><Pagination /></div>
-      </section>
-
-      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Xóa biểu ghi thư mục">
-        <div className="catalog-delete-warning"><span><Icon name="error" size={24} /></span><div><strong>Bạn có chắc muốn xóa biểu ghi này?</strong><p>{deleteTarget?.title}</p></div></div>
-        <p className="delete-explanation">Biểu ghi chỉ có thể xóa khi không còn bản cá biệt đang lưu thông hoặc tài liệu số được liên kết. Thao tác này sẽ được ghi vào nhật ký hệ thống.</p>
-        <div className="modal-actions"><Button variant="ghost" onClick={() => setDeleteTarget(null)}>Hủy</Button><Button variant="danger" onClick={() => setDeleteTarget(null)}>Xóa biểu ghi</Button></div>
       </Modal>
     </div>
   );
@@ -907,182 +625,6 @@ function ReaderManagementPage() {
         {cardAction?.lock ? <><SelectField label="Lý do khóa thẻ" defaultValue="violation"><option value="violation">Vi phạm quy định thư viện</option><option value="debt">Công nợ chưa xử lý</option><option value="lost">Báo mất thẻ</option><option value="other">Lý do khác</option></SelectField><SelectField label="Thời hạn khóa" defaultValue="manual"><option value="manual">Đến khi nhân viên mở khóa</option><option value="7">07 ngày</option><option value="30">30 ngày</option><option value="permanent">Không thời hạn</option></SelectField></> : <p className="unlock-note">Bạn đọc sẽ được khôi phục quyền mượn, gia hạn và đặt trước sau khi mở khóa.</p>}
         <div className="modal-actions"><Button variant="ghost" onClick={() => setCardAction(null)}>Hủy</Button><Button variant={cardAction?.lock ? "danger" : "primary"} onClick={executeCardAction}>{cardAction?.lock ? "Khóa thẻ" : "Mở khóa"}</Button></div>
       </Modal>
-    </div>
-  );
-}
-
-function ReportsScreen() {
-  const [view, setView] = useState<"circulation" | "demand">("circulation");
-  return (
-    <div className="reports-page">
-      <div className="reports-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Thống kê & báo cáo"]} /><p className="eyebrow">PHÂN TÍCH VẬN HÀNH</p><h1>Thống kê &amp; báo cáo</h1><p>Dữ liệu tổng hợp phục vụ đánh giá hoạt động và phát triển nguồn lực thư viện.</p></div>
-        <Button icon="document">Xuất báo cáo</Button>
-      </div>
-
-      <section className="report-filter-bar">
-        <label><span>Khoảng thời gian</span><select defaultValue="30"><option value="7">7 ngày gần đây</option><option value="30">30 ngày gần đây</option><option value="90">3 tháng gần đây</option><option value="365">12 tháng gần đây</option></select><Icon name="chevron-down" size={14} /></label>
-        <label><span>Ngành đào tạo</span><select defaultValue="all"><option value="all">Tất cả ngành đào tạo</option><option>Công nghệ thông tin</option><option>Điện tử viễn thông</option><option>Quản trị kinh doanh</option></select><Icon name="chevron-down" size={14} /></label>
-        <label><span>Dạng tài liệu</span><select defaultValue="all"><option value="all">Tất cả dạng tài liệu</option><option>Giáo trình</option><option>Sách chuyên khảo</option><option>Luận án, luận văn</option></select><Icon name="chevron-down" size={14} /></label>
-        <Button variant="secondary">Áp dụng</Button>
-        <button className="report-reset">Đặt lại</button>
-      </section>
-
-      <section className="report-kpi-grid">
-        <article><span className="report-kpi-icon brand"><Icon name="book" /></span><div><small>Tổng lượt mượn</small><strong>3.842</strong><p><b>+8,4%</b> so với kỳ trước</p></div></article>
-        <article><span className="report-kpi-icon info"><Icon name="arrow-left" /></span><div><small>Tổng lượt trả</small><strong>3.615</strong><p><b>+5,2%</b> so với kỳ trước</p></div></article>
-        <article><span className="report-kpi-icon error"><Icon name="error" /></span><div><small>Quá hạn</small><strong>186</strong><p className="negative"><b>+12,1%</b> cần chú ý</p></div></article>
-        <article><span className="report-kpi-icon success"><Icon name="users" /></span><div><small>Bạn đọc hoạt động</small><strong>2.947</strong><p><b>+4,8%</b> so với kỳ trước</p></div></article>
-      </section>
-
-      <div className="report-view-tabs">
-        <button className={view === "circulation" ? "active" : ""} onClick={() => setView("circulation")}><Icon name="dashboard" />Lưu thông tài liệu<span>4 biểu đồ</span></button>
-        <button className={view === "demand" ? "active" : ""} onClick={() => setView("demand")}><Icon name="search" />Nhu cầu &amp; tình trạng kho<span>3 báo cáo</span></button>
-      </div>
-
-      {view === "circulation" ? (
-        <div className="report-view-content">
-          <section className="report-panel report-trend-panel">
-            <header><div><h2>Lượt mượn theo thời gian</h2><p>Xu hướng mượn và trả trong 30 ngày gần đây</p></div><div className="chart-legend"><span><i className="legend-borrowed" />Lượt mượn</span><span><i className="legend-returned" />Lượt trả</span></div></header>
-            <div className="report-line-chart">
-              <div className="line-y-axis"><span>200</span><span>150</span><span>100</span><span>50</span><span>0</span></div>
-              <svg viewBox="0 0 800 230" role="img" aria-label="Biểu đồ lượt mượn và trả theo thời gian">
-                <g className="line-grid"><line x1="20" y1="20" x2="790" y2="20" /><line x1="20" y1="65" x2="790" y2="65" /><line x1="20" y1="110" x2="790" y2="110" /><line x1="20" y1="155" x2="790" y2="155" /><line x1="20" y1="200" x2="790" y2="200" /></g>
-                <polyline className="borrow-line" points="20,145 90,125 160,134 230,92 300,106 370,81 440,98 510,61 580,77 650,45 720,67 790,35" />
-                <polyline className="return-line" points="20,158 90,142 160,118 230,126 300,97 370,109 440,78 510,91 580,62 650,74 720,48 790,57" />
-                <g className="borrow-points">{[[20,145],[90,125],[160,134],[230,92],[300,106],[370,81],[440,98],[510,61],[580,77],[650,45],[720,67],[790,35]].map(([x,y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="3" />)}</g>
-              </svg>
-              <div className="line-x-axis"><span>24/05</span><span>30/05</span><span>05/06</span><span>11/06</span><span>17/06</span><span>22/06</span></div>
-            </div>
-          </section>
-
-          <div className="report-two-column">
-            <section className="report-panel">
-              <header><div><h2>Lượt mượn theo ngành đào tạo</h2><p>Tỷ trọng theo hồ sơ bạn đọc</p></div></header>
-              <div className="horizontal-chart">
-                {[["Công nghệ thông tin", "1.248", "w-92"], ["Điện tử viễn thông", "986", "w-74"], ["Quản trị kinh doanh", "642", "w-51"], ["An toàn thông tin", "518", "w-42"], ["Công nghệ đa phương tiện", "448", "w-35"]].map(([label, value, width]) => <div key={label}><span>{label}</span><div><i className={width} /></div><strong>{value}</strong></div>)}
-              </div>
-            </section>
-            <section className="report-panel">
-              <header><div><h2>Lượt mượn theo dạng tài liệu</h2><p>Phân bổ 3.842 lượt mượn</p></div></header>
-              <div className="document-type-chart">
-                <div className="report-donut"><span><strong>3.842</strong><small>Lượt mượn</small></span></div>
-                <div className="donut-legend"><div><i className="donut-a" /><span>Giáo trình</span><strong>42%</strong></div><div><i className="donut-b" /><span>Sách chuyên khảo</span><strong>28%</strong></div><div><i className="donut-c" /><span>Sách tham khảo</span><strong>18%</strong></div><div><i className="donut-d" /><span>Khác</span><strong>12%</strong></div></div>
-              </div>
-            </section>
-          </div>
-
-          <section className="report-panel report-ranking">
-            <header><div><h2>Tài liệu mượn nhiều nhất</h2><p>Top 5 tài liệu theo số lượt lưu thông</p></div><Button variant="ghost" size="sm">Xem danh sách đầy đủ</Button></header>
-            <div className="ranking-list">{[
-              ["01", "Nhập môn Trí tuệ nhân tạo", "Nguyễn Thanh Thủy", "286", "4.8"],
-              ["02", "Cấu trúc dữ liệu và giải thuật", "Nguyễn Đức Nghĩa", "243", "4.7"],
-              ["03", "Mạng máy tính và hệ thống phân tán", "Lê Nhật Quang", "218", "4.5"],
-              ["04", "An toàn thông tin trong kỷ nguyên số", "Phạm Văn Cường", "194", "4.4"],
-              ["05", "Nhập môn Khoa học dữ liệu", "Trần Đức Khánh", "176", "4.6"],
-            ].map(([rank, title, author, loans, rating]) => <div key={rank}><span>{rank}</span><div><strong>{title}</strong><small>{author}</small></div><div className="ranking-meter"><i className={`rank-${rank}`} /></div><b>{loans}<small> lượt</small></b><em>{rating} ★</em></div>)}</div>
-          </section>
-        </div>
-      ) : (
-        <div className="report-view-content">
-          <div className="report-two-column demand-grid">
-            <section className="report-panel">
-              <header><div><h2>Tài liệu ít được mượn</h2><p>Không phát sinh hoặc có rất ít lượt mượn trong 12 tháng</p></div><Badge tone="warning">184 TÀI LIỆU</Badge></header>
-              <div className="low-circulation-list">{[
-                ["Kỹ thuật truyền dẫn quang nâng cao", "0 lượt", "18 tháng"],
-                ["Mô hình toán trong kinh tế vi mô", "1 lượt", "11 tháng"],
-                ["Ngôn ngữ lập trình Prolog", "2 lượt", "9 tháng"],
-                ["Hệ thống thông tin địa lý", "2 lượt", "8 tháng"],
-              ].map(([title, count, period]) => <article key={title}><span><Icon name="book" /></span><div><strong>{title}</strong><small>Lần mượn gần nhất: {period} trước</small></div><Badge>{count}</Badge></article>)}</div>
-            </section>
-            <section className="report-panel inventory-report">
-              <header><div><h2>Tình trạng kho</h2><p>Phân bổ 52.184 bản cá biệt</p></div></header>
-              <div className="inventory-report-total"><strong>52.184</strong><span>Tổng số bản</span></div>
-              <div className="inventory-report-bar"><i className="inv-available" /><i className="inv-borrowed" /><i className="inv-damaged" /><i className="inv-audit" /></div>
-              <div className="inventory-report-legend"><div><i className="inventory-available" /><span>Có sẵn</span><strong>49.862</strong><small>95,55%</small></div><div><i className="inventory-borrowed" /><span>Đang mượn</span><strong>1.284</strong><small>2,46%</small></div><div><i className="inventory-damaged" /><span>Hư hỏng</span><strong>892</strong><small>1,71%</small></div><div><i className="inventory-audit" /><span>Cần kiểm kê</span><strong>146</strong><small>0,28%</small></div></div>
-            </section>
-          </div>
-
-          <section className="report-panel report-query-panel">
-            <header><div><h2>Truy vấn không có kết quả</h2><p>Các nhu cầu tìm kiếm chưa được đáp ứng</p></div><Badge tone="warning">CẦN PHÂN TÍCH</Badge></header>
-            <div className="report-query-table-wrap"><table><thead><tr><th>Query</th><th>Số lần tìm</th><th>Thời gian gần nhất</th><th>Xu hướng</th></tr></thead><tbody>
-              <tr><td><strong>“mạng 6G và truyền thông lượng tử”</strong></td><td><b>28</b></td><td>22/06/2025 · 09:18</td><td><Badge tone="error">TĂNG NHANH</Badge></td></tr>
-              <tr><td><strong>“AI tạo sinh trong thiết kế vi mạch”</strong></td><td><b>21</b></td><td>21/06/2025 · 16:42</td><td><Badge tone="warning">TĂNG</Badge></td></tr>
-              <tr><td><strong>“giáo trình rust tiếng Việt”</strong></td><td><b>17</b></td><td>20/06/2025 · 14:05</td><td><Badge>ỔN ĐỊNH</Badge></td></tr>
-              <tr><td><strong>“bảo mật cho thiết bị y tế IoT”</strong></td><td><b>12</b></td><td>19/06/2025 · 11:26</td><td><Badge>ỔN ĐỊNH</Badge></td></tr>
-            </tbody></table></div>
-          </section>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StaffDashboard() {
-  const [dateRange, setDateRange] = useState("7 ngày");
-  return (
-    <div className="staff-dashboard">
-      <div className="staff-dashboard-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Tổng quan"]} /><p className="eyebrow">VẬN HÀNH THƯ VIỆN</p><h1>Dashboard thư viện</h1><p>Dữ liệu cập nhật lúc 09:42, ngày 22/06/2025</p></div>
-        <div className="date-filter" role="group" aria-label="Khoảng thời gian">
-          {["Hôm nay", "7 ngày", "30 ngày", "3 tháng", "Tùy chọn"].map((item) => <button key={item} className={dateRange === item ? "active" : ""} onClick={() => setDateRange(item)}>{item === "Tùy chọn" && <Icon name="filter" size={14} />}{item}</button>)}
-        </div>
-      </div>
-
-      <section className="staff-summary-grid" aria-label="Chỉ số vận hành">
-        {staffSummary.map((item) => <article key={item.label}><span className={`staff-metric-icon ${item.tone}`}><Icon name={item.icon} /></span><div><small>{item.label}</small><strong>{item.value}</strong><p className={item.tone === "error" ? "negative" : ""}>{item.change}</p></div></article>)}
-      </section>
-
-      <section className="staff-dashboard-grid">
-        <article className="staff-panel circulation-panel">
-          <header className="staff-panel-heading"><div><h2>Lưu thông tài liệu</h2><p>Số lượt giao dịch theo ngày</p></div><div className="chart-legend"><span><i className="legend-borrowed" />Mượn</span><span><i className="legend-returned" />Trả</span><span><i className="legend-overdue" />Quá hạn</span></div></header>
-          <CirculationChart />
-          <div className="chart-summary"><div><small>Tổng lượt mượn</small><strong>904</strong><span>+8,4%</span></div><div><small>Tổng lượt trả</small><strong>825</strong><span>+5,2%</span></div><div><small>Phát sinh quá hạn</small><strong>109</strong><span className="negative">+12,1%</span></div></div>
-        </article>
-
-        <aside className="staff-panel alerts-panel">
-          <header className="staff-panel-heading"><div><h2>Cảnh báo vận hành</h2><p>4 nhóm cần chú ý</p></div><Badge tone="error">16 VIỆC</Badge></header>
-          <div className="operational-alerts">
-            <button><span className="alert-icon error"><Icon name="error" /></span><div><strong>Quá hạn nhiều</strong><p>12 bạn đọc quá hạn trên 30 ngày</p></div><b>12</b><Icon name="chevron-right" size={15} /></button>
-            <button><span className="alert-icon error"><Icon name="document" /></span><div><strong>Tài liệu số xử lý lỗi</strong><p>3 tệp không thể trích xuất nội dung</p></div><b>3</b><Icon name="chevron-right" size={15} /></button>
-            <button><span className="alert-icon warning"><Icon name="bookmark" /></span><div><strong>Hàng đợi đặt trước</strong><p>38 lượt đang chờ xử lý</p></div><b>38</b><Icon name="chevron-right" size={15} /></button>
-            <button><span className="alert-icon info"><Icon name="library" /></span><div><strong>Tài liệu cần kiểm kê</strong><p>146 bản chưa xác nhận vị trí</p></div><b>146</b><Icon name="chevron-right" size={15} /></button>
-          </div>
-        </aside>
-      </section>
-
-      <section className="staff-dashboard-grid lower-grid">
-        <article className="staff-panel popular-panel">
-          <header className="staff-panel-heading"><div><h2>Tài liệu được mượn nhiều nhất</h2><p>Xếp hạng trong {dateRange.toLowerCase()} gần đây</p></div><Button variant="ghost" size="sm">Xem báo cáo<Icon name="chevron-right" size={15} /></Button></header>
-          <div className="staff-table-wrap"><table className="staff-data-table"><thead><tr><th>Tài liệu</th><th>Lượt mượn</th><th>Đánh giá</th><th>Tình trạng</th></tr></thead><tbody>
-            <tr><td><div className="staff-book-cell"><span>01</span><div><strong>Nhập môn Trí tuệ nhân tạo</strong><small>Nguyễn Thanh Thủy · 2024</small></div></div></td><td><b>86</b></td><td><Rating value={5} /><small>4.8</small></td><td><Status tone="success">3 / 5 bản có sẵn</Status></td></tr>
-            <tr><td><div className="staff-book-cell"><span>02</span><div><strong>Cấu trúc dữ liệu và giải thuật</strong><small>Nguyễn Đức Nghĩa · 2023</small></div></div></td><td><b>73</b></td><td><Rating value={5} /><small>4.7</small></td><td><Status tone="warning">1 / 8 bản có sẵn</Status></td></tr>
-            <tr><td><div className="staff-book-cell"><span>03</span><div><strong>Mạng máy tính và hệ thống phân tán</strong><small>Lê Nhật Quang · 2024</small></div></div></td><td><b>68</b></td><td><Rating value={4} /><small>4.5</small></td><td><Status tone="error">Hết bản có sẵn</Status></td></tr>
-            <tr><td><div className="staff-book-cell"><span>04</span><div><strong>An toàn thông tin trong kỷ nguyên số</strong><small>Phạm Văn Cường · 2022</small></div></div></td><td><b>54</b></td><td><Rating value={4} /><small>4.4</small></td><td><Status tone="success">2 / 4 bản có sẵn</Status></td></tr>
-          </tbody></table></div>
-        </article>
-
-        <article className="staff-panel inventory-panel">
-          <header className="staff-panel-heading"><div><h2>Tình trạng kho</h2><p>Phân bổ 52.184 bản cá biệt</p></div><Button variant="ghost" size="sm">Chi tiết</Button></header>
-          <div className="inventory-total"><div><small>TỔNG SỐ BẢN</small><strong>52.184</strong></div><span><i className="inventory-available" /><i className="inventory-borrowed" /><i className="inventory-damaged" /><i className="inventory-audit" /></span></div>
-          <div className="inventory-list">
-            <div><span><i className="inventory-available" />Có sẵn</span><strong>49.862</strong><small>95,55%</small></div>
-            <div><span><i className="inventory-borrowed" />Đang mượn</span><strong>1.284</strong><small>2,46%</small></div>
-            <div><span><i className="inventory-damaged" />Hư hỏng</span><strong>892</strong><small>1,71%</small></div>
-            <div><span><i className="inventory-audit" />Cần kiểm kê</span><strong>146</strong><small>0,28%</small></div>
-          </div>
-        </article>
-      </section>
-
-      <section className="staff-panel no-query-panel">
-        <header className="staff-panel-heading"><div><h2>Truy vấn không có kết quả</h2><p>Các nhu cầu bạn đọc chưa được đáp ứng trong 7 ngày qua</p></div><Badge tone="warning">CẦN PHÂN TÍCH</Badge></header>
-        <div className="staff-table-wrap"><table className="staff-data-table query-table"><thead><tr><th>Truy vấn tìm kiếm</th><th>Số lượt tìm</th><th>Lần tìm gần nhất</th><th>Hành động đề xuất</th><th /></tr></thead><tbody>
-          <tr><td><strong>“mạng 6G và truyền thông lượng tử”</strong></td><td><b>28</b></td><td>Hôm nay, 09:18</td><td><span className="suggested-action">Xem xét bổ sung tài liệu</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
-          <tr><td><strong>“AI tạo sinh trong thiết kế vi mạch”</strong></td><td><b>21</b></td><td>Hôm qua, 16:42</td><td><span className="suggested-action">Kiểm tra từ khóa chủ đề</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
-          <tr><td><strong>“giáo trình rust tiếng Việt”</strong></td><td><b>17</b></td><td>20/06/2025, 14:05</td><td><span className="suggested-action">Đề xuất mua bổ sung</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
-          <tr><td><strong>“bảo mật cho thiết bị y tế IoT”</strong></td><td><b>12</b></td><td>19/06/2025, 11:26</td><td><span className="suggested-action">Mở rộng chỉ mục nội dung</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
-        </tbody></table></div>
-      </section>
     </div>
   );
 }
