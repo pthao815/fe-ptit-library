@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Badge, Breadcrumb, Button, Field, Icon, IconButton, Status } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
@@ -24,6 +25,7 @@ function SearchResultCard({
   onSave: () => void;
   query: string;
 }) {
+  const navigate = useNavigate();
   return (
     <article className="search-result-card">
       <div className="result-cover-column">
@@ -56,7 +58,7 @@ function SearchResultCard({
           <small>{result.copies > 0 ? `${result.copies} bản tại thư viện` : "Có thể lưu để xem lại"}</small>
         </div>
         <div className="result-actions">
-          <Button size="sm" onClick={() => { window.location.hash = "#/reader/book-detail"; }}>Xem chi tiết</Button>
+          <Button size="sm" onClick={() => { navigate("/reader/book-detail"); }}>Xem chi tiết</Button>
           <Button variant={saved ? "secondary" : "ghost"} size="sm" icon="bookmark" onClick={onSave}>{saved ? "Đã lưu vào tủ sách" : "Lưu vào tủ sách"}</Button>
         </div>
       </div>
@@ -65,6 +67,7 @@ function SearchResultCard({
 }
 
 export default function SearchResultsPage({ empty = false }: { empty?: boolean }) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("trí tuệ nhân tạo");
   const [submittedQuery, setSubmittedQuery] = useState("trí tuệ nhân tạo");
   const [saved, setSaved] = useState<number[]>([102]);
@@ -108,8 +111,8 @@ export default function SearchResultsPage({ empty = false }: { empty?: boolean }
           </div>
           <div className="results-mode" role="tablist" aria-label="Chế độ tìm kiếm">
             <button className="active" role="tab" aria-selected="true">Tìm theo từ khóa</button>
-            <button onClick={() => { window.location.hash = "#/reader/content-search"; }} role="tab" aria-selected="false">Tìm trong nội dung</button>
-            <button onClick={() => { window.location.hash = "#/reader/content-search"; }} role="tab" aria-selected="false"><Icon name="sparkle" size={15} />Tìm kiếm thông minh</button>
+            <button onClick={() => { navigate("/reader/content-search"); }} role="tab" aria-selected="false">Tìm trong nội dung</button>
+            <button onClick={() => { navigate("/reader/content-search"); }} role="tab" aria-selected="false"><Icon name="sparkle" size={15} />Tìm kiếm thông minh</button>
           </div>
         </div>
       </section>

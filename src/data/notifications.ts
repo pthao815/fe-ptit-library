@@ -36,7 +36,7 @@ export const libraryNotifications: Record<string, LibraryNotification> = {
     relatedTitle: "Nhập môn Trí tuệ nhân tạo",
     relatedSubtitle: "Giáo trình · Nguyễn Văn A · 2024",
     actionLabel: "Xem chi tiết khoản mượn",
-    actionPath: "#/reader/my-library",
+    actionPath: "/reader/my-library",
   },
   reserved: {
     id: "reserved",
@@ -57,7 +57,7 @@ export const libraryNotifications: Record<string, LibraryNotification> = {
     relatedTitle: "Khai phá dữ liệu và ứng dụng",
     relatedSubtitle: "Giáo trình · Phạm Thu Hà · 2022",
     actionLabel: "Xem yêu cầu đặt trước",
-    actionPath: "#/reader/my-library/reservations",
+    actionPath: "/reader/my-library/reservations",
   },
   ready: {
     id: "ready",
@@ -78,7 +78,7 @@ export const libraryNotifications: Record<string, LibraryNotification> = {
     relatedTitle: "Trí tuệ nhân tạo – Cơ sở và ứng dụng",
     relatedSubtitle: "Sách chuyên khảo · Nguyễn Thanh Bình · 2024",
     actionLabel: "Xem thông tin tài liệu",
-    actionPath: "#/reader/book-detail",
+    actionPath: "/reader/book-detail",
   },
   expired: {
     id: "expired",

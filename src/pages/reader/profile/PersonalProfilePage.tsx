@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import type * as React from "react";
 import { Avatar, Badge, Breadcrumb, Button, Field, Icon, Status, Toast } from "../../../design-system";
@@ -9,6 +10,7 @@ const profileInitialContact = {
 };
 
 export default function PersonalProfilePage({ restricted = false }: { restricted?: boolean }) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [contact, setContact] = useState(profileInitialContact);
   const [draft, setDraft] = useState(profileInitialContact);
@@ -92,7 +94,7 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
             </section>
 
             <section className="profile-card recent-activity-card">
-              <header className="profile-card-heading"><div><span><Icon name="document" size={18} /></span><div><h2>Hoạt động gần đây</h2><p>Một số giao dịch thư viện gần nhất của bạn.</p></div></div><Button variant="ghost" size="sm" onClick={() => { window.location.hash = "#/reader/my-library/history"; }}>Xem lịch sử mượn trả<Icon name="chevron-right" size={15} /></Button></header>
+              <header className="profile-card-heading"><div><span><Icon name="document" size={18} /></span><div><h2>Hoạt động gần đây</h2><p>Một số giao dịch thư viện gần nhất của bạn.</p></div></div><Button variant="ghost" size="sm" onClick={() => { navigate("/reader/my-library/history"); }}>Xem lịch sử mượn trả<Icon name="chevron-right" size={15} /></Button></header>
               <div className="profile-activity-list">
                 <article><span className="activity-icon borrow"><Icon name="book" size={17} /></span><div><strong>Mượn tài liệu</strong><p>Nhập môn học máy</p></div><time>12/06/2026</time><Badge tone="success">Đang mượn</Badge></article>
                 <article><span className="activity-icon returned"><Icon name="success" size={17} /></span><div><strong>Trả tài liệu</strong><p>Cơ sở dữ liệu</p></div><time>08/06/2026</time><Badge tone="neutral">Đã trả</Badge></article>

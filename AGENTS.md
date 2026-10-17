@@ -12,8 +12,7 @@ React 19 + TypeScript + Vite + Tailwind CSS v4 application.
 ## Project structure
 
 - src/main.tsx mounts src/App.tsx and imports src/index.css.
-- src/App.tsx selects the application portal using hash routing.
-- src/hooks contains routing hooks.
+- src/App.tsx declares application routes using React Router BrowserRouter.
 - src/layouts contains Reader and Staff/Admin portals and the workspace sidebar.
 - src/pages contains auth, Reader, Staff and shared workspace pages.
 - src/components contains shared UI compositions.

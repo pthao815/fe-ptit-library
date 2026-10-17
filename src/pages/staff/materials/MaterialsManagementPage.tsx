@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Badge, Breadcrumb, Button, Dropdown, Icon, IconButton, Modal, Pagination, SearchInput } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
@@ -5,6 +6,7 @@ import type { CatalogRecord } from "../../../data/catalog";
 import { catalogRecords } from "../../../data/catalog";
 
 export default function MaterialsManagementPage() {
+  const navigate = useNavigate();
   const [searchType, setSearchType] = useState("Nhan đề");
   const [selected, setSelected] = useState<number[]>([]);
   const [actionMenu, setActionMenu] = useState<number | null>(null);
@@ -16,7 +18,7 @@ export default function MaterialsManagementPage() {
     <div className="materials-page">
       <div className="materials-page-heading">
         <div><Breadcrumb items={["Không gian nghiệp vụ", "Quản lý tài liệu"]} /><p className="eyebrow">QUẢN LÝ BIỂU GHI</p><h1>Quản lý tài liệu</h1><p>Biên mục, kiểm soát và cập nhật kho tài liệu thư viện.</p></div>
-        <div className="materials-top-actions"><Button variant="ghost" icon="document">Xuất dữ liệu</Button><Button variant="secondary" icon="plus">Nhập dữ liệu hàng loạt</Button><Button icon="plus" onClick={() => { window.location.hash = "#/staff/materials/new"; }}>Thêm tài liệu</Button></div>
+        <div className="materials-top-actions"><Button variant="ghost" icon="document">Xuất dữ liệu</Button><Button variant="secondary" icon="plus">Nhập dữ liệu hàng loạt</Button><Button icon="plus" onClick={() => { navigate("/staff/materials/new"); }}>Thêm tài liệu</Button></div>
       </div>
 
       <section className="materials-search-panel">
@@ -51,7 +53,7 @@ export default function MaterialsManagementPage() {
                 <td><button className="copy-count"><strong>{record.copies}</strong><small>Bản cá biệt</small></button></td>
                 <td>{record.digitalFiles > 0 ? <button className="digital-count"><Icon name="document" size={15} /><span><strong>{record.digitalFiles} tệp</strong><small>Đã xử lý</small></span></button> : <span className="no-digital">Chưa có</span>}</td>
                 <td><Badge tone={record.recordStatus === "Đã xuất bản" ? "success" : record.recordStatus === "Bản nháp" ? "warning" : "error"}>{record.recordStatus}</Badge></td>
-                <td><div className="catalog-row-actions"><Button variant="ghost" size="sm">Xem</Button><Button variant="ghost" size="sm" onClick={() => { window.location.hash = `#/staff/materials/edit/${record.id}`; }}>Sửa</Button><div className="catalog-more-wrap"><IconButton label="Thêm thao tác" icon="more" onClick={() => setActionMenu(actionMenu === record.id ? null : record.id)} /><Dropdown open={actionMenu === record.id}><button><Icon name="library" />Bản cá biệt</button><button><Icon name="document" />Tài liệu số</button><hr /><button className="danger" onClick={() => { setDeleteTarget(record); setActionMenu(null); }}><Icon name="error" />Xóa biểu ghi</button></Dropdown></div></div></td>
+                <td><div className="catalog-row-actions"><Button variant="ghost" size="sm">Xem</Button><Button variant="ghost" size="sm" onClick={() => { navigate(`/staff/materials/edit/${record.id}`); }}>Sửa</Button><div className="catalog-more-wrap"><IconButton label="Thêm thao tác" icon="more" onClick={() => setActionMenu(actionMenu === record.id ? null : record.id)} /><Dropdown open={actionMenu === record.id}><button><Icon name="library" />Bản cá biệt</button><button><Icon name="document" />Tài liệu số</button><hr /><button className="danger" onClick={() => { setDeleteTarget(record); setActionMenu(null); }}><Icon name="error" />Xóa biểu ghi</button></Dropdown></div></div></td>
               </tr>
             ))}</tbody>
           </table>

@@ -83,7 +83,7 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
         onActiveChange={changeWorkspace}
         onCollapse={() => setCollapsed(!collapsed)}
         onMobileClose={() => setMobileOpen(false)}
-        onLogout={() => { setMobileOpen(false); setUserOpen(false); logout(); }}
+        onLogout={() => { setMobileOpen(false); setUserOpen(false); logout(navigate); }}
       />
       {mobileOpen && <button className="mobile-scrim" aria-label="Đóng điều hướng" onClick={() => setMobileOpen(false)} />}
       <div className="workspace-main">
@@ -99,7 +99,7 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
           <div className="workspace-header-actions">
             <Button variant="ghost" size="sm" icon="sparkle">{isStaff ? "Tác vụ nhanh" : "Trạng thái hệ thống"}</Button>
             <span className="notification"><IconButton label="Thông báo" icon="bell" /><i /></span>
-            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate(role === "staff" ? "/staff/profile" : "/admin/profile"); }} onLogout={() => { setUserOpen(false); logout(); }} role={role} />
+            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate(role === "staff" ? "/staff/profile" : "/admin/profile"); }} onLogout={() => { setUserOpen(false); logout(navigate); }} role={role} />
           </div>
         </header>
         <main className="workspace-content-wrap">

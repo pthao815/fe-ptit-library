@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Badge, Breadcrumb, Button, Icon, IconButton } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
@@ -6,6 +7,7 @@ import { contentSearchResults } from "../../../data/search-results";
 import { contentFilterGroups } from "../../../constants/library-options";
 
 function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSearchResult; saved: boolean; onSave: () => void }) {
+  const navigate = useNavigate();
   const documentPage = result.id === 301 ? 42 : result.id === 302 ? 18 : 76;
   return (
     <article className="semantic-result-card">
@@ -18,7 +20,7 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
           <div><div className="book-meta"><span>{result.type}</span><i /><span>{result.year}</span></div><h2>{result.title}</h2><p>{result.author}</p></div>
           <div className="semantic-score"><strong>{result.relevance}%</strong><span>phù hợp</span></div>
         </div>
-        <button className="semantic-match" onClick={() => { window.location.hash = `#/reader/document/${documentPage}`; }}>
+        <button className="semantic-match" onClick={() => { navigate(`/reader/document/${documentPage}`); }}>
           <span className="semantic-match-title"><Icon name="sparkle" size={16} /><strong>Đoạn nội dung phù hợp</strong><Badge tone="brand">TÌM THEO NỘI DUNG</Badge></span>
           <span className="semantic-quote">“…{result.snippetBefore}<mark>{result.snippetMatch}</mark>{result.snippetAfter}…”</span>
           <span className="semantic-location"><Icon name="document" size={15} />{result.location}</span>
@@ -29,8 +31,8 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
           <div><span>CỘNG ĐỒNG</span><strong>{result.borrows} lượt mượn</strong><small>{result.communityRating} ★ · Đánh giá bạn đọc</small></div>
         </div>
         <div className="semantic-actions">
-          <Button size="sm" onClick={() => { window.location.hash = "#/reader/book-detail"; }}>Xem chi tiết</Button>
-          <Button variant="secondary" size="sm" icon="document" onClick={() => { window.location.hash = `#/reader/document/${documentPage}`; }}>Đọc trực tuyến</Button>
+          <Button size="sm" onClick={() => { navigate("/reader/book-detail"); }}>Xem chi tiết</Button>
+          <Button variant="secondary" size="sm" icon="document" onClick={() => { navigate(`/reader/document/${documentPage}`); }}>Đọc trực tuyến</Button>
           {!result.available && <Button variant="ghost" size="sm" icon="bookmark">Đặt trước</Button>}
           <Button variant="ghost" size="sm" icon="bookmark" onClick={onSave}>{saved ? "Đã lưu" : "Lưu"}</Button>
         </div>
@@ -40,6 +42,7 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
 }
 
 export default function ContentSearchResultsPage({ empty = false }: { empty?: boolean }) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("Tác động của trí tuệ nhân tạo đối với giáo dục đại học");
   const [saved, setSaved] = useState<number[]>([302]);
   const [selectedFilters, setSelectedFilters] = useState<string[]>(["Công nghệ thông tin", "Tiếng Việt"]);
@@ -53,7 +56,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
         <div className="semantic-search-inner">
           <Breadcrumb items={["Trang chủ", "Kết quả tìm kiếm theo nội dung"]} />
           <div className="semantic-tabs" role="tablist" aria-label="Chế độ tìm kiếm">
-            <button onClick={() => { window.location.hash = "#/reader/search"; }} role="tab" aria-selected="false">Từ khóa</button>
+            <button onClick={() => { navigate("/reader/search"); }} role="tab" aria-selected="false">Từ khóa</button>
             <button className="active" role="tab" aria-selected="true"><Icon name="sparkle" size={15} />Tìm theo nội dung</button>
           </div>
           <div className="semantic-search-box"><Icon name="sparkle" size={22} /><input aria-label="Nội dung tìm kiếm" value={query} onChange={(event) => setQuery(event.target.value)} /><Button icon="search">Tìm kiếm</Button></div>

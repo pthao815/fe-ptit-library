@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Avatar, Badge, Breadcrumb, Button, Icon, Rating, Status } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
@@ -6,6 +7,7 @@ import HomeSection from "../../../components/common/HomeSection";
 import { detailBook, relatedSimilar, relatedBorrowed } from "../../../data/books";
 
 export default function BookDetailPage() {
+  const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
   const [relatedSaved, setRelatedSaved] = useState<number[]>([]);
   const toggleRelatedSave = (id: number) => setRelatedSaved((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
@@ -45,7 +47,7 @@ export default function BookDetailPage() {
               <div className="detail-digital"><span><Icon name="document" />TÀI LIỆU SỐ</span><strong>Có thể xem trực tuyến</strong><small>Toàn văn · Quyền truy cập PTIT</small></div>
             </div>
             <div className="detail-primary-actions">
-              <Button icon="document" onClick={() => { window.location.hash = "#/reader/document/1"; }}>Đọc tài liệu số</Button>
+              <Button icon="document" onClick={() => { navigate("/reader/document/1"); }}>Đọc tài liệu số</Button>
               <Button variant="secondary" icon="bookmark">Đặt trước</Button>
               <Button variant="ghost" icon="bookmark" onClick={() => setSaved(!saved)}>{saved ? "Đã lưu vào tủ sách" : "Lưu vào tủ sách"}</Button>
             </div>
@@ -90,7 +92,7 @@ export default function BookDetailPage() {
             </section>
 
             <section className="detail-section reviews-section">
-              <div className="detail-section-heading review-heading"><span>04</span><div><h2>Đánh giá từ bạn đọc</h2><p>38 đánh giá đã được xác thực</p></div><Button variant="secondary" size="sm" onClick={() => { window.location.hash = "#/reader/book-detail/review"; }}>Viết đánh giá</Button></div>
+              <div className="detail-section-heading review-heading"><span>04</span><div><h2>Đánh giá từ bạn đọc</h2><p>38 đánh giá đã được xác thực</p></div><Button variant="secondary" size="sm" onClick={() => { navigate("/reader/book-detail/review"); }}>Viết đánh giá</Button></div>
               <div className="rating-summary">
                 <div className="rating-total"><strong>4.7</strong><Rating value={5} /><span>38 đánh giá</span></div>
                 <div className="rating-bars">{[["5", "78%", "rating-bar-78"], ["4", "17%", "rating-bar-17"], ["3", "5%", "rating-bar-5"], ["2", "0%", "rating-bar-0"], ["1", "0%", "rating-bar-0"]].map(([star, width, barClass]) => <div key={star}><span>{star} ★</span><i><b className={barClass} /></i><small>{width}</small></div>)}</div>

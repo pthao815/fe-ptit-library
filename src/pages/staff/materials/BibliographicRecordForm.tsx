@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Badge, Breadcrumb, Button, Field, Icon, IconButton, SelectField, Status, TextAreaField } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
@@ -22,6 +23,7 @@ type DigitalFileRow = {
 };
 
 export default function BibliographicRecordForm({ edit = false }: { edit?: boolean }) {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     title: edit ? "Trí tuệ nhân tạo: Nền tảng và ứng dụng" : "",
     subtitle: edit ? "Nguyên lý, thuật toán và các bài toán thực tiễn" : "",
@@ -142,7 +144,7 @@ export default function BibliographicRecordForm({ edit = false }: { edit?: boole
         </aside>
       </div>
 
-      <div className="record-form-actions"><div>{savedMessage ? <Status tone="success">{savedMessage}</Status> : <span><Icon name="info" size={14} />Các trường có dấu * là bắt buộc</span>}</div><Button variant="ghost" onClick={() => { window.location.hash = "#/staff/materials"; }}>Hủy</Button><Button variant="secondary" onClick={() => validate(true)}>Lưu nháp</Button><Button onClick={() => validate(false)}>Lưu tài liệu</Button></div>
+      <div className="record-form-actions"><div>{savedMessage ? <Status tone="success">{savedMessage}</Status> : <span><Icon name="info" size={14} />Các trường có dấu * là bắt buộc</span>}</div><Button variant="ghost" onClick={() => { navigate("/staff/materials"); }}>Hủy</Button><Button variant="secondary" onClick={() => validate(true)}>Lưu nháp</Button><Button onClick={() => validate(false)}>Lưu tài liệu</Button></div>
     </div>
   );
 }

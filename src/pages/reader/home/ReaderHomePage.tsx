@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Badge, Button, Icon, Rating } from "../../../design-system";
 import Brand from "../../../components/common/Brand";
@@ -7,6 +8,7 @@ import BookCover from "../../../components/books/BookCover";
 import { fieldBooks, recommendationBooks, newBooks } from "../../../data/books";
 
 export default function ReaderHome() {
+  const navigate = useNavigate();
   const [searchMode, setSearchMode] = useState<"keyword" | "content">("keyword");
   const [saved, setSaved] = useState<number[]>([2]);
   const [hiddenRecommendations, setHiddenRecommendations] = useState<number[]>([]);
@@ -29,7 +31,7 @@ export default function ReaderHome() {
               aria-label="Nội dung tìm kiếm"
               placeholder={searchMode === "content" ? "Mô tả chủ đề hoặc dán một đoạn văn bản bạn quan tâm..." : "Bạn muốn tìm hiểu điều gì?"}
             />
-            <Button icon="search" onClick={() => { window.location.hash = searchMode === "content" ? "#/reader/content-search" : "#/reader/search"; }}>Tìm kiếm</Button>
+            <Button icon="search" onClick={() => { navigate(searchMode === "content" ? "/reader/content-search" : "/reader/search"); }}>Tìm kiếm</Button>
           </div>
           <div className="search-support">
             <span>{searchMode === "content" ? "Bạn có thể dùng câu hỏi tự nhiên, mô tả chủ đề hoặc một đoạn trích." : "Gợi ý: trí tuệ nhân tạo, mạng máy tính, xử lý tín hiệu..."}</span>
@@ -93,7 +95,7 @@ export default function ReaderHome() {
 
       <footer className="reader-footer">
         <div><Brand compact /><p>Học viện Công nghệ Bưu chính Viễn thông</p></div>
-        <nav aria-label="Liên kết chân trang"><button onClick={() => { window.location.hash = "#/reader/guidelines"; }}>Hướng dẫn sử dụng</button><button onClick={() => { window.location.hash = "#/reader/guidelines"; }}>Quy định thư viện</button><button>Liên hệ hỗ trợ</button></nav>
+        <nav aria-label="Liên kết chân trang"><button onClick={() => { navigate("/reader/guidelines"); }}>Hướng dẫn sử dụng</button><button onClick={() => { navigate("/reader/guidelines"); }}>Quy định thư viện</button><button>Liên hệ hỗ trợ</button></nav>
         <small>© 2025 PTIT Library</small>
       </footer>
     </div>

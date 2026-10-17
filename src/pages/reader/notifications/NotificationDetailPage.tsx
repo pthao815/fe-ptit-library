@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Icon, Skeleton } from "../../../design-system";
 import { libraryNotifications } from "../../../data/notifications";
 
 export default function NotificationDetailPage({ notificationId }: { notificationId: string }) {
+  const navigate = useNavigate();
   const notification = libraryNotifications[notificationId];
   const [read, setRead] = useState(notification ? !notification.unread : true);
   const [loadState, setLoadState] = useState<"ready" | "loading" | "error">(notificationId === "loading" ? "loading" : notificationId === "error" ? "error" : "ready");
@@ -25,14 +27,14 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
     return <div className="notification-detail-page"><main className="notification-detail-container"><div className="notification-state"><span className="error"><Icon name="error" size={28} /></span><h1>Không thể tải thông báo</h1><p>Đã xảy ra lỗi khi tải dữ liệu. Vui lòng kiểm tra kết nối và thử lại.</p><Button variant="secondary" onClick={retry}>Thử lại</Button></div></main></div>;
   }
   if (!notification) {
-    return <div className="notification-detail-page"><main className="notification-detail-container"><div className="notification-state"><span><Icon name="info" size={28} /></span><h1>Không tìm thấy thông báo</h1><p>Thông báo không tồn tại hoặc bạn không có quyền truy cập nội dung này.</p><Button variant="secondary" onClick={() => { window.location.hash = "#/reader"; }}>Quay lại trang chủ</Button></div></main></div>;
+    return <div className="notification-detail-page"><main className="notification-detail-container"><div className="notification-state"><span><Icon name="info" size={28} /></span><h1>Không tìm thấy thông báo</h1><p>Thông báo không tồn tại hoặc bạn không có quyền truy cập nội dung này.</p><Button variant="secondary" onClick={() => { navigate("/reader"); }}>Quay lại trang chủ</Button></div></main></div>;
   }
 
   return (
     <div className="notification-detail-page">
       <main className="notification-detail-container">
         <Breadcrumb items={["Trang chủ", "Thông báo", "Chi tiết thông báo"]} />
-        <button className="back-notifications" onClick={() => window.history.back()}><Icon name="arrow-left" size={16} />Tất cả thông báo</button>
+        <button className="back-notifications" onClick={() => navigate(-1)}><Icon name="arrow-left" size={16} />Tất cả thông báo</button>
         <div className="notification-page-heading">
           <div><p className="eyebrow">TRUNG TÂM THÔNG BÁO</p><h1>Chi tiết thông báo</h1></div>
           <div><Badge tone={read ? "neutral" : "brand"}>{read ? "ĐÃ ĐỌC" : "CHƯA ĐỌC"}</Badge><span>{notification.sentAt}</span></div>
@@ -50,7 +52,7 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
             <section><h3>Thông tin chi tiết</h3><dl>{notification.details.map((detail) => <div key={detail.label}><dt>{detail.label}</dt><dd>{detail.value}</dd></div>)}</dl></section>
             <p className="notification-sample-note"><Icon name="info" size={14} />Thông tin trên là dữ liệu mẫu dùng để minh họa giao diện.</p>
           </div>
-          {notification.actionLabel && !notification.expired && <footer><Button onClick={() => { window.location.hash = notification.actionPath || "#/reader"; }}>{notification.actionLabel}</Button><Button variant="ghost" onClick={() => window.history.back()}>Quay lại</Button></footer>}
+          {notification.actionLabel && !notification.expired && <footer><Button onClick={() => { navigate(notification.actionPath || "/reader"); }}>{notification.actionLabel}</Button><Button variant="ghost" onClick={() => navigate(-1)}>Quay lại</Button></footer>}
         </article>
 
         <section className="notification-related">

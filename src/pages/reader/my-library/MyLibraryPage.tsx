@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Icon, Rating, Status } from "../../../design-system";
 import LibraryListCard from "../../../components/books/LibraryListCard";
@@ -54,6 +55,7 @@ function PersonalShelf({ group }: { group: string }) {
 }
 
 export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initialTab?: string }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [reservations, setReservations] = useState(reservedBooks);
 
@@ -65,7 +67,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         <Breadcrumb items={["Trang chủ", "Thư viện của tôi"]} />
         <div className="my-library-heading">
           <div><p className="eyebrow">KHÔNG GIAN CÁ NHÂN</p><h1>Thư viện của tôi</h1><p>Theo dõi tài liệu đang mượn, lượt đặt trước và các bộ sưu tập cá nhân của bạn.</p></div>
-          <Button variant="secondary" icon="search" onClick={() => { window.location.hash = "#/reader/search"; }}>Tìm thêm tài liệu</Button>
+          <Button variant="secondary" icon="search" onClick={() => { navigate("/reader/search"); }}>Tìm thêm tài liệu</Button>
         </div>
 
         <section className="library-summary-grid" aria-label="Tổng quan tài khoản thư viện">

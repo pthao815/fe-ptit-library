@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Button, Icon, IconButton } from "../../../design-system";
 import { documentChapters, matchItems } from "../../../data/document";
 
 export default function DocumentReader({ initialPage }: { initialPage: number }) {
+  const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(Math.min(Math.max(initialPage, 1), 148));
   const [zoomIndex, setZoomIndex] = useState(1);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -43,7 +45,7 @@ export default function DocumentReader({ initialPage }: { initialPage: number })
         <div className="reader-toolbar-actions">
           <IconButton label="Tìm trong tài liệu" icon="search" onClick={() => setSearchOpen(!searchOpen)} />
           <IconButton label="Toàn màn hình" icon="maximize" onClick={toggleFullscreen} />
-          <IconButton label="Đóng tài liệu" icon="close" onClick={() => { window.location.hash = "#/reader/book-detail"; }} />
+          <IconButton label="Đóng tài liệu" icon="close" onClick={() => { navigate("/reader/book-detail"); }} />
         </div>
       </header>
 

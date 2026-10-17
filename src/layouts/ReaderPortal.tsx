@@ -88,7 +88,7 @@ export default function ReaderPortal({ path }: { path: string }) {
               <i />
               <NotificationDropdown open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
             </span>
-            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate("/reader/profile"); }} onLogout={() => { setUserOpen(false); logout(); }} role="reader" />
+            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate("/reader/profile"); }} onLogout={() => { setUserOpen(false); logout(navigate); }} role="reader" />
           </div>
         </div>
       </header>
