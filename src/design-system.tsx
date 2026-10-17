@@ -8,6 +8,7 @@ import {
   type TextareaHTMLAttributes,
   useContext,
   useEffect,
+  useId,
 } from "react";
 
 type Tone = "brand" | "neutral" | "success" | "warning" | "error" | "info";
@@ -99,8 +100,8 @@ export function Button({
   );
 }
 
-export function IconButton({ label, icon, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName }) {
-  return <button className="icon-button" aria-label={label} title={label} {...props}><Icon name={icon} /></button>;
+export function IconButton({ label, icon, className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName }) {
+  return <button className={className ? `icon-button ${className}` : "icon-button"} aria-label={label} title={label} {...props}><Icon name={icon} /></button>;
 }
 
 export function Field({
@@ -181,13 +182,15 @@ export function Dropdown({ open, children }: { open: boolean; children: ReactNod
 }
 
 export function Modal({ open, onClose, title, children, className = "", eyebrow = "XÁC NHẬN THAO TÁC" }: { open: boolean; onClose: () => void; title: string; children: ReactNode; className?: string; eyebrow?: string }) {
+  const id = useId();
+  const titleId = `modal-title-${Array.from(id, (character) => character.codePointAt(0)!.toString(16)).join("-")}`;
   useEffect(() => {
     const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [onClose]);
   if (!open) return null;
-  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className={`modal ${className}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" onMouseDown={(event) => event.stopPropagation()}><div className="modal-header"><div><p className="eyebrow">{eyebrow}</p><h2 id="modal-title">{title}</h2></div><IconButton label="Đóng" icon="close" onClick={onClose} /></div><div className="modal-body">{children}</div></section></div>;
+  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className={`modal ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}><div className="modal-header"><div><p className="eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label="Đóng" icon="close" onClick={onClose} /></div><div className="modal-body">{children}</div></section></div>;
 }
 
 export function Toast({ tone = "success", title, children, onClose }: { tone?: Tone; title: string; children: ReactNode; onClose?: () => void }) {
