@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useRoutes } from "react-router-dom";
 import { Button, IconButton, SearchInput } from "../design-system";
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import UserMenu from "../components/common/UserMenu";
@@ -15,6 +16,7 @@ import ReaderManagementPage from "../pages/staff/readers/ReaderManagementPage";
 import ReportsScreen from "../pages/staff/reports/ReportsScreen";
 
 export default function DashboardPortal({ role, path }: { role: "staff" | "admin"; path: string }) {
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -34,15 +36,42 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
 
   const changeWorkspace = (label: string) => {
     setActive(label);
-    if (role === "staff" && label === "Lưu thông") window.location.hash = "#/staff/circulation";
-    else if (role === "staff" && label === "Quản lý tài liệu") window.location.hash = "#/staff/materials";
-    else if (role === "staff" && label === "Tài liệu số") window.location.hash = "#/staff/digital-processing";
-    else if (role === "staff" && label === "Đặt trước") window.location.hash = "#/staff/reservations";
-    else if (role === "staff" && label === "Bạn đọc") window.location.hash = "#/staff/readers";
-    else if (role === "staff" && label === "Thống kê & báo cáo") window.location.hash = "#/staff/reports";
-    else if (role === "staff" && label === "Tổng quan") window.location.hash = "#/staff";
-    else if (label === "Thông tin cá nhân") window.location.hash = role === "staff" ? "#/staff/profile" : "#/admin/profile";
+    if (role === "staff" && label === "Lưu thông") navigate("/staff/circulation");
+    else if (role === "staff" && label === "Quản lý tài liệu") navigate("/staff/materials");
+    else if (role === "staff" && label === "Tài liệu số") navigate("/staff/digital-processing");
+    else if (role === "staff" && label === "Đặt trước") navigate("/staff/reservations");
+    else if (role === "staff" && label === "Bạn đọc") navigate("/staff/readers");
+    else if (role === "staff" && label === "Thống kê & báo cáo") navigate("/staff/reports");
+    else if (role === "staff" && label === "Tổng quan") navigate("/staff");
+    else if (label === "Thông tin cá nhân") navigate(role === "staff" ? "/staff/profile" : "/admin/profile");
   };
+
+  const placeholder = (
+    <ShellPlaceholder
+      role={role}
+      title={active}
+      description={
+        isStaff
+          ? "Không gian vận hành tập trung cho các nghiệp vụ thư viện và phục vụ bạn đọc."
+          : "Không gian kiểm soát tài khoản, cấu hình và tình trạng vận hành của hệ thống."
+      }
+    />
+  );
+  const page = useRoutes([
+    { path: "profile", element: active === "Thông tin cá nhân" ? <WorkProfilePage role={role} /> : placeholder },
+    ...(isStaff ? [
+      { index: true, element: <StaffDashboard /> },
+      { path: "circulation", element: <CirculationScreen /> },
+      { path: "materials/new", element: <BibliographicRecordForm /> },
+      { path: "materials/edit/:id/*", element: <BibliographicRecordForm edit /> },
+      { path: "materials/*", element: <MaterialsManagementPage /> },
+      { path: "digital-processing", element: <DigitalProcessingPage /> },
+      { path: "reservations", element: <ReservationManagementPage /> },
+      { path: "readers", element: <ReaderManagementPage /> },
+      { path: "reports", element: <ReportsScreen /> },
+    ] : []),
+    { path: "*", element: placeholder },
+  ]);
 
   return (
     <div className={`workspace-portal ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -70,21 +99,11 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
           <div className="workspace-header-actions">
             <Button variant="ghost" size="sm" icon="sparkle">{isStaff ? "Tác vụ nhanh" : "Trạng thái hệ thống"}</Button>
             <span className="notification"><IconButton label="Thông báo" icon="bell" /><i /></span>
-            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); window.location.hash = role === "staff" ? "#/staff/profile" : "#/admin/profile"; }} onLogout={() => { setUserOpen(false); logout(); }} role={role} />
+            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate(role === "staff" ? "/staff/profile" : "/admin/profile"); }} onLogout={() => { setUserOpen(false); logout(); }} role={role} />
           </div>
         </header>
         <main className="workspace-content-wrap">
-          {active === "Thông tin cá nhân" ? <WorkProfilePage role={role} /> : isStaff && active === "Tổng quan" ? <StaffDashboard /> : isStaff && active === "Lưu thông" ? <CirculationScreen /> : isStaff && path === "staff/materials/new" ? <BibliographicRecordForm /> : isStaff && path.startsWith("staff/materials/edit/") ? <BibliographicRecordForm edit /> : isStaff && active === "Quản lý tài liệu" ? <MaterialsManagementPage /> : isStaff && active === "Tài liệu số" ? <DigitalProcessingPage /> : isStaff && active === "Đặt trước" ? <ReservationManagementPage /> : isStaff && active === "Bạn đọc" ? <ReaderManagementPage /> : isStaff && active === "Thống kê & báo cáo" ? <ReportsScreen /> : (
-            <ShellPlaceholder
-              role={role}
-              title={active}
-              description={
-                isStaff
-                  ? "Không gian vận hành tập trung cho các nghiệp vụ thư viện và phục vụ bạn đọc."
-                  : "Không gian kiểm soát tài khoản, cấu hình và tình trạng vận hành của hệ thống."
-              }
-            />
-          )}
+          {page}
         </main>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useRoutes } from "react-router-dom";
 import { IconButton, SearchInput } from "../design-system";
 import { readerNavigation } from "../constants/navigation";
 import { logout } from "../utils/logout";
@@ -17,6 +18,7 @@ import PersonalProfilePage from "../pages/reader/profile/PersonalProfilePage";
 import NotificationDetailPage from "../pages/reader/notifications/NotificationDetailPage";
 
 export default function ReaderPortal({ path }: { path: string }) {
+  const navigate = useNavigate();
   const [active, setActive] = useState(path.startsWith("reader/my-library/history") ? "Lịch sử mượn" : path.startsWith("reader/my-library") ? "Tủ sách của tôi" : "Trang chủ");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -29,6 +31,28 @@ export default function ReaderPortal({ path }: { path: string }) {
     else if (path.includes("search") || path === "reader/guidelines") setActive("");
     else if (path === "reader") setActive("Trang chủ");
   }, [path]);
+
+  const page = useRoutes([
+    { path: "profile/*", element: <PersonalProfilePage restricted={path.endsWith("/restricted")} /> },
+    { path: "notifications/:notificationId/*", element: <NotificationDetailPage notificationId={path.split("/")[2] || ""} /> },
+    { path: "book-detail/review/*", element: <MaterialReviewPage mode={path.endsWith("/edit") ? "edit" : path.endsWith("/login-required") ? "logged-out" : path.endsWith("/error") ? "error" : "create"} /> },
+    { path: "guidelines", element: <GuidelinesPage /> },
+    { path: "my-library/*", element: <MyLibraryPage initialTab={path.endsWith("/history") ? "Lịch sử mượn" : path.endsWith("/reservations") ? "Đặt trước" : "Đang mượn"} /> },
+    { path: "book-detail", element: <BookDetailPage /> },
+    { path: "search", element: <SearchResultsPage empty={false} /> },
+    { path: "search-empty", element: <SearchResultsPage empty /> },
+    { path: "content-search", element: <ContentSearchResultsPage empty={false} /> },
+    { path: "content-search-empty", element: <ContentSearchResultsPage empty /> },
+    { path: "*", element: active === "Trang chủ" ? <ReaderHome /> : (
+        <main className="reader-main">
+          <ShellPlaceholder
+            role="reader"
+            title={active}
+            description="Không gian khám phá tri thức, tài liệu học thuật và các bộ sưu tập dành riêng cho bạn."
+          />
+        </main>
+      ) },
+  ]);
 
   return (
     <div className="reader-portal">
@@ -48,9 +72,9 @@ export default function ReaderPortal({ path }: { path: string }) {
                 onClick={() => {
                   setActive(item);
                   setMobileOpen(false);
-                  if (item === "Tủ sách của tôi") window.location.hash = "#/reader/my-library";
-                  else if (item === "Lịch sử mượn") window.location.hash = "#/reader/my-library/history";
-                  else if (item === "Trang chủ") window.location.hash = "#/reader";
+                  if (item === "Tủ sách của tôi") navigate("/reader/my-library");
+                  else if (item === "Lịch sử mượn") navigate("/reader/my-library/history");
+                  else if (item === "Trang chủ") navigate("/reader");
                 }}
               >
                 {item}
@@ -64,20 +88,12 @@ export default function ReaderPortal({ path }: { path: string }) {
               <i />
               <NotificationDropdown open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
             </span>
-            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); window.location.hash = "#/reader/profile"; }} onLogout={() => { setUserOpen(false); logout(); }} role="reader" />
+            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate("/reader/profile"); }} onLogout={() => { setUserOpen(false); logout(); }} role="reader" />
           </div>
         </div>
       </header>
       {mobileOpen && <button className="mobile-scrim" aria-label="Đóng điều hướng" onClick={() => setMobileOpen(false)} />}
-      {path.startsWith("reader/profile") ? <PersonalProfilePage restricted={path.endsWith("/restricted")} /> : path.startsWith("reader/notifications/") ? <NotificationDetailPage notificationId={path.split("/")[2] || ""} /> : path.startsWith("reader/book-detail/review") ? <MaterialReviewPage mode={path.endsWith("/edit") ? "edit" : path.endsWith("/login-required") ? "logged-out" : path.endsWith("/error") ? "error" : "create"} /> : path === "reader/guidelines" ? <GuidelinesPage /> : path.startsWith("reader/my-library") ? <MyLibraryPage initialTab={path.endsWith("/history") ? "Lịch sử mượn" : path.endsWith("/reservations") ? "Đặt trước" : "Đang mượn"} /> : path === "reader/book-detail" ? <BookDetailPage /> : path === "reader/search" || path === "reader/search-empty" ? <SearchResultsPage empty={path === "reader/search-empty"} /> : path === "reader/content-search" || path === "reader/content-search-empty" ? <ContentSearchResultsPage empty={path === "reader/content-search-empty"} /> : active === "Trang chủ" ? <ReaderHome /> : (
-        <main className="reader-main">
-          <ShellPlaceholder
-            role="reader"
-            title={active}
-            description="Không gian khám phá tri thức, tài liệu học thuật và các bộ sưu tập dành riêng cho bạn."
-          />
-        </main>
-      )}
+      {page}
     </div>
   );
 }

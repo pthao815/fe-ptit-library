@@ -9,6 +9,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useRef,
 } from "react";
 
 type Tone = "brand" | "neutral" | "success" | "warning" | "error" | "info";
@@ -181,14 +182,36 @@ export function Dropdown({ open, children }: { open: boolean; children: ReactNod
   return open ? <div className="dropdown" role="menu">{children}</div> : null;
 }
 
+const modalEscapeStack: Array<{ id: string; onClose: () => void }> = [];
+
+function handleModalEscape(event: KeyboardEvent) {
+  if (event.key !== "Escape") return;
+  const topModal = modalEscapeStack[modalEscapeStack.length - 1];
+  topModal?.onClose();
+}
+
 export function Modal({ open, onClose, title, children, className = "", eyebrow = "XÁC NHẬN THAO TÁC" }: { open: boolean; onClose: () => void; title: string; children: ReactNode; className?: string; eyebrow?: string }) {
   const id = useId();
   const titleId = `modal-title-${Array.from(id, (character) => character.codePointAt(0)!.toString(16)).join("-")}`;
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
+    onCloseRef.current = onClose;
   }, [onClose]);
+  useEffect(() => {
+    if (!open) return;
+    const entry = { id, onClose: () => onCloseRef.current() };
+    modalEscapeStack.push(entry);
+    if (modalEscapeStack.length === 1) {
+      document.addEventListener("keydown", handleModalEscape);
+    }
+    return () => {
+      const index = modalEscapeStack.indexOf(entry);
+      if (index !== -1) modalEscapeStack.splice(index, 1);
+      if (modalEscapeStack.length === 0) {
+        document.removeEventListener("keydown", handleModalEscape);
+      }
+    };
+  }, [open, id]);
   if (!open) return null;
   return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className={`modal ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}><div className="modal-header"><div><p className="eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label="Đóng" icon="close" onClick={onClose} /></div><div className="modal-body">{children}</div></section></div>;
 }
