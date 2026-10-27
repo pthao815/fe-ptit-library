@@ -14,6 +14,14 @@ import DigitalProcessingPage from "../pages/staff/digital-processing/DigitalProc
 import ReservationManagementPage from "../pages/staff/reservations/ReservationManagementPage";
 import ReaderManagementPage from "../pages/staff/readers/ReaderManagementPage";
 import ReportsScreen from "../pages/staff/reports/ReportsScreen";
+import ConfigurationPage from "../pages/workspace/ConfigurationPage";
+
+function configurationLabel(path: string) {
+  if (/^(admin|staff)\/policies\/?$/.test(path)) return "Chính sách mượn trả";
+  if (/^(admin|staff)\/penalty-types\/?$/.test(path)) return "Loại hình phạt";
+  if (/^admin\/search-configs\/?$/.test(path)) return "Cấu hình tra cứu";
+  return null;
+}
 
 export default function DashboardPortal({ role, path }: { role: "staff" | "admin"; path: string }) {
   const navigate = useNavigate();
@@ -24,7 +32,8 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
   const isStaff = role === "staff";
 
   useEffect(() => {
-    if (path.endsWith("/profile")) setActive("Thông tin cá nhân");
+    if (configurationLabel(path)) setActive(configurationLabel(path)!);
+    else if (path.endsWith("/profile")) setActive("Thông tin cá nhân");
     else if (path === "staff/circulation") setActive("Lưu thông");
     else if (path.startsWith("staff/materials")) setActive("Quản lý tài liệu");
     else if (path === "staff/digital-processing") setActive("Tài liệu số");
@@ -32,11 +41,15 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
     else if (path === "staff/readers") setActive("Bạn đọc");
     else if (path === "staff/reports") setActive("Thống kê & báo cáo");
     else if (path === "staff") setActive("Tổng quan");
+    else if (path === "admin") setActive("Tổng quan");
   }, [path]);
 
   const changeWorkspace = (label: string) => {
     setActive(label);
-    if (role === "staff" && label === "Lưu thông") navigate("/staff/circulation");
+    if (label === "Chính sách mượn trả") navigate(`/${role}/policies`);
+    else if (label === "Loại hình phạt") navigate(`/${role}/penalty-types`);
+    else if (role === "admin" && label === "Cấu hình tra cứu") navigate("/admin/search-configs");
+    else if (role === "staff" && label === "Lưu thông") navigate("/staff/circulation");
     else if (role === "staff" && label === "Quản lý tài liệu") navigate("/staff/materials");
     else if (role === "staff" && label === "Tài liệu số") navigate("/staff/digital-processing");
     else if (role === "staff" && label === "Đặt trước") navigate("/staff/reservations");
@@ -44,6 +57,8 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
     else if (role === "staff" && label === "Thống kê & báo cáo") navigate("/staff/reports");
     else if (role === "staff" && label === "Tổng quan") navigate("/staff");
     else if (label === "Thông tin cá nhân") navigate(role === "staff" ? "/staff/profile" : "/admin/profile");
+    else if (role === "admin" && label === "Tổng quan") navigate("/admin");
+    else if (role === "admin" && configurationLabel(path)) navigate("/admin/workspace");
   };
 
   const placeholder = (
@@ -58,6 +73,9 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
     />
   );
   const page = useRoutes([
+    { path: "policies", element: <ConfigurationPage key={`${role}-policies`} kind="policies" role={role} /> },
+    { path: "penalty-types", element: <ConfigurationPage key={`${role}-penalty-types`} kind="penalty-types" role={role} /> },
+    { path: "search-configs", element: <ConfigurationPage key={`${role}-search-configs`} kind="search-configs" role={role} /> },
     { path: "profile", element: active === "Thông tin cá nhân" ? <WorkProfilePage role={role} /> : placeholder },
     ...(isStaff ? [
       { index: true, element: <StaffDashboard /> },
@@ -79,7 +97,7 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
         role={role}
         collapsed={collapsed}
         mobileOpen={mobileOpen}
-        active={active}
+        active={configurationLabel(path) ?? active}
         onActiveChange={changeWorkspace}
         onCollapse={() => setCollapsed(!collapsed)}
         onMobileClose={() => setMobileOpen(false)}

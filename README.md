@@ -106,9 +106,24 @@ Các URL sau dùng đường dẫn thông thường, không dùng `#/`. Route đ
 | Staff | `/staff/materials`, `/staff/materials/new`, `/staff/materials/edit/:id` | Danh sách và form biểu ghi mẫu |
 | Staff | `/staff/digital-processing`, `/staff/reservations`, `/staff/readers`, `/staff/reports` | Xử lý số, đặt trước, bạn đọc, báo cáo |
 | Staff/Admin | `/staff/profile`, `/admin/profile` | Hồ sơ workspace |
-| Admin | `/admin/*` ngoài trang hồ sơ | Khung placeholder; chưa có trang quản trị chức năng riêng |
+| Admin/Staff | `/admin/policies`, `/staff/policies` | Chính sách mượn trả demo; Staff chỉ xem |
+| Admin/Staff | `/admin/penalty-types`, `/staff/penalty-types` | Loại hình phạt demo; Staff chỉ xem |
+| Admin | `/admin/search-configs` | Xem và kích hoạt cấu hình tìm kiếm demo |
+| Admin | Các mục còn lại ngoài hồ sơ và Module 2 | Khung placeholder |
 
-Menu Admin đã có “Cấu hình nghiệp vụ” và “Cấu hình tra cứu”, nhưng Module 2 chưa có trang, route riêng hoặc kết nối endpoint. Một số menu chỉ đổi state hiển thị placeholder. Route fallback không phải trang 404 chuyên biệt.
+Menu Module 2 dẫn tới route riêng, active theo URL và hỗ trợ Back/Forward. Một số menu khác chỉ đổi state hiển thị placeholder. Route fallback không phải trang 404 chuyên biệt.
+
+### Demo Module 2 — Chính sách & cấu hình
+
+Mở trực tiếp một trong năm route Module 2 ở bảng trên; không cần đăng nhập hoặc backend. Admin được sửa policy, thêm/sửa loại phạt và kích hoạt search config. Staff (tương ứng LIBRARIAN) chỉ xem policy và loại phạt; `/staff/search-configs` hiển thị từ chối truy cập. Đây chỉ là phân quyền giao diện theo portal, không phải bảo mật thực tế.
+
+- Type: [configuration.ts](./src/types/configuration.ts); dữ liệu mẫu: [data/configuration.ts](./src/data/configuration.ts); truy cập dữ liệu: [configuration-mock.ts](./src/services/configuration-mock.ts); giao diện: [ConfigurationPage.tsx](./src/pages/workspace/ConfigurationPage.tsx).
+- Mock service mô phỏng độ trễ 450 ms, không gọi mạng hoặc dùng localStorage. State dùng chung giữ các thay đổi khi chuyển trang bằng sidebar/tab (kể cả giữa portal); full refresh khôi phục dữ liệu mẫu. Mã loại tài liệu và tên model chỉ minh họa, chưa đối chiếu database thật.
+- Mở **Kiểm tra trạng thái demo** để chọn bình thường, rỗng hoặc lỗi tải. Trạng thái rỗng không xóa store; **Thử lại** sau lỗi tải chuyển về tải bình thường.
+- Admin có thể chọn **Mô phỏng lỗi khi lưu / kích hoạt** trong phần demo hoặc trong modal. Thử lưu sẽ báo lỗi và giữ form; bỏ chọn ngay trong modal và thử lại để lưu thành công. Hủy modal sẽ bỏ bản nháp.
+- Kiểm tra validation bằng cách để trống trường, nhập số âm/thập phân hoặc mã loại phạt trùng; loại phạt được trim và so trùng mã chính xác có phân biệt hoa/thường theo backend. Đơn giá demo dùng số nguyên an toàn của JavaScript.
+- Chọn kích hoạt một cấu hình chưa active và xác nhận: chỉ cấu hình đó còn active. Không chạy lập chỉ mục lại. Không có thao tác tạo/xóa policy, xóa loại phạt hoặc tạo/sửa/xóa search config.
+- Thông báo lưu thành công chỉ xác nhận dữ liệu demo trong bộ nhớ, chưa tích hợp backend.
 
 ## Trạng thái chức năng và xác thực
 
@@ -133,4 +148,4 @@ Trong `src` hiện chưa có API client, lời gọi `fetch`/Axios hoặc cấu 
 - [CLAUDE.md](./CLAUDE.md): tham chiếu hướng dẫn repository.
 - [README backend](../be-ptit-library/README.md): tài liệu dịch vụ backend độc lập.
 
-README phản ánh mã nguồn tại thời điểm viết; chưa xác nhận cài đặt, build, trình duyệt hoặc tích hợp backend thành công bằng chạy thử.
+Kiểm chứng sau khi bổ sung Module 2: TypeScript (`npm exec -- tsc --noEmit`), production build và kiểm tra whitespace đã qua. Build cảnh báo chunk JavaScript lớn hơn 500 kB. Mock service đã được kiểm tra cập nhật policy, thêm/sửa/trùng mã loại phạt, kích hoạt duy nhất một cấu hình và không thay đổi store khi mô phỏng lỗi. Chưa kiểm chứng trực quan trên trình duyệt vì công cụ trình duyệt không truy cập được dev server localhost; chưa tích hợp backend.

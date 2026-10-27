@@ -16,13 +16,16 @@ export const staffNavigation: Array<{ label: string; icon: NavIcon }> = [
   { label: "Đặt trước", icon: "bookmark" },
   { label: "Bạn đọc", icon: "users" },
   { label: "Thống kê & báo cáo", icon: "dashboard" },
+  { label: "Chính sách mượn trả", icon: "settings" },
+  { label: "Loại hình phạt", icon: "settings" },
   { label: "Thông tin cá nhân", icon: "users" },
 ];
 
 export const adminNavigation: Array<{ label: string; icon: NavIcon }> = [
   { label: "Tổng quan", icon: "dashboard" },
   { label: "Tài khoản & phân quyền", icon: "users" },
-  { label: "Cấu hình nghiệp vụ", icon: "settings" },
+  { label: "Chính sách mượn trả", icon: "settings" },
+  { label: "Loại hình phạt", icon: "settings" },
   { label: "Cấu hình tra cứu", icon: "search" },
   { label: "Trạng thái chỉ mục", icon: "sparkle" },
   { label: "Nhật ký hoạt động", icon: "document" },
