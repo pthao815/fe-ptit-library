@@ -1,7 +1,11 @@
 import { useState } from "react";
 import type * as React from "react";
+import { useNavigate } from "react-router-dom";
 import { Button, Icon } from "../../design-system";
 import Brand from "../../components/common/Brand";
+import { authService } from "../../services/auth.service";
+import { ApiError } from "../../services/http";
+import { getPortalHomePath, mapBackendRoleToPortalRole } from "../../services/session";
 
 type LoginMessage =
   | { tone: "error" | "info"; text: string }
@@ -12,15 +16,16 @@ function MicrosoftMark() {
 }
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [errors, setErrors] = useState<{ account?: string; password?: string }>({});
   const [message, setMessage] = useState<LoginMessage>(null);
   const [loading, setLoading] = useState<"library" | "microsoft" | null>(null);
 
-  const submitLibraryLogin = (event: React.FormEvent) => {
+  const submitLibraryLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     const nextErrors = {
       account: account.trim() ? undefined : "Vui lòng nhập tài khoản.",
@@ -29,11 +34,28 @@ export default function LoginPage() {
     setErrors(nextErrors);
     setMessage(null);
     if (nextErrors.account || nextErrors.password) return;
+
     setLoading("library");
-    window.setTimeout(() => {
+    try {
+      const tokenData = await authService.login(
+        {
+          username: account.trim(),
+          password,
+          loginMethod: "PASSWORD",
+        },
+        remember,
+      );
+      const role = mapBackendRoleToPortalRole(tokenData.user?.role);
+      navigate(getPortalHomePath(role), { replace: true });
+    } catch (error) {
+      const text =
+        error instanceof ApiError && error.status !== 0
+          ? error.message
+          : "Tài khoản hoặc mật khẩu không chính xác, hoặc máy chủ chưa phản hồi.";
+      setMessage({ tone: "error", text });
+    } finally {
       setLoading(null);
-      setMessage({ tone: "error", text: "Tài khoản hoặc mật khẩu không chính xác." });
-    }, 800);
+    }
   };
 
   const startMicrosoftLogin = () => {

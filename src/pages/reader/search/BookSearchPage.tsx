@@ -1,10 +1,13 @@
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Field, Icon, IconButton, Status } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import type { SearchResult } from "../../../data/search-results";
 import { searchResults } from "../../../data/search-results";
 import { filterGroups } from "../../../constants/library-options";
+import { catalogService } from "../../../services/catalog.service";
+import { getAccessToken } from "../../../services/session";
+import { mapDocumentSummaryToSearchResult } from "../../../utils/mappers";
 
 function HighlightText({ text, query }: { text: string; query: string }) {
   const normalized = query.trim();
@@ -26,6 +29,9 @@ function SearchResultCard({
   query: string;
 }) {
   const navigate = useNavigate();
+  const detailUrl = result.documentId
+    ? `/reader/book-detail?id=${encodeURIComponent(result.documentId)}`
+    : "/reader/book-detail";
   return (
     <article className="search-result-card">
       <div className="result-cover-column">
@@ -58,7 +64,7 @@ function SearchResultCard({
           <small>{result.copies > 0 ? `${result.copies} bản tại thư viện` : "Có thể lưu để xem lại"}</small>
         </div>
         <div className="result-actions">
-          <Button size="sm" onClick={() => { navigate("/reader/book-detail"); }}>Xem chi tiết</Button>
+          <Button size="sm" onClick={() => { navigate(detailUrl); }}>Xem chi tiết</Button>
           <Button variant={saved ? "secondary" : "ghost"} size="sm" icon="bookmark" onClick={onSave}>{saved ? "Đã lưu vào tủ sách" : "Lưu vào tủ sách"}</Button>
         </div>
       </div>
@@ -68,22 +74,75 @@ function SearchResultCard({
 
 export default function SearchResultsPage({ empty = false }: { empty?: boolean }) {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("trí tuệ nhân tạo");
-  const [submittedQuery, setSubmittedQuery] = useState("trí tuệ nhân tạo");
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") || "trí tuệ nhân tạo";
+  const [query, setQuery] = useState(initialQuery);
+  const [submittedQuery, setSubmittedQuery] = useState(initialQuery);
+  const [results, setResults] = useState<SearchResult[]>(searchResults);
+  const [totalElements, setTotalElements] = useState<number>(128);
+  const [hasFetchedEmpty, setHasFetchedEmpty] = useState(false);
   const [saved, setSaved] = useState<number[]>([102]);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [view, setView] = useState<"list" | "grid">("list");
   const [sort, setSort] = useState("relevance");
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    if (empty) return;
+    let active = true;
+    const sortBy = sort === "title" ? "title" : sort === "newest" ? "publicationYear" : "createdAt";
+    const sortDir = sort === "title" ? "asc" : "desc";
+
+    catalogService
+      .searchDocuments({
+        keyword: submittedQuery.trim() || undefined,
+        page: page - 1,
+        size: 10,
+        sortBy,
+        sortDir,
+      })
+      .then((pageData) => {
+        if (!active) return;
+        if (pageData.items) {
+          setResults(
+            pageData.items.map((dto, index) => mapDocumentSummaryToSearchResult(dto, index)),
+          );
+          setTotalElements(pageData.totalElements);
+          setHasFetchedEmpty(pageData.items.length === 0);
+        }
+      })
+      .catch(() => {
+        // Fallback to mock searchResults when backend is offline
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [empty, page, sort, submittedQuery]);
+
   const toggleFilter = (value: string) => setSelectedFilters((items) => items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
-  const toggleSave = (id: number) => setSaved((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
+  const toggleSave = (result: SearchResult) => {
+    setSaved((items) =>
+      items.includes(result.id)
+        ? items.filter((item) => item !== result.id)
+        : [...items, result.id],
+    );
+    if (result.documentId && getAccessToken()) {
+      catalogService.toggleFavorite(result.documentId).catch(() => {
+        // Ignore error on optimistic favorite toggle
+      });
+    }
+  };
   const submitSearch = () => {
     if (query.trim()) {
       setSubmittedQuery(query.trim());
       setPage(1);
     }
   };
+
+  const isEmptyState = empty || hasFetchedEmpty;
+  const displayTotal = isEmptyState ? 0 : totalElements;
 
   return (
     <div className="search-results-page">
@@ -105,14 +164,14 @@ export default function SearchResultsPage({ empty = false }: { empty?: boolean }
             <div>
               <p className="eyebrow">TRA CỨU TÀI LIỆU</p>
               <h1>Kết quả tìm kiếm cho “<mark>{submittedQuery}</mark>”</h1>
-              <p>Tìm thấy <strong>{empty ? 0 : 128} tài liệu phù hợp</strong> trong phạm vi <span>Toàn bộ tài liệu</span></p>
+              <p>Tìm thấy <strong>{displayTotal} tài liệu phù hợp</strong> trong phạm vi <span>Toàn bộ tài liệu</span></p>
             </div>
-            <Badge tone="brand">{empty ? 0 : 128} KẾT QUẢ</Badge>
+            <Badge tone="brand">{displayTotal} KẾT QUẢ</Badge>
           </div>
           <div className="results-mode" role="tablist" aria-label="Chế độ tìm kiếm">
             <button className="active" role="tab" aria-selected="true">Tìm theo từ khóa</button>
-            <button onClick={() => { navigate("/reader/content-search"); }} role="tab" aria-selected="false">Tìm trong nội dung</button>
-            <button onClick={() => { navigate("/reader/content-search"); }} role="tab" aria-selected="false"><Icon name="sparkle" size={15} />Tìm kiếm thông minh</button>
+            <button onClick={() => { navigate(`/reader/content-search?q=${encodeURIComponent(query)}`); }} role="tab" aria-selected="false">Tìm trong nội dung</button>
+            <button onClick={() => { navigate(`/reader/content-search?q=${encodeURIComponent(query)}`); }} role="tab" aria-selected="false"><Icon name="sparkle" size={15} />Tìm kiếm thông minh</button>
           </div>
         </div>
       </section>
@@ -141,7 +200,7 @@ export default function SearchResultsPage({ empty = false }: { empty?: boolean }
 
         <section className="results-main">
           <div className="results-toolbar">
-            <div className="results-count"><strong>{empty ? 0 : 128} kết quả</strong><span>Sắp xếp theo mức độ liên quan</span></div>
+            <div className="results-count"><strong>{displayTotal} kết quả</strong><span>Sắp xếp theo mức độ liên quan</span></div>
             <div className="toolbar-controls">
               <label className="sort-control"><span>Sắp xếp:</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="relevance">Mức độ liên quan</option><option value="title">Tên tài liệu A–Z</option><option value="newest">Năm xuất bản mới nhất</option><option value="popular">Mức độ phổ biến</option></select><Icon name="chevron-down" size={15} /></label>
               <div className="view-switch" aria-label="Kiểu hiển thị">
@@ -151,13 +210,13 @@ export default function SearchResultsPage({ empty = false }: { empty?: boolean }
             </div>
           </div>
           {selectedFilters.length > 0 && <div className="active-filters">{selectedFilters.map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div>}
-          {empty ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Hãy thử một từ khóa khác hoặc xóa bớt bộ lọc tìm kiếm.</p><Button variant="secondary" onClick={() => setSelectedFilters([])}>Xóa bộ lọc</Button></div> : (
+          {isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Hãy thử một từ khóa khác hoặc xóa bớt bộ lọc tìm kiếm.</p><Button variant="secondary" onClick={() => { setSelectedFilters([]); setHasFetchedEmpty(false); }}>Xóa bộ lọc</Button></div> : (
             <>
               <div className={`search-results-list ${view === "grid" ? "grid-view" : ""}`}>
-                {searchResults.map((result) => <SearchResultCard key={result.id} result={result} query={submittedQuery} saved={saved.includes(result.id)} onSave={() => toggleSave(result.id)} />)}
+                {results.map((result) => <SearchResultCard key={result.id} result={result} query={submittedQuery} saved={saved.includes(result.id)} onSave={() => toggleSave(result)} />)}
               </div>
               <div className="catalog-pagination">
-                <p>Hiển thị <strong>{(page - 1) * 10 + 1}–{Math.min(page * 10, 128)}</strong> trong 128 kết quả</p>
+                <p>Hiển thị <strong>{(page - 1) * 10 + 1}–{Math.min(page * 10, displayTotal)}</strong> trong {displayTotal} kết quả</p>
                 <nav aria-label="Phân trang kết quả">
                   <IconButton label="Trang trước" icon="chevron-left" disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))} />
                   {[1, 2, 3, 4].map((number) => <button key={number} className={page === number ? "active" : ""} onClick={() => setPage(number)}>{number}</button>)}

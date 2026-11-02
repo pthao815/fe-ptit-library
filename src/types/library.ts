@@ -12,6 +12,8 @@ export type NavIcon =
 
 export type Book = {
   id: number;
+  documentId?: string;
+  digitalCopyId?: string;
   title: string;
   author: string;
   year: string;

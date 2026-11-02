@@ -1,18 +1,80 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Button, Icon, Rating } from "../../../design-system";
 import Brand from "../../../components/common/Brand";
 import HomeSection from "../../../components/common/HomeSection";
 import BookCard from "../../../components/books/BookCard";
 import BookCover from "../../../components/books/BookCover";
 import { fieldBooks, recommendationBooks, newBooks } from "../../../data/books";
+import { catalogService } from "../../../services/catalog.service";
+import { searchService } from "../../../services/search.service";
+import { getAccessToken } from "../../../services/session";
+import type { Book } from "../../../types/library";
+import { mapDocumentSummaryToBook, mapRecommendationToBook } from "../../../utils/mappers";
 
 export default function ReaderHome() {
   const navigate = useNavigate();
   const [searchMode, setSearchMode] = useState<"keyword" | "content">("keyword");
+  const [searchInput, setSearchInput] = useState("");
   const [saved, setSaved] = useState<number[]>([2]);
   const [hiddenRecommendations, setHiddenRecommendations] = useState<number[]>([]);
-  const toggleSave = (id: number) => setSaved((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
+  const [majorBooks, setMajorBooks] = useState<Book[]>(fieldBooks);
+  const [latestBooks, setLatestBooks] = useState<Book[]>(newBooks);
+  const [recommendations, setRecommendations] = useState(recommendationBooks);
+
+  useEffect(() => {
+    let active = true;
+
+    catalogService
+      .searchDocuments({ page: 0, size: 8 })
+      .then((pageData) => {
+        if (!active || !pageData.items?.length) return;
+        const mapped = pageData.items.map((dto, index) => mapDocumentSummaryToBook(dto, index));
+        setMajorBooks(mapped.slice(0, 4));
+        if (mapped.length > 4) {
+          setLatestBooks(mapped.slice(4, 8));
+        } else {
+          setLatestBooks(mapped);
+        }
+      })
+      .catch(() => {
+        // Keep mock books when backend is offline
+      });
+
+    if (getAccessToken()) {
+      searchService
+        .getMyRecommendations(3)
+        .then((items) => {
+          if (active && items?.length) {
+            setRecommendations(items.map((dto, index) => mapRecommendationToBook(dto, index)));
+          }
+        })
+        .catch(() => {
+          // Keep mock recommendations
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const toggleSave = (book: Book) => {
+    setSaved((items) =>
+      items.includes(book.id) ? items.filter((item) => item !== book.id) : [...items, book.id],
+    );
+    if (book.documentId && getAccessToken()) {
+      catalogService.toggleFavorite(book.documentId).catch(() => {
+        // Ignore error on optimistic toggle
+      });
+    }
+  };
+
+  const handleHeroSearch = () => {
+    const q = searchInput.trim();
+    const targetPath = searchMode === "content" ? "/reader/content-search" : "/reader/search";
+    navigate(q ? `${targetPath}?q=${encodeURIComponent(q)}` : targetPath);
+  };
 
   return (
     <div className="reader-home">
@@ -29,13 +91,16 @@ export default function ReaderHome() {
             <Icon name={searchMode === "content" ? "sparkle" : "search"} size={23} />
             <input
               aria-label="Nội dung tìm kiếm"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && handleHeroSearch()}
               placeholder={searchMode === "content" ? "Mô tả chủ đề hoặc dán một đoạn văn bản bạn quan tâm..." : "Bạn muốn tìm hiểu điều gì?"}
             />
-            <Button icon="search" onClick={() => { navigate(searchMode === "content" ? "/reader/content-search" : "/reader/search"); }}>Tìm kiếm</Button>
+            <Button icon="search" onClick={handleHeroSearch}>Tìm kiếm</Button>
           </div>
           <div className="search-support">
             <span>{searchMode === "content" ? "Bạn có thể dùng câu hỏi tự nhiên, mô tả chủ đề hoặc một đoạn trích." : "Gợi ý: trí tuệ nhân tạo, mạng máy tính, xử lý tín hiệu..."}</span>
-            <button><Icon name="filter" size={15} />Tìm kiếm nâng cao</button>
+            <button onClick={() => navigate("/reader/search")}><Icon name="filter" size={15} />Tìm kiếm nâng cao</button>
           </div>
         </div>
       </section>
@@ -48,7 +113,7 @@ export default function ReaderHome() {
           action="Xem tất cả"
         >
           <div className="book-grid">
-            {fieldBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book.id)} />)}
+            {majorBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book)} />)}
           </div>
         </HomeSection>
 
@@ -58,7 +123,7 @@ export default function ReaderHome() {
           subtitle="Các tài liệu được lựa chọn từ ngành học và hành vi đọc của bạn."
         >
           <div className="recommendation-grid">
-            {recommendationBooks.filter((book) => !hiddenRecommendations.includes(book.id)).map((book) => (
+            {recommendations.filter((book) => !hiddenRecommendations.includes(book.id)).map((book) => (
               <article className="recommendation-card" key={book.id}>
                 <BookCover book={book} compact />
                 <div className="recommendation-body">
@@ -68,7 +133,7 @@ export default function ReaderHome() {
                   <Rating value={book.rating} />
                   <div className="recommendation-reason"><Icon name="info" size={15} />{book.reason}</div>
                   <div className="recommendation-actions">
-                    <Button variant={saved.includes(book.id) ? "secondary" : "ghost"} size="sm" icon="bookmark" onClick={() => toggleSave(book.id)}>{saved.includes(book.id) ? "Đã lưu" : "Lưu"}</Button>
+                    <Button variant={saved.includes(book.id) ? "secondary" : "ghost"} size="sm" icon="bookmark" onClick={() => toggleSave(book)}>{saved.includes(book.id) ? "Đã lưu" : "Lưu"}</Button>
                     <button onClick={() => setHiddenRecommendations((items) => [...items, book.id])}>Không quan tâm</button>
                   </div>
                 </div>
@@ -79,7 +144,7 @@ export default function ReaderHome() {
 
         <HomeSection title="Tài liệu mới bổ sung" subtitle="Những tài liệu vừa được cập nhật vào bộ sưu tập thư viện." action="Khám phá tài liệu mới">
           <div className="book-grid">
-            {newBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book.id)} />)}
+            {latestBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book)} />)}
           </div>
         </HomeSection>
 

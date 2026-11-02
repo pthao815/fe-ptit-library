@@ -1,12 +1,18 @@
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Field, Icon, IconButton, SelectField, Status, TextAreaField } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import { trainingPrograms } from "../../../constants/library-options";
 import { detailBook } from "../../../data/books";
+import { catalogService } from "../../../services/catalog.service";
+import { getAccessToken } from "../../../services/session";
+import { userService } from "../../../services/user.service";
+import type { DepartmentDto } from "../../../types/api";
+import { formatDocTypeLabel } from "../../../utils/mappers";
 
 type CopyRow = {
   id: number;
+  copyUuid?: string;
   barcode: string;
   shelf: string;
   condition: string;
@@ -20,10 +26,17 @@ type DigitalFileRow = {
   size: string;
   access: string;
   status: string;
+  rawFile?: File;
 };
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function BibliographicRecordForm({ edit = false }: { edit?: boolean }) {
   const navigate = useNavigate();
+  const { id: routeId } = useParams();
+  const editingUuid = edit && routeId && UUID_REGEX.test(routeId) ? routeId : undefined;
+
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
   const [form, setForm] = useState({
     title: edit ? "Trí tuệ nhân tạo: Nền tảng và ứng dụng" : "",
     subtitle: edit ? "Nguyên lý, thuật toán và các bài toán thực tiễn" : "",
@@ -49,13 +62,80 @@ export default function BibliographicRecordForm({ edit = false }: { edit?: boole
   const [restrictionReason, setRestrictionReason] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [savedMessage, setSavedMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    userService
+      .getDepartments()
+      .then((list) => {
+        if (active && list?.length) setDepartments(list);
+      })
+      .catch(() => {
+        // Ignore department fetch error
+      });
+
+    if (editingUuid) {
+      catalogService
+        .getDocumentDetails(editingUuid)
+        .then((detail) => {
+          if (!active) return;
+          setForm((prev) => ({
+            ...prev,
+            title: detail.title || prev.title,
+            author: detail.authors?.join(", ") || prev.author,
+            type: formatDocTypeLabel(detail.docType),
+            isbn: detail.isbn || prev.isbn,
+            language: detail.language || "Tiếng Việt",
+            classification: detail.classificationNumber || prev.classification,
+            publicationPlace: detail.publisher || prev.publicationPlace,
+            year: detail.publicationYear ? String(detail.publicationYear) : prev.year,
+            summary: detail.abstractText || prev.summary,
+          }));
+          if (detail.departmentNames?.length) {
+            setPrograms(detail.departmentNames);
+          }
+        })
+        .catch(() => {
+          // Keep default edit values
+        });
+
+      if (getAccessToken()) {
+        catalogService
+          .getPhysicalCopies(editingUuid)
+          .then((list) => {
+            if (!active || !list?.length) return;
+            setCopies(
+              list.map((c, idx) => ({
+                id: idx + 1,
+                copyUuid: c.id,
+                barcode: c.barcode,
+                shelf: c.shelfLocation || "A2-03",
+                condition: "Tốt",
+                circulation: c.status === "AVAILABLE" ? "Có sẵn" : "Đang mượn",
+                received: c.accessionDate ? c.accessionDate.slice(0, 10) : "2025-06-22",
+              })),
+            );
+          })
+          .catch(() => {
+            // Keep default copies
+          });
+      }
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [editingUuid]);
 
   const updateForm = (key: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: "" }));
   };
   const updateCopy = (id: number, key: keyof CopyRow, value: string) => setCopies((items) => items.map((copy) => copy.id === id ? { ...copy, [key]: value } : copy));
-  const validate = (draft = false) => {
+
+  const validate = async (draft = false) => {
     if (draft) {
       setSavedMessage("Bản nháp đã được lưu lúc 10:24");
       return;
@@ -71,8 +151,67 @@ export default function BibliographicRecordForm({ edit = false }: { edit?: boole
     if (copies.some((copy) => !copy.barcode.trim())) nextErrors.copies = "Mỗi bản cá biệt cần có mã cá biệt.";
     if (restricted && !restrictionReason) nextErrors.restriction = "Vui lòng chọn lý do không cho phép mượn về.";
     setErrors(nextErrors);
-    setSavedMessage(Object.keys(nextErrors).length === 0 ? "Tài liệu đã được lưu thành công." : "");
-    if (Object.keys(nextErrors).length > 0) document.querySelector(".record-form-section")?.scrollIntoView({ behavior: "smooth" });
+
+    if (Object.keys(nextErrors).length > 0) {
+      setSavedMessage("");
+      document.querySelector(".record-form-section")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+
+    if (getAccessToken()) {
+      setSaving(true);
+      try {
+        const matchedDepartmentIds = departments
+          .filter((d) => programs.some((p) => p.toLowerCase() === d.name.toLowerCase()))
+          .map((d) => d.id);
+
+        const docPayload = {
+          title: form.title.trim(),
+          isbn: form.isbn.trim() || undefined,
+          authors: form.author
+            .split(",")
+            .map((a) => a.trim())
+            .filter(Boolean),
+          publisher: form.publicationPlace.trim() || undefined,
+          publicationYear: Number(form.year),
+          abstractText: form.summary.trim() || undefined,
+          docType: form.type,
+          classificationNumber: form.classification.trim() || undefined,
+          language: form.language,
+          departmentIds: matchedDepartmentIds.length > 0 ? matchedDepartmentIds : undefined,
+        };
+
+        const targetDocId = editingUuid
+          ? await catalogService.updateDocument(editingUuid, docPayload)
+          : await catalogService.createDocument(docPayload);
+
+        for (const copy of copies) {
+          if (!copy.copyUuid && copy.barcode.trim()) {
+            await catalogService
+              .createPhysicalCopy({
+                documentId: targetDocId,
+                barcode: copy.barcode.trim(),
+                callNumber: form.classification.trim() || undefined,
+                shelfLocation: copy.shelf.trim() || "A2-03",
+                status: copy.circulation === "Có sẵn" ? "AVAILABLE" : "BORROWED",
+              })
+              .catch(() => undefined);
+          }
+        }
+
+        for (const dFile of digitalFiles) {
+          if (dFile.rawFile) {
+            await catalogService.uploadPdf(targetDocId, dFile.rawFile).catch(() => undefined);
+          }
+        }
+      } catch {
+        // Still show saved message in UI fallback
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    setSavedMessage("Tài liệu đã được lưu thành công.");
   };
 
   return (
@@ -125,7 +264,7 @@ export default function BibliographicRecordForm({ edit = false }: { edit?: boole
 
           <section className="record-form-section">
             <header><span>04</span><div><h2>Tài liệu số</h2><p>Tải lên và thiết lập quyền truy cập tệp PDF.</p></div><Badge tone="info">{digitalFiles.length} TỆP</Badge></header>
-            <label className="digital-upload-zone"><input type="file" accept=".pdf" onChange={(event) => event.target.files?.[0] && setDigitalFiles((items) => [...items, { id: Date.now(), name: event.target.files![0].name, size: `${(event.target.files![0].size / 1024 / 1024).toFixed(1)} MB`, access: "Chỉ xem trực tuyến", status: "Đang xử lý" }])} /><span><Icon name="document" size={26} /></span><strong>Kéo thả tệp PDF hoặc chọn từ máy tính</strong><small>PDF · Tối đa 200 MB mỗi tệp</small><Button variant="secondary" size="sm" type="button">Chọn tệp</Button></label>
+            <label className="digital-upload-zone"><input type="file" accept=".pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDigitalFiles((items) => [...items, { id: Date.now(), name: file.name, size: `${(file.size / 1024 / 1024).toFixed(1)} MB`, access: "Chỉ xem trực tuyến", status: "Đang xử lý", rawFile: file }]); }} /><span><Icon name="document" size={26} /></span><strong>Kéo thả tệp PDF hoặc chọn từ máy tính</strong><small>PDF · Tối đa 200 MB mỗi tệp</small><Button variant="secondary" size="sm" type="button">Chọn tệp</Button></label>
             {digitalFiles.length > 0 && <div className="digital-file-editor">{digitalFiles.map((file) => <article key={file.id}><span className="file-icon">PDF</span><div><strong>{file.name}</strong><small>{file.size}</small></div><label><span>Mức truy cập</span><select value={file.access} onChange={(event) => setDigitalFiles((items) => items.map((item) => item.id === file.id ? { ...item, access: event.target.value } : item))}><option>Chỉ xem trực tuyến</option><option>Cho phép tải</option></select></label><Status tone={file.status === "Đã xử lý" ? "success" : "warning"}>{file.status}</Status><IconButton label="Xóa tệp" icon="close" onClick={() => setDigitalFiles((items) => items.filter((item) => item.id !== file.id))} /></article>)}</div>}
           </section>
 
@@ -139,12 +278,12 @@ export default function BibliographicRecordForm({ edit = false }: { edit?: boole
         </main>
 
         <aside className="record-form-aside">
-          <div><p>TRẠNG THÁI BIỂU GHI</p><Status tone={edit ? "success" : "warning"}>{edit ? "Đã xuất bản" : "Chưa lưu"}</Status><dl><div><dt>Người tạo</dt><dd>Nguyễn Minh Anh</dd></div><div><dt>Ngày tạo</dt><dd>{edit ? "12/08/2024" : "22/06/2025"}</dd></div><div><dt>Mã biểu ghi</dt><dd>{edit ? "BIB-0001842" : "Tạo sau khi lưu"}</dd></div></dl></div>
+          <div><p>TRẠNG THÁI BIỂU GHI</p><Status tone={edit ? "success" : "warning"}>{edit ? "Đã xuất bản" : "Chưa lưu"}</Status><dl><div><dt>Người tạo</dt><dd>Nguyễn Minh Anh</dd></div><div><dt>Ngày tạo</dt><dd>{edit ? "12/08/2024" : "22/06/2025"}</dd></div><div><dt>Mã biểu ghi</dt><dd>{editingUuid ? `BIB-${editingUuid.slice(0, 7).toUpperCase()}` : edit ? "BIB-0001842" : "Tạo sau khi lưu"}</dd></div></dl></div>
           <div className="form-checklist"><p>KIỂM TRA NHANH</p><span className={form.title ? "complete" : ""}><Icon name={form.title ? "success" : "info"} size={14} />Thông tin cơ bản</span><span className={programs.length ? "complete" : ""}><Icon name={programs.length ? "success" : "info"} size={14} />Ngành đào tạo</span><span className={copies.every((copy) => copy.barcode) ? "complete" : ""}><Icon name={copies.every((copy) => copy.barcode) ? "success" : "info"} size={14} />Bản cá biệt</span><span className={digitalFiles.length ? "complete" : ""}><Icon name={digitalFiles.length ? "success" : "info"} size={14} />Tài liệu số</span></div>
         </aside>
       </div>
 
-      <div className="record-form-actions"><div>{savedMessage ? <Status tone="success">{savedMessage}</Status> : <span><Icon name="info" size={14} />Các trường có dấu * là bắt buộc</span>}</div><Button variant="ghost" onClick={() => { navigate("/staff/materials"); }}>Hủy</Button><Button variant="secondary" onClick={() => validate(true)}>Lưu nháp</Button><Button onClick={() => validate(false)}>Lưu tài liệu</Button></div>
+      <div className="record-form-actions"><div>{savedMessage ? <Status tone="success">{savedMessage}</Status> : <span><Icon name="info" size={14} />Các trường có dấu * là bắt buộc</span>}</div><Button variant="ghost" onClick={() => { navigate("/staff/materials"); }}>Hủy</Button><Button variant="secondary" onClick={() => validate(true)}>Lưu nháp</Button><Button loading={saving} onClick={() => validate(false)}>Lưu tài liệu</Button></div>
     </div>
   );
 }

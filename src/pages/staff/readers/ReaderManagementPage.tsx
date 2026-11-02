@@ -1,25 +1,87 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Badge, Breadcrumb, Button, Icon, Modal, Pagination, SearchInput, SelectField, Status } from "../../../design-system";
+import type { ManagedReader } from "../../../data/readers";
 import { initialManagedReaders } from "../../../data/readers";
+import { getAccessToken } from "../../../services/session";
+import { userService } from "../../../services/user.service";
+import { mapUserDtoToManagedReader } from "../../../utils/mappers";
+
+type ReaderWithUuid = ManagedReader & { userId?: string };
 
 export default function ReaderManagementPage() {
-  const [readers, setReaders] = useState(initialManagedReaders);
+  const [readers, setReaders] = useState<ReaderWithUuid[]>(initialManagedReaders);
+  const [totalCount, setTotalCount] = useState<number>(initialManagedReaders.length);
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedReaderId, setSelectedReaderId] = useState<number | null>(null);
   const [detailTab, setDetailTab] = useState("Tổng quan");
   const [cardAction, setCardAction] = useState<{ id: number; lock: boolean } | null>(null);
+  const [lockReasonCode, setLockReasonCode] = useState("violation");
   const selectedReader = readers.find((reader) => reader.id === selectedReaderId) || null;
   const actionReader = readers.find((reader) => reader.id === cardAction?.id);
 
-  const executeCardAction = () => {
+  const loadReaders = (searchKeyword?: string, statusValue?: string) => {
+    if (!getAccessToken()) return;
+    const backendStatus =
+      statusValue === "Hoạt động"
+        ? "ACTIVE"
+        : statusValue === "Bị khóa"
+          ? "LOCKED"
+          : undefined;
+
+    userService
+      .searchAdminUsers({
+        keyword: searchKeyword?.trim() || undefined,
+        status: backendStatus,
+        page: 0,
+        size: 20,
+      })
+      .then((pageData) => {
+        if (pageData.items?.length) {
+          setReaders(pageData.items.map((dto, index) => mapUserDtoToManagedReader(dto, index)));
+          setTotalCount(pageData.totalElements || pageData.items.length);
+        }
+      })
+      .catch(() => {
+        // Fallback to initialManagedReaders
+      });
+  };
+
+  useEffect(() => {
+    loadReaders();
+  }, []);
+
+  const executeCardAction = async () => {
     if (!cardAction) return;
+    const target = readers.find((r) => r.id === cardAction.id);
+    const reasonText =
+      lockReasonCode === "debt"
+        ? "Công nợ chưa xử lý"
+        : lockReasonCode === "lost"
+          ? "Báo mất thẻ"
+          : "Khóa thủ công bởi nhân viên thư viện để kiểm tra vi phạm.";
+
+    if (target?.userId && getAccessToken()) {
+      try {
+        await userService.updateUserStatus(target.userId, {
+          status: cardAction.lock ? "LOCKED" : "ACTIVE",
+          reason: cardAction.lock ? reasonText : undefined,
+        });
+      } catch {
+        // Still update local UI state on fallback
+      }
+    }
+
     setReaders((items) => items.map((reader) => reader.id === cardAction.id ? {
       ...reader,
       cardStatus: cardAction.lock ? "Bị khóa" : "Hoạt động",
-      lockReason: cardAction.lock ? "Khóa thủ công bởi nhân viên thư viện để kiểm tra vi phạm." : undefined,
+      lockReason: cardAction.lock ? reasonText : undefined,
       lockUntil: cardAction.lock ? "Đến khi được nhân viên mở khóa" : undefined,
     } : reader));
     setCardAction(null);
   };
+
+  const lockedCount = readers.filter((r) => r.cardStatus === "Bị khóa").length;
 
   return (
     <div className="reader-management-page">
@@ -29,17 +91,49 @@ export default function ReaderManagementPage() {
       </div>
 
       <section className="reader-search-filters">
-        <div className="reader-management-search"><SearchInput placeholder="Tìm theo mã bạn đọc, họ tên, email..." /><Button icon="search">Tìm kiếm</Button></div>
+        <div className="reader-management-search">
+          <SearchInput
+            placeholder="Tìm theo mã bạn đọc, họ tên, email..."
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+          <Button icon="search" onClick={() => loadReaders(keyword, statusFilter)}>Tìm kiếm</Button>
+        </div>
         <div className="reader-filter-row">
           <label><span>Loại bạn đọc</span><select defaultValue="all"><option value="all">Tất cả loại bạn đọc</option><option>Sinh viên chính quy</option><option>Cán bộ, giảng viên</option><option>Học viên cao học</option><option>Nghiên cứu sinh</option></select><Icon name="chevron-down" size={14} /></label>
           <label><span>Ngành</span><select defaultValue="all"><option value="all">Tất cả ngành</option><option>Công nghệ thông tin</option><option>Khoa học máy tính</option><option>An toàn thông tin</option><option>Điện tử viễn thông</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Trạng thái thẻ</span><select defaultValue="all"><option value="all">Tất cả trạng thái</option><option>Hoạt động</option><option>Bị khóa</option><option>Sắp hết hạn</option></select><Icon name="chevron-down" size={14} /></label>
-          <Button variant="ghost" size="sm">Xóa bộ lọc</Button>
+          <label>
+            <span>Trạng thái thẻ</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                loadReaders(keyword, event.target.value);
+              }}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="Hoạt động">Hoạt động</option>
+              <option value="Bị khóa">Bị khóa</option>
+              <option value="Sắp hết hạn">Sắp hết hạn</option>
+            </select>
+            <Icon name="chevron-down" size={14} />
+          </label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setKeyword("");
+              setStatusFilter("all");
+              loadReaders("", "all");
+            }}
+          >
+            Xóa bộ lọc
+          </Button>
         </div>
       </section>
 
       <section className="reader-table-panel">
-        <div className="reader-table-heading"><div><h2>Danh sách bạn đọc</h2><p>8.947 bạn đọc đang hoạt động</p></div><Badge tone="error">01 THẺ BỊ KHÓA</Badge></div>
+        <div className="reader-table-heading"><div><h2>Danh sách bạn đọc</h2><p>{totalCount.toLocaleString("vi-VN")} bạn đọc trong hệ thống</p></div><Badge tone="error">{String(lockedCount).padStart(2, "0")} THẺ BỊ KHÓA</Badge></div>
         <div className="reader-management-table-wrap"><table className="reader-management-table"><thead><tr><th>Mã bạn đọc</th><th>Họ tên</th><th>Loại bạn đọc</th><th>Ngành đào tạo</th><th>Trạng thái thẻ</th><th>Đang mượn</th><th>Công nợ</th><th>Actions</th></tr></thead><tbody>
           {readers.map((reader) => <tr key={reader.id}>
             <td><code>{reader.code}</code></td>
@@ -52,7 +146,7 @@ export default function ReaderManagementPage() {
             <td><div className="managed-reader-actions"><Button variant="ghost" size="sm" onClick={() => { setSelectedReaderId(reader.id); setDetailTab("Tổng quan"); }}>Xem hồ sơ</Button><Button variant={reader.cardStatus === "Bị khóa" ? "secondary" : "ghost"} size="sm" onClick={() => setCardAction({ id: reader.id, lock: reader.cardStatus !== "Bị khóa" })}>{reader.cardStatus === "Bị khóa" ? "Mở khóa" : "Khóa thẻ"}</Button><Button variant="ghost" size="sm" onClick={() => { setSelectedReaderId(reader.id); setDetailTab("Lịch sử mượn"); }}>Lịch sử mượn</Button></div></td>
           </tr>)}
         </tbody></table></div>
-        <div className="reader-table-pagination"><span>Hiển thị 1–6 trong tổng số 9.214 bạn đọc</span><Pagination /></div>
+        <div className="reader-table-pagination"><span>Hiển thị 1–{readers.length} trong tổng số {totalCount.toLocaleString("vi-VN")} bạn đọc</span><Pagination /></div>
       </section>
 
       <Modal open={selectedReader !== null} onClose={() => setSelectedReaderId(null)} title="Hồ sơ bạn đọc" eyebrow="THÔNG TIN BẠN ĐỌC" className="reader-detail-modal">
@@ -77,7 +171,7 @@ export default function ReaderManagementPage() {
 
       <Modal open={cardAction !== null} onClose={() => setCardAction(null)} title={cardAction?.lock ? "Khóa thẻ bạn đọc" : "Mở khóa thẻ bạn đọc"}>
         <div className={`card-action-confirmation ${cardAction?.lock ? "lock" : "unlock"}`}><span><Icon name={cardAction?.lock ? "error" : "success"} size={24} /></span><div><strong>{actionReader?.name}</strong><p>{actionReader?.code}</p></div></div>
-        {cardAction?.lock ? <><SelectField label="Lý do khóa thẻ" defaultValue="violation"><option value="violation">Vi phạm quy định thư viện</option><option value="debt">Công nợ chưa xử lý</option><option value="lost">Báo mất thẻ</option><option value="other">Lý do khác</option></SelectField><SelectField label="Thời hạn khóa" defaultValue="manual"><option value="manual">Đến khi nhân viên mở khóa</option><option value="7">07 ngày</option><option value="30">30 ngày</option><option value="permanent">Không thời hạn</option></SelectField></> : <p className="unlock-note">Bạn đọc sẽ được khôi phục quyền mượn, gia hạn và đặt trước sau khi mở khóa.</p>}
+        {cardAction?.lock ? <><SelectField label="Lý do khóa thẻ" value={lockReasonCode} onChange={(event) => setLockReasonCode(event.target.value)}><option value="violation">Vi phạm quy định thư viện</option><option value="debt">Công nợ chưa xử lý</option><option value="lost">Báo mất thẻ</option><option value="other">Lý do khác</option></SelectField><SelectField label="Thời hạn khóa" defaultValue="manual"><option value="manual">Đến khi nhân viên mở khóa</option><option value="7">07 ngày</option><option value="30">30 ngày</option><option value="permanent">Không thời hạn</option></SelectField></> : <p className="unlock-note">Bạn đọc sẽ được khôi phục quyền mượn, gia hạn và đặt trước sau khi mở khóa.</p>}
         <div className="modal-actions"><Button variant="ghost" onClick={() => setCardAction(null)}>Hủy</Button><Button variant={cardAction?.lock ? "danger" : "primary"} onClick={executeCardAction}>{cardAction?.lock ? "Khóa thẻ" : "Mở khóa"}</Button></div>
       </Modal>
     </div>

@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { Avatar, Dropdown, Icon } from "../../design-system";
+import { authService } from "../../services/auth.service";
+import { getAccessToken, getStoredUser } from "../../services/session";
 import type { Role } from "../../types/library";
 
 export default function UserMenu({
@@ -14,10 +17,29 @@ export default function UserMenu({
   onProfile?: () => void;
   role: Role;
 }) {
+  const [storedUser, setStoredUser] = useState(() => getStoredUser());
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let active = true;
+    authService
+      .getCurrentUser()
+      .then((user) => {
+        if (active) setStoredUser(user);
+      })
+      .catch(() => {
+        // Keep existing stored user or fallback display name
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const roleName =
     role === "reader" ? "Bạn đọc" : role === "staff" ? "Nhân viên thư viện" : "Quản trị viên";
-  const userName =
+  const fallbackName =
     role === "reader" ? "Nguyễn Minh Anh" : role === "staff" ? "Nguyễn Thu Hà" : "Trần Minh Đức";
+  const userName = storedUser?.fullName || fallbackName;
 
   return (
     <div className="user-menu-wrap">
