@@ -17,6 +17,9 @@
 .configuration-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 22px; }
 .configuration-toolbar h2 { font-size: 16px; margin-bottom: 4px; }
 .configuration-toolbar p { font-size: 12px; }
+.configuration-toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.configuration-demo { margin: 16px 28px; }
+.configuration-demo form { display: grid; gap: 12px; max-width: 600px; margin-top: 12px; }
 .configuration-table-scroll { overflow-x: auto; }
 .configuration-table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; text-align: left; }
 .configuration-table thead { background: var(--gray-50); color: var(--gray-600); }

@@ -14,7 +14,7 @@ import DigitalProcessingPage from "../pages/staff/digital-processing/DigitalProc
 import ReservationManagementPage from "../pages/staff/reservations/ReservationManagementPage";
 import ReaderManagementPage from "../pages/staff/readers/ReaderManagementPage";
 import ReportsScreen from "../pages/staff/reports/ReportsScreen";
-import ConfigurationPage from "../pages/workspace/ConfigurationPage";
+import SettingsWorkspace from "../features/library-settings/components/SettingsWorkspace";
 
 function configurationLabel(path: string) {
   if (/^(admin|staff)\/policies\/?$/.test(path)) return "Chính sách mượn trả";
@@ -73,9 +73,9 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
     />
   );
   const page = useRoutes([
-    { path: "policies", element: <ConfigurationPage key={`${role}-policies`} kind="policies" role={role} /> },
-    { path: "penalty-types", element: <ConfigurationPage key={`${role}-penalty-types`} kind="penalty-types" role={role} /> },
-    { path: "search-configs", element: <ConfigurationPage key={`${role}-search-configs`} kind="search-configs" role={role} /> },
+    { path: "policies", element: <SettingsWorkspace key={`${role}-policies`} kind="policies" portal={role} /> },
+    { path: "penalty-types", element: <SettingsWorkspace key={`${role}-penalty-types`} kind="penalty-types" portal={role} /> },
+    { path: "search-configs", element: <SettingsWorkspace key={`${role}-search-configs`} kind="search-configs" portal={role} /> },
     { path: "profile", element: active === "Thông tin cá nhân" ? <WorkProfilePage role={role} /> : placeholder },
     ...(isStaff ? [
       { index: true, element: <StaffDashboard /> },

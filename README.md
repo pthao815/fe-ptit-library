@@ -2,7 +2,7 @@
 
 Giao diện thư viện số PTIT dành cho bạn đọc (Reader), nhân viên thư viện (Staff) và quản trị viên (Admin): tra cứu tài liệu, đọc nội dung, tủ sách cá nhân và các màn hình nghiệp vụ thư viện.
 
-**Trạng thái hiện tại:** prototype dùng dữ liệu mẫu trong `src/data` và trong component; chưa kết nối API backend. Có màn hình và tương tác không đồng nghĩa nghiệp vụ đã được lưu vào database.
+**Trạng thái hiện tại:** Module 2 đã có service HTTP cho 7 endpoint backend, không fallback mock; chưa kiểm chứng với backend/database thật. Các module khác vẫn dùng dữ liệu mẫu. Đăng nhập Module 1 chưa được tích hợp vào nhánh này.
 
 ## Công nghệ
 
@@ -65,7 +65,7 @@ Chạy trong `fe-library`, sau khi đã cài dependency:
 | `npm exec -- tsc --noEmit` | Lệnh trực tiếp | Kiểm tra kiểu theo `tsconfig.json` bằng TypeScript đã cài |
 | `git diff --check` | Lệnh Git | Kiểm tra lỗi khoảng trắng trong diff được Git theo dõi |
 
-`build` hiện chỉ gọi `vite build`, không thay thế kiểm tra TypeScript riêng. Chưa có script `test`, `lint` hoặc `typecheck` trong `package.json`. Các lệnh này được đối chiếu từ cấu hình, chưa được thực thi để xác nhận kết quả trong lần viết README này.
+`build` hiện chỉ gọi `vite build`, không thay thế kiểm tra TypeScript riêng. Chưa có script `test`, `lint` hoặc `typecheck` trong `package.json`. TypeScript, production build và kiểm tra whitespace đã qua trong lần tích hợp Module 2; build vẫn cảnh báo chunk JavaScript lớn hơn 500 kB.
 
 ## Cấu trúc mã nguồn
 
@@ -106,38 +106,88 @@ Các URL sau dùng đường dẫn thông thường, không dùng `#/`. Route đ
 | Staff | `/staff/materials`, `/staff/materials/new`, `/staff/materials/edit/:id` | Danh sách và form biểu ghi mẫu |
 | Staff | `/staff/digital-processing`, `/staff/reservations`, `/staff/readers`, `/staff/reports` | Xử lý số, đặt trước, bạn đọc, báo cáo |
 | Staff/Admin | `/staff/profile`, `/admin/profile` | Hồ sơ workspace |
-| Admin/Staff | `/admin/policies`, `/staff/policies` | Chính sách mượn trả demo; Staff chỉ xem |
-| Admin/Staff | `/admin/penalty-types`, `/staff/penalty-types` | Loại hình phạt demo; Staff chỉ xem |
-| Admin | `/admin/search-configs` | Xem và kích hoạt cấu hình tìm kiếm demo |
+| Admin/Staff | `/admin/policies`, `/staff/policies` | Chính sách mượn trả qua API; Librarian chỉ xem |
+| Admin/Staff | `/admin/penalty-types`, `/staff/penalty-types` | Loại hình phạt qua API; Librarian chỉ xem |
+| Admin | `/admin/search-configs` | Xem và kích hoạt cấu hình tìm kiếm qua API |
 | Admin | Các mục còn lại ngoài hồ sơ và Module 2 | Khung placeholder |
 
 Menu Module 2 dẫn tới route riêng, active theo URL và hỗ trợ Back/Forward. Một số menu khác chỉ đổi state hiển thị placeholder. Route fallback không phải trang 404 chuyên biệt.
 
-### Demo Module 2 — Chính sách & cấu hình
+### Module 2 — cấu trúc theo nghiệp vụ
 
-Mở trực tiếp một trong năm route Module 2 ở bảng trên; không cần đăng nhập hoặc backend. Admin được sửa policy, thêm/sửa loại phạt và kích hoạt search config. Staff (tương ứng LIBRARIAN) chỉ xem policy và loại phạt; `/staff/search-configs` hiển thị từ chối truy cập. Đây chỉ là phân quyền giao diện theo portal, không phải bảo mật thực tế.
+```text
+src/shared/api/http-client.ts                 # HTTP/envelope, không biết nghiệp vụ
+src/shared/auth/auth-session.ts               # Adapter phiên, không login/refresh/logout
+src/features/library-settings/
+  api/settings.api.ts                         # 7 endpoint + quyền theo resource
+  api/index.ts                                # Ghép base URL từ Vite với HTTP client
+  model/                                      # Types, constants, parsers, validation, form model
+  hooks/                                      # Tải dữ liệu và vòng đời form
+  components/                                 # Khung trang, bảng trạng thái, form và dialog
+  pages/                                      # LoanPoliciesPage, PenaltyTypesPage, SearchConfigsPage
+  devtools/DevelopmentAccessPanel.tsx           # Token tạm, chỉ development
+  settings.css
+src/integration/module2-session.ts             # Re-export tương thích cho Module 1
+```
 
-- Type: [configuration.ts](./src/types/configuration.ts); dữ liệu mẫu: [data/configuration.ts](./src/data/configuration.ts); truy cập dữ liệu: [configuration-mock.ts](./src/services/configuration-mock.ts); giao diện: [ConfigurationPage.tsx](./src/pages/workspace/ConfigurationPage.tsx).
-- Mock service mô phỏng độ trễ 450 ms, không gọi mạng hoặc dùng localStorage. State dùng chung giữ các thay đổi khi chuyển trang bằng sidebar/tab (kể cả giữa portal); full refresh khôi phục dữ liệu mẫu. Mã loại tài liệu và tên model chỉ minh họa, chưa đối chiếu database thật.
-- Mở **Kiểm tra trạng thái demo** để chọn bình thường, rỗng hoặc lỗi tải. Trạng thái rỗng không xóa store; **Thử lại** sau lỗi tải chuyển về tải bình thường.
-- Admin có thể chọn **Mô phỏng lỗi khi lưu / kích hoạt** trong phần demo hoặc trong modal. Thử lưu sẽ báo lỗi và giữ form; bỏ chọn ngay trong modal và thử lại để lưu thành công. Hủy modal sẽ bỏ bản nháp.
-- Kiểm tra validation bằng cách để trống trường, nhập số âm/thập phân hoặc mã loại phạt trùng; loại phạt được trim và so trùng mã chính xác có phân biệt hoa/thường theo backend. Đơn giá demo dùng số nguyên an toàn của JavaScript.
-- Chọn kích hoạt một cấu hình chưa active và xác nhận: chỉ cấu hình đó còn active. Không chạy lập chỉ mục lại. Không có thao tác tạo/xóa policy, xóa loại phạt hoặc tạo/sửa/xóa search config.
-- Thông báo lưu thành công chỉ xác nhận dữ liệu demo trong bộ nhớ, chưa tích hợp backend.
+- Các route hiện có được giữ nguyên. ADMIN được ghi trong portal Admin; LIBRARIAN chỉ xem policy/penalty. Role chưa có hoặc READER không được gọi API. Backend quyết định quyền cuối cùng.
+- HTTP dùng chung không chứa endpoint whitelist, field form hoặc lỗi phí phạt. Feature chịu trách nhiệm kiểm tra quyền, parser response và mapping lỗi nghiệp vụ.
+- Mỗi trang có dữ liệu tải riêng; form policy/penalty và dialog kích hoạt riêng. Không giữ cache giữa tài khoản. Không có fallback mock, seed hoặc ID tự sinh; mock cũ đã được loại khỏi phạm vi này.
+- Validation và form model giữ bản nháp khi lưu lỗi, chặn gửi lặp. Không retry request ghi tự động. Nếu mất xác nhận khi ghi, tải lại để kiểm tra trước khi gửi lại.
+- Response có null, enum không hỗ trợ hoặc số ngoài miền an toàn sẽ báo lỗi dữ liệu, không tự ép thành mặc định. Mã docType là chuỗi theo catalog thật, không phải danh mục mock.
+- Sau ghi policy/penalty, bảng dùng DTO server trả về. Sau kích hoạt, tải lại toàn bộ danh sách. Kích hoạt không tự lập chỉ mục lại.
+
+### Cấu hình kết nối và chạy khi Module 1 chưa merge
+
+1. Sao chép [.env.example](./.env.example) thành file local như `.env.local` và đặt `VITE_API_BASE_URL=http://localhost:8080` (chỉ origin, không thêm `/api`). Để trống nếu API cùng origin. Khởi động lại Vite sau khi đổi biến môi trường.
+2. Backend phải được người phụ trách khởi chạy trong môi trường thử được cho phép. Cấu hình `CORS_ALLOWED_ORIGINS` cần chứa đúng origin frontend, ví dụ `http://localhost:8443` (hoặc `http://localhost:5173` nếu đổi PORT). Không tắt Spring Security. Frontend này không sửa CORS/backend.
+3. Chạy `npm run dev`, mở một trong năm route Module 2. Mở **Kết nối phiên development (chờ Module 1)**, nhập access token được cấp từ công cụ kiểm thử/Module 1. Không nhập refresh token hoặc token production vào môi trường không tin cậy.
+4. Role và user ID được đọc từ JWT cho UI; đây không phải xác minh chữ ký. Backend xác minh quyền. Token chỉ ở bộ nhớ, không ghi storage/log; refresh phải nhập lại. Ô token chỉ có trong Vite development, không có trong production build hoặc preview.
+5. Chỉ thử ghi khi đã xác nhận database và bản ghi thử được phép thay đổi. Không tự tạo seed/policy/search config từ frontend.
+
+### Bàn giao cho Module 1
+
+Adapter chính tại [auth-session.ts](./src/shared/auth/auth-session.ts). Đường import [module2-session.ts](./src/integration/module2-session.ts) vẫn tương thích và trỏ cùng một singleton:
+
+```ts
+import { module2Session } from "./integration/module2-session";
+
+// Gọi trên login, thay token, đổi tài khoản hoặc khôi phục phiên.
+module2Session.setSession({ accessToken, userId: user.id, role: user.role });
+// role chuẩn: ADMIN | LIBRARIAN | READER; token phải là access JWT backend.
+
+// Gọi khi Module 1 logout/hủy phiên. Module 2 không tự triển khai logout.
+module2Session.setSession(null);
+
+// Tùy chọn nối UI điều hướng/thông báo của Module 1; callback không chứa token.
+const unsubscribe = module2Session.onAuthError((status) => {
+  // 401: phiên Module 2 đã bị xóa; Module 1 quyết định xử lý tiếp.
+  // 403: không xóa phiên, hiển thị thiếu quyền.
+});
+// Hủy subscription khi host teardown: unsubscribe();
+```
+
+Module 1 phải cung cấp userId/role khớp token và thông báo mọi thay đổi phiên. Adapter chỉ đọc JWT để định tuyến UI, không xác minh chữ ký và không thay thế backend.
+
+- `version`: mốc thông tin xác thực, tăng mỗi lần cấp phiên/token. Response 401/403 dùng token cũ không được hủy phiên mới và không tự gửi lại request.
+- `identityVersion`: chỉ đổi khi user ID/quyền thay đổi hoặc logout/login. React dùng mốc này để reset dữ liệu và bản nháp; thay token cùng user/quyền giữ modal và bản nháp, kể cả request đang chờ. Response thành công cùng danh tính vẫn được nhận; đổi danh tính hoặc rời trang thì bỏ qua.
+- Module 1 có thể import `authSession` trực tiếp từ shared/auth/auth-session.ts; alias `module2Session`, `sessionFromAccessToken`, `setSession` và callback 401/403 cũ vẫn giữ nguyên. Không triển khai login/refresh/logout ở feature.
+- Khi production chưa nối adapter, trang chỉ báo cần phiên và không gửi request. Panel development không xuất hiện trong production/preview.
+- Khi client dùng chung của Module 1 sẵn sàng, thay chỗ khởi tạo HTTP trong api/index.ts; giữ contract API feature và các trang.
 
 ## Trạng thái chức năng và xác thực
 
 - Các màn hình Reader/Staff, biểu đồ, mục lục và nội dung đọc sử dụng dữ liệu mẫu. Trang đọc hiện render HTML, chưa tích hợp PDF viewer tải tệp backend.
-- Các thao tác lưu form, cập nhật hồ sơ, khóa thẻ, xử lý hàng chờ hoặc retry job hiện chủ yếu thay đổi state/thông báo; chưa lưu bền vững. Không nên dựa vào thông báo thành công trên UI để kết luận dữ liệu đã được lưu.
+- Ngoài Module 2, các thao tác lưu form, cập nhật hồ sơ, khóa thẻ, xử lý hàng chờ hoặc retry job hiện chủ yếu thay đổi state/thông báo; chưa lưu bền vững. Không nên dựa vào thông báo thành công trên UI để kết luận dữ liệu đã được lưu.
 - [LoginPage.tsx](./src/pages/auth/LoginPage.tsx) kiểm tra trường nhập rồi dùng timer báo lỗi; cả đăng nhập thư viện và Microsoft đều chưa xác thực thực tế. “Ghi nhớ đăng nhập” chưa tạo phiên đăng nhập.
 - Chưa có route guard hoặc kiểm tra quyền truy cập thật. Có thể mở trực tiếp URL Reader/Staff/Admin để xem prototype; vai trò layout không phải quyền đã được backend xác nhận.
 - [logout.ts](./src/utils/logout.ts) xóa các khóa phiên/user/role định sẵn trong storage và chuyển về `/login`; chưa gọi API logout hoặc thu hồi token.
 
 ## Kết nối backend
 
-Trong `src` hiện chưa có API client, lời gọi `fetch`/Axios hoặc cấu hình API base URL được sử dụng. Chưa có chức năng nào được xác nhận đã nối API backend; chạy frontend prototype hiện không cần backend.
+Module 2 đã dùng fetch qua service riêng và VITE_API_BASE_URL; các màn hình còn lại chưa nối API. Không có cơ chế tự gọi login/refresh trong Module 2.
 
-`VITE_API_BASE_URL` **chưa được triển khai**: đặt biến này hiện không tự tạo kết nối. Khi tích hợp cần bổ sung API client, quản lý phiên/Bearer token, xử lý hợp đồng response và cấu hình CORS phía backend phù hợp origin frontend. Không đưa token hoặc mật khẩu vào mã nguồn hay README.
+Không đưa token hoặc mật khẩu vào biến VITE_*, mã nguồn hoặc README. Biến VITE_* được đóng gói vào frontend, chỉ đặt thông tin công khai như base URL.
 
 ## Triển khai và tài liệu liên quan
 
@@ -148,4 +198,6 @@ Trong `src` hiện chưa có API client, lời gọi `fetch`/Axios hoặc cấu 
 - [CLAUDE.md](./CLAUDE.md): tham chiếu hướng dẫn repository.
 - [README backend](../be-ptit-library/README.md): tài liệu dịch vụ backend độc lập.
 
-Kiểm chứng sau khi bổ sung Module 2: TypeScript (`npm exec -- tsc --noEmit`), production build và kiểm tra whitespace đã qua. Build cảnh báo chunk JavaScript lớn hơn 500 kB. Mock service đã được kiểm tra cập nhật policy, thêm/sửa/trùng mã loại phạt, kích hoạt duy nhất một cấu hình và không thay đổi store khi mô phỏng lỗi. Chưa kiểm chứng trực quan trên trình duyệt vì công cụ trình duyệt không truy cập được dev server localhost; chưa tích hợp backend.
+Kiểm chứng service cô lập: `node --experimental-strip-types --test tests/library-settings.test.mjs` (chỉ dùng fetch giả lập, không mạng/DB). Kiểm tra kiểu: `node node_modules/typescript/bin/tsc --noEmit`; build: `npm run build`; whitespace: `git diff --check`. Chưa kiểm chứng các request với backend thật, CORS, JWT server hoặc persistence DB; mock HTTP pass không chứng minh tích hợp end-to-end.
+
+Test dùng Node 22.15 đang có và khả năng TypeScript type stripping (có cảnh báo experimental), không VM loader, không dependency mới. Test kiểm tra hợp đồng HTTP, phân quyền, tách identity/token, form model giữ bản nháp, chặn gửi lặp và xử lý response cũ. Đây là test service/state model, chưa phải test tương tác component hoặc end-to-end trên trình duyệt.
