@@ -1,8 +1,48 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Icon } from "../../../design-system";
+import { analyticsService } from "../../../services/analytics.service";
+import { getAccessToken } from "../../../services/session";
+import type { AcquisitionSuggestionDto, LibraryOverviewStatsDto } from "../../../types/api";
+import { formatDateTimeVi } from "../../../utils/mappers";
 
 export default function ReportsScreen() {
   const [view, setView] = useState<"circulation" | "demand">("circulation");
+  const [overview, setOverview] = useState<LibraryOverviewStatsDto | null>(null);
+  const [suggestions, setSuggestions] = useState<AcquisitionSuggestionDto[]>([]);
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let active = true;
+
+    analyticsService
+      .getOverviewStatistics()
+      .then((stats) => {
+        if (active) setOverview(stats);
+      })
+      .catch(() => {
+        // Keep mock KPI stats
+      });
+
+    analyticsService
+      .getAcquisitionSuggestions(undefined, { page: 0, size: 10 })
+      .then((pageData) => {
+        if (active && pageData.items?.length) {
+          setSuggestions(pageData.items);
+        }
+      })
+      .catch(() => {
+        // Keep mock zero-result queries
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const totalCopies = overview ? overview.totalPhysicalCopies : 52184;
+  const availableCopies = overview ? overview.availablePhysicalCopies : 49862;
+  const borrowedCopies = overview ? overview.borrowedPhysicalCopies : 1284;
+
   return (
     <div className="reports-page">
       <div className="reports-heading">
@@ -19,10 +59,10 @@ export default function ReportsScreen() {
       </section>
 
       <section className="report-kpi-grid">
-        <article><span className="report-kpi-icon brand"><Icon name="book" /></span><div><small>Tổng lượt mượn</small><strong>3.842</strong><p><b>+8,4%</b> so với kỳ trước</p></div></article>
+        <article><span className="report-kpi-icon brand"><Icon name="book" /></span><div><small>Tổng lượt mượn</small><strong>{overview ? overview.activeLoans.toLocaleString("vi-VN") : "3.842"}</strong><p><b>+8,4%</b> so với kỳ trước</p></div></article>
         <article><span className="report-kpi-icon info"><Icon name="arrow-left" /></span><div><small>Tổng lượt trả</small><strong>3.615</strong><p><b>+5,2%</b> so với kỳ trước</p></div></article>
         <article><span className="report-kpi-icon error"><Icon name="error" /></span><div><small>Quá hạn</small><strong>186</strong><p className="negative"><b>+12,1%</b> cần chú ý</p></div></article>
-        <article><span className="report-kpi-icon success"><Icon name="users" /></span><div><small>Bạn đọc hoạt động</small><strong>2.947</strong><p><b>+4,8%</b> so với kỳ trước</p></div></article>
+        <article><span className="report-kpi-icon success"><Icon name="users" /></span><div><small>Bạn đọc hoạt động</small><strong>{overview ? overview.totalUsers.toLocaleString("vi-VN") : "2.947"}</strong><p><b>+4,8%</b> so với kỳ trước</p></div></article>
       </section>
 
       <div className="report-view-tabs">
@@ -86,20 +126,33 @@ export default function ReportsScreen() {
               ].map(([title, count, period]) => <article key={title}><span><Icon name="book" /></span><div><strong>{title}</strong><small>Lần mượn gần nhất: {period} trước</small></div><Badge>{count}</Badge></article>)}</div>
             </section>
             <section className="report-panel inventory-report">
-              <header><div><h2>Tình trạng kho</h2><p>Phân bổ 52.184 bản cá biệt</p></div></header>
-              <div className="inventory-report-total"><strong>52.184</strong><span>Tổng số bản</span></div>
+              <header><div><h2>Tình trạng kho</h2><p>Phân bổ {totalCopies.toLocaleString("vi-VN")} bản cá biệt</p></div></header>
+              <div className="inventory-report-total"><strong>{totalCopies.toLocaleString("vi-VN")}</strong><span>Tổng số bản</span></div>
               <div className="inventory-report-bar"><i className="inv-available" /><i className="inv-borrowed" /><i className="inv-damaged" /><i className="inv-audit" /></div>
-              <div className="inventory-report-legend"><div><i className="inventory-available" /><span>Có sẵn</span><strong>49.862</strong><small>95,55%</small></div><div><i className="inventory-borrowed" /><span>Đang mượn</span><strong>1.284</strong><small>2,46%</small></div><div><i className="inventory-damaged" /><span>Hư hỏng</span><strong>892</strong><small>1,71%</small></div><div><i className="inventory-audit" /><span>Cần kiểm kê</span><strong>146</strong><small>0,28%</small></div></div>
+              <div className="inventory-report-legend"><div><i className="inventory-available" /><span>Có sẵn</span><strong>{availableCopies.toLocaleString("vi-VN")}</strong><small>95,55%</small></div><div><i className="inventory-borrowed" /><span>Đang mượn</span><strong>{borrowedCopies.toLocaleString("vi-VN")}</strong><small>2,46%</small></div><div><i className="inventory-damaged" /><span>Hư hỏng</span><strong>892</strong><small>1,71%</small></div><div><i className="inventory-audit" /><span>Cần kiểm kê</span><strong>146</strong><small>0,28%</small></div></div>
             </section>
           </div>
 
           <section className="report-panel report-query-panel">
             <header><div><h2>Truy vấn không có kết quả</h2><p>Các nhu cầu tìm kiếm chưa được đáp ứng</p></div><Badge tone="warning">CẦN PHÂN TÍCH</Badge></header>
             <div className="report-query-table-wrap"><table><thead><tr><th>Query</th><th>Số lần tìm</th><th>Thời gian gần nhất</th><th>Xu hướng</th></tr></thead><tbody>
-              <tr><td><strong>“mạng 6G và truyền thông lượng tử”</strong></td><td><b>28</b></td><td>22/06/2025 · 09:18</td><td><Badge tone="error">TĂNG NHANH</Badge></td></tr>
-              <tr><td><strong>“AI tạo sinh trong thiết kế vi mạch”</strong></td><td><b>21</b></td><td>21/06/2025 · 16:42</td><td><Badge tone="warning">TĂNG</Badge></td></tr>
-              <tr><td><strong>“giáo trình rust tiếng Việt”</strong></td><td><b>17</b></td><td>20/06/2025 · 14:05</td><td><Badge>ỔN ĐỊNH</Badge></td></tr>
-              <tr><td><strong>“bảo mật cho thiết bị y tế IoT”</strong></td><td><b>12</b></td><td>19/06/2025 · 11:26</td><td><Badge>ỔN ĐỊNH</Badge></td></tr>
+              {suggestions.length > 0 ? (
+                suggestions.map((item) => (
+                  <tr key={item.id}>
+                    <td><strong>“{item.topic}”</strong></td>
+                    <td><b>{item.queryCount}</b></td>
+                    <td>{formatDateTimeVi(item.updatedAt || item.createdAt)}</td>
+                    <td><Badge tone={item.queryCount >= 20 ? "error" : "warning"}>{item.status}</Badge></td>
+                  </tr>
+                ))
+              ) : (
+                <>
+                  <tr><td><strong>“mạng 6G và truyền thông lượng tử”</strong></td><td><b>28</b></td><td>22/06/2025 · 09:18</td><td><Badge tone="error">TĂNG NHANH</Badge></td></tr>
+                  <tr><td><strong>“AI tạo sinh trong thiết kế vi mạch”</strong></td><td><b>21</b></td><td>21/06/2025 · 16:42</td><td><Badge tone="warning">TĂNG</Badge></td></tr>
+                  <tr><td><strong>“giáo trình rust tiếng Việt”</strong></td><td><b>17</b></td><td>20/06/2025 · 14:05</td><td><Badge>ỔN ĐỊNH</Badge></td></tr>
+                  <tr><td><strong>“bảo mật cho thiết bị y tế IoT”</strong></td><td><b>12</b></td><td>19/06/2025 · 11:26</td><td><Badge>ỔN ĐỊNH</Badge></td></tr>
+                </>
+              )}
             </tbody></table></div>
           </section>
         </div>

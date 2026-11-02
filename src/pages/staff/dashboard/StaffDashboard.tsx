@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Icon, IconButton, Rating, Status } from "../../../design-system";
 import { staffSummary, circulationData } from "../../../data/dashboard";
+import { analyticsService } from "../../../services/analytics.service";
+import { getAccessToken } from "../../../services/session";
+import type { AcquisitionSuggestionDto, LibraryOverviewStatsDto } from "../../../types/api";
+import { formatDateTimeVi } from "../../../utils/mappers";
 
 function CirculationChart() {
   const max = 200;
@@ -28,6 +32,68 @@ function CirculationChart() {
 
 export default function StaffDashboard() {
   const [dateRange, setDateRange] = useState("7 ngày");
+  const [overview, setOverview] = useState<LibraryOverviewStatsDto | null>(null);
+  const [suggestions, setSuggestions] = useState<AcquisitionSuggestionDto[]>([]);
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let active = true;
+
+    analyticsService
+      .getOverviewStatistics()
+      .then((stats) => {
+        if (active) setOverview(stats);
+      })
+      .catch(() => {
+        // Keep mock staffSummary
+      });
+
+    analyticsService
+      .getAcquisitionSuggestions(undefined, { page: 0, size: 5 })
+      .then((pageData) => {
+        if (active && pageData.items?.length) {
+          setSuggestions(pageData.items);
+        }
+      })
+      .catch(() => {
+        // Keep mock zero-result queries
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const summaryItems = overview
+    ? [
+        {
+          ...staffSummary[0],
+          value: overview.totalDocuments.toLocaleString("vi-VN"),
+        },
+        {
+          ...staffSummary[1],
+          value: overview.activeLoans.toLocaleString("vi-VN"),
+        },
+        staffSummary[2],
+        {
+          ...staffSummary[3],
+          value: overview.pendingAcquisitionSuggestions.toLocaleString("vi-VN"),
+        },
+        {
+          ...staffSummary[4],
+          value: overview.totalUsers.toLocaleString("vi-VN"),
+        },
+        {
+          ...staffSummary[5],
+          value: overview.totalDigitalCopies.toLocaleString("vi-VN"),
+        },
+      ]
+    : staffSummary;
+
+  const totalCopies = overview ? overview.totalPhysicalCopies : 52184;
+  const availableCopies = overview ? overview.availablePhysicalCopies : 49862;
+  const borrowedCopies = overview ? overview.borrowedPhysicalCopies : 1284;
+
   return (
     <div className="staff-dashboard">
       <div className="staff-dashboard-heading">
@@ -38,7 +104,7 @@ export default function StaffDashboard() {
       </div>
 
       <section className="staff-summary-grid" aria-label="Chỉ số vận hành">
-        {staffSummary.map((item) => <article key={item.label}><span className={`staff-metric-icon ${item.tone}`}><Icon name={item.icon} /></span><div><small>{item.label}</small><strong>{item.value}</strong><p className={item.tone === "error" ? "negative" : ""}>{item.change}</p></div></article>)}
+        {summaryItems.map((item) => <article key={item.label}><span className={`staff-metric-icon ${item.tone}`}><Icon name={item.icon} /></span><div><small>{item.label}</small><strong>{item.value}</strong><p className={item.tone === "error" ? "negative" : ""}>{item.change}</p></div></article>)}
       </section>
 
       <section className="staff-dashboard-grid">
@@ -71,11 +137,11 @@ export default function StaffDashboard() {
         </article>
 
         <article className="staff-panel inventory-panel">
-          <header className="staff-panel-heading"><div><h2>Tình trạng kho</h2><p>Phân bổ 52.184 bản cá biệt</p></div><Button variant="ghost" size="sm">Chi tiết</Button></header>
-          <div className="inventory-total"><div><small>TỔNG SỐ BẢN</small><strong>52.184</strong></div><span><i className="inventory-available" /><i className="inventory-borrowed" /><i className="inventory-damaged" /><i className="inventory-audit" /></span></div>
+          <header className="staff-panel-heading"><div><h2>Tình trạng kho</h2><p>Phân bổ {totalCopies.toLocaleString("vi-VN")} bản cá biệt</p></div><Button variant="ghost" size="sm">Chi tiết</Button></header>
+          <div className="inventory-total"><div><small>TỔNG SỐ BẢN</small><strong>{totalCopies.toLocaleString("vi-VN")}</strong></div><span><i className="inventory-available" /><i className="inventory-borrowed" /><i className="inventory-damaged" /><i className="inventory-audit" /></span></div>
           <div className="inventory-list">
-            <div><span><i className="inventory-available" />Có sẵn</span><strong>49.862</strong><small>95,55%</small></div>
-            <div><span><i className="inventory-borrowed" />Đang mượn</span><strong>1.284</strong><small>2,46%</small></div>
+            <div><span><i className="inventory-available" />Có sẵn</span><strong>{availableCopies.toLocaleString("vi-VN")}</strong><small>95,55%</small></div>
+            <div><span><i className="inventory-borrowed" />Đang mượn</span><strong>{borrowedCopies.toLocaleString("vi-VN")}</strong><small>2,46%</small></div>
             <div><span><i className="inventory-damaged" />Hư hỏng</span><strong>892</strong><small>1,71%</small></div>
             <div><span><i className="inventory-audit" />Cần kiểm kê</span><strong>146</strong><small>0,28%</small></div>
           </div>
@@ -85,10 +151,24 @@ export default function StaffDashboard() {
       <section className="staff-panel no-query-panel">
         <header className="staff-panel-heading"><div><h2>Truy vấn không có kết quả</h2><p>Các nhu cầu bạn đọc chưa được đáp ứng trong 7 ngày qua</p></div><Badge tone="warning">CẦN PHÂN TÍCH</Badge></header>
         <div className="staff-table-wrap"><table className="staff-data-table query-table"><thead><tr><th>Truy vấn tìm kiếm</th><th>Số lượt tìm</th><th>Lần tìm gần nhất</th><th>Hành động đề xuất</th><th /></tr></thead><tbody>
-          <tr><td><strong>“mạng 6G và truyền thông lượng tử”</strong></td><td><b>28</b></td><td>Hôm nay, 09:18</td><td><span className="suggested-action">Xem xét bổ sung tài liệu</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
-          <tr><td><strong>“AI tạo sinh trong thiết kế vi mạch”</strong></td><td><b>21</b></td><td>Hôm qua, 16:42</td><td><span className="suggested-action">Kiểm tra từ khóa chủ đề</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
-          <tr><td><strong>“giáo trình rust tiếng Việt”</strong></td><td><b>17</b></td><td>20/06/2025, 14:05</td><td><span className="suggested-action">Đề xuất mua bổ sung</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
-          <tr><td><strong>“bảo mật cho thiết bị y tế IoT”</strong></td><td><b>12</b></td><td>19/06/2025, 11:26</td><td><span className="suggested-action">Mở rộng chỉ mục nội dung</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
+          {suggestions.length > 0 ? (
+            suggestions.map((item) => (
+              <tr key={item.id}>
+                <td><strong>“{item.topic}”</strong></td>
+                <td><b>{item.queryCount}</b></td>
+                <td>{formatDateTimeVi(item.updatedAt || item.createdAt)}</td>
+                <td><span className="suggested-action">Đề xuất mua bổ sung ({item.status})</span></td>
+                <td><IconButton label="Xem chi tiết" icon="chevron-right" /></td>
+              </tr>
+            ))
+          ) : (
+            <>
+              <tr><td><strong>“mạng 6G và truyền thông lượng tử”</strong></td><td><b>28</b></td><td>Hôm nay, 09:18</td><td><span className="suggested-action">Xem xét bổ sung tài liệu</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
+              <tr><td><strong>“AI tạo sinh trong thiết kế vi mạch”</strong></td><td><b>21</b></td><td>Hôm qua, 16:42</td><td><span className="suggested-action">Kiểm tra từ khóa chủ đề</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
+              <tr><td><strong>“giáo trình rust tiếng Việt”</strong></td><td><b>17</b></td><td>20/06/2025, 14:05</td><td><span className="suggested-action">Đề xuất mua bổ sung</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
+              <tr><td><strong>“bảo mật cho thiết bị y tế IoT”</strong></td><td><b>12</b></td><td>19/06/2025, 11:26</td><td><span className="suggested-action">Mở rộng chỉ mục nội dung</span></td><td><IconButton label="Xem chi tiết" icon="chevron-right" /></td></tr>
+            </>
+          )}
         </tbody></table></div>
       </section>
     </div>

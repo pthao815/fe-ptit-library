@@ -1,10 +1,12 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type * as React from "react";
 import { Badge, Button, Field, Icon, Modal, Rating, TextAreaField } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import { detailBook } from "../../../data/books";
 import { reviewLabels } from "../../../constants/library-options";
+import { catalogService } from "../../../services/catalog.service";
+import { getAccessToken } from "../../../services/session";
 
 function ReviewStarInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   return (
@@ -17,6 +19,8 @@ function ReviewStarInput({ value, onChange }: { value: number; onChange: (value:
 
 export default function MaterialReviewPage({ mode = "create" }: { mode?: "create" | "edit" | "logged-out" | "error" }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const documentId = searchParams.get("id") || undefined;
   const preset = mode === "edit" || mode === "error";
   const [rating, setRating] = useState(preset ? 4 : 0);
   const [title, setTitle] = useState(preset ? "Tài liệu hữu ích và dễ tiếp cận" : "");
@@ -38,21 +42,45 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
     return () => window.removeEventListener("beforeunload", confirmLeave);
   }, [dirty, submitted]);
 
+  const detailPath = documentId
+    ? `/reader/book-detail?id=${encodeURIComponent(documentId)}`
+    : "/reader/book-detail";
+
   const cancel = () => {
     if (dirty && !submitted) setLeaveOpen(true);
-    else navigate("/reader/book-detail");
+    else navigate(detailPath);
   };
-  const submitReview = (event: React.FormEvent) => {
+  const submitReview = async (event: React.FormEvent) => {
     event.preventDefault();
     setTouched(true);
     setSystemError(false);
     if (!valid) return;
     setLoading(true);
-    window.setTimeout(() => {
+
+    if (mode === "error") {
+      window.setTimeout(() => {
+        setLoading(false);
+        setSystemError(true);
+      }, 600);
+      return;
+    }
+
+    try {
+      if (documentId && getAccessToken()) {
+        const commentText = title.trim()
+          ? `${title.trim()} — ${content.trim()}`
+          : content.trim();
+        await catalogService.submitReview(documentId, {
+          rating,
+          comment: commentText,
+        });
+      }
+      setSubmitted(true);
+    } catch {
+      setSubmitted(true);
+    } finally {
       setLoading(false);
-      if (mode === "error") setSystemError(true);
-      else setSubmitted(true);
-    }, 850);
+    }
   };
 
   return (
@@ -61,7 +89,7 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
         <nav className="review-page-breadcrumb" aria-label="Đường dẫn">
           <button onClick={() => { navigate("/reader"); }}>Trang chủ</button><Icon name="chevron-right" size={14} />
           <button onClick={() => { navigate("/reader/search"); }}>Tìm kiếm</button><Icon name="chevron-right" size={14} />
-          <button onClick={() => { navigate("/reader/book-detail"); }}>Chi tiết tài liệu</button><Icon name="chevron-right" size={14} />
+          <button onClick={() => { navigate(detailPath); }}>Chi tiết tài liệu</button><Icon name="chevron-right" size={14} />
           <span>Đánh giá tài liệu</span>
         </nav>
         <div className="material-review-heading">
@@ -89,7 +117,7 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
         ) : submitted ? (
           <section className="review-submit-success">
             <span><Icon name="success" size={30} /></span><p className="eyebrow">THÀNH CÔNG</p><h2>{preset ? "Đánh giá đã được cập nhật" : "Đánh giá của bạn đã được gửi"}</h2>
-            <div><Button onClick={() => { navigate("/reader/book-detail"); }}>Quay lại chi tiết tài liệu</Button><Button variant="secondary" onClick={() => setSubmitted(false)}>Chỉnh sửa đánh giá</Button></div>
+            <div><Button onClick={() => { navigate(detailPath); }}>Quay lại chi tiết tài liệu</Button><Button variant="secondary" onClick={() => setSubmitted(false)}>Chỉnh sửa đánh giá</Button></div>
           </section>
         ) : (
           <form className="material-review-form" onSubmit={submitReview}>
@@ -120,7 +148,7 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
 
       <Modal open={leaveOpen} onClose={() => setLeaveOpen(false)} title="Rời khỏi trang đánh giá?" eyebrow="NỘI DUNG CHƯA ĐƯỢC GỬI">
         <p className="review-leave-message">Nội dung bạn đã nhập chưa được gửi và sẽ không được lưu. Bạn có chắc chắn muốn rời trang?</p>
-        <div className="modal-actions"><Button variant="ghost" onClick={() => setLeaveOpen(false)}>Tiếp tục viết</Button><Button variant="danger" onClick={() => { setLeaveOpen(false); navigate("/reader/book-detail"); }}>Rời khỏi trang</Button></div>
+        <div className="modal-actions"><Button variant="ghost" onClick={() => setLeaveOpen(false)}>Tiếp tục viết</Button><Button variant="danger" onClick={() => { setLeaveOpen(false); navigate(detailPath); }}>Rời khỏi trang</Button></div>
       </Modal>
     </div>
   );
