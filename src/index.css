@@ -89,7 +89,7 @@ h1, h2, h3, p { margin: 0; }
 main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .breadcrumb { display: flex; align-items: center; gap: 5px; color: var(--gray-500); font-size: 12px; margin-bottom: 20px; }
 .breadcrumb span { display: flex; align-items: center; gap: 5px; }
-.breadcrumb button { border: 0; background: transparent; color: inherit; padding: 0; }
+.breadcrumb button, .breadcrumb a { border: 0; background: transparent; color: inherit; padding: 0; }
 .breadcrumb .current { color: var(--gray-900); font-weight: 500; }
 .page-intro { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 54px; }
 .eyebrow { color: var(--red-500); font-weight: 700; letter-spacing: .11em; font-size: 10px; }
@@ -257,6 +257,8 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
   .reader-header-inner { padding-inline: 20px; }
   .reader-header-inner > .icon-button { display: grid; }
   .reader-nav { width: min(320px, 86vw); height: 100vh; position: fixed; inset: 0 auto 0 0; z-index: 41; padding: 14px; display: flex; flex-direction: column; align-items: stretch; gap: 3px; background: var(--white); box-shadow: var(--shadow-lg); transform: translateX(-105%); transition: transform .2s ease; }
+  .reader-header.menu-open { z-index: 40; backdrop-filter: none; }
+  .reader-nav:not(.open), .workspace-sidebar:not(.mobile-open) { visibility: hidden; }
   .reader-nav.open { transform: translateX(0); }
   .reader-nav > button { min-height: 44px; padding: 0 12px; border-radius: var(--radius-sm); text-align: left; }
   .reader-nav > button.active { background: var(--red-50); }
@@ -293,7 +295,8 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
   .shell-span-8, .shell-span-4 { grid-column: auto; }
   .shell-placeholder-card { min-height: 200px; }
   .workspace-header { height: 68px; padding-inline: 14px; grid-template-columns: 1fr auto; gap: 8px; }
-  .workspace-header > .search-input { display: none; }
+  .workspace-header > .search-input, .workspace-header > form[role="search"],
+  .reader-actions > form[role="search"] { display: none; }
   .workspace-header-left strong { font-size: 12px; }
   .workspace-content-wrap { min-height: calc(100vh - 68px); }
   .workspace-header-actions { gap: 2px; }

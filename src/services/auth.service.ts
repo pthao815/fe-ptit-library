@@ -5,7 +5,7 @@ import type {
   UserDto,
 } from "../types/api";
 import { http } from "./http";
-import { saveAuthSession, updateStoredUser } from "./session";
+import { remembersSession, saveAuthSession, updateStoredUser } from "./session";
 
 export const authService = {
   async login(payload: LoginRequest, remember = true): Promise<TokenResponse> {
@@ -27,9 +27,9 @@ export const authService = {
   async refreshToken(token: string): Promise<TokenResponse> {
     const tokenData = await http.post<TokenResponse>("/api/auth/refresh", undefined, {
       skipAuth: true,
-      // Query parameter token
+      params: { token },
     });
-    saveAuthSession(tokenData, true);
+    saveAuthSession(tokenData, remembersSession());
     return tokenData;
   },
 

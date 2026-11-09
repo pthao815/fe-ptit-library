@@ -1,9 +1,7 @@
+import { clearAuthSession } from "../services/session";
 import type { NavigateFunction } from "react-router-dom";
 
 export function logout(navigate: NavigateFunction) {
-  ["ptit-library-session", "ptit-library-user", "ptit-library-role"].forEach((key) => {
-    window.sessionStorage.removeItem(key);
-    window.localStorage.removeItem(key);
-  });
+  clearAuthSession();
   navigate("/login", { replace: true });
 }

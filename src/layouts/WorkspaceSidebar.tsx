@@ -38,6 +38,7 @@ export default function WorkspaceSidebar({
           <button
             key={item.label}
             className={active === item.label ? "active" : ""}
+            aria-current={active === item.label ? "page" : undefined}
             title={collapsed ? item.label : undefined}
             onClick={() => {
               onActiveChange(item.label);
@@ -51,7 +52,6 @@ export default function WorkspaceSidebar({
       </nav>
       <nav className="workspace-nav workspace-nav-bottom" aria-label="Tùy chọn tài khoản">
         <button className={active === "Thông tin cá nhân" ? "active" : ""} onClick={() => { onActiveChange("Thông tin cá nhân"); onMobileClose(); }}><Icon name="users" /><span>Tài khoản</span></button>
-        <button><Icon name="settings" /><span>Cài đặt</span></button>
         <button className="logout" onClick={onLogout}><Icon name="arrow-left" /><span>Đăng xuất</span></button>
       </nav>
       <button className="collapse-control" onClick={onCollapse} aria-label={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}>

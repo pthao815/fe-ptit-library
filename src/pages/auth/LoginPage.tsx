@@ -1,11 +1,10 @@
 import { useState } from "react";
 import type * as React from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Button, Icon } from "../../design-system";
 import Brand from "../../components/common/Brand";
 import { authService } from "../../services/auth.service";
 import { ApiError } from "../../services/http";
-import { getPortalHomePath, mapBackendRoleToPortalRole } from "../../services/session";
 
 type LoginMessage =
   | { tone: "error" | "info"; text: string }
@@ -16,17 +15,20 @@ function MicrosoftMark() {
 }
 
 export default function LoginPage() {
-  const navigate = useNavigate();
+  const { state } = useLocation();
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [errors, setErrors] = useState<{ account?: string; password?: string }>({});
-  const [message, setMessage] = useState<LoginMessage>(null);
+  const [message, setMessage] = useState<LoginMessage>(state?.expired
+    ? { tone: "info", text: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }
+    : null);
   const [loading, setLoading] = useState<"library" | "microsoft" | null>(null);
 
   const submitLibraryLogin = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (loading) return;
     const nextErrors = {
       account: account.trim() ? undefined : "Vui lòng nhập tài khoản.",
       password: password ? undefined : "Vui lòng nhập mật khẩu.",
@@ -37,7 +39,7 @@ export default function LoginPage() {
 
     setLoading("library");
     try {
-      const tokenData = await authService.login(
+      await authService.login(
         {
           username: account.trim(),
           password,
@@ -45,8 +47,6 @@ export default function LoginPage() {
         },
         remember,
       );
-      const role = mapBackendRoleToPortalRole(tokenData.user?.role);
-      navigate(getPortalHomePath(role), { replace: true });
     } catch (error) {
       const text =
         error instanceof ApiError && error.status !== 0

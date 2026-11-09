@@ -18,7 +18,9 @@ export const API_REMOTE_URL = normalizeBaseUrl(
   import.meta.env.VITE_API_REMOTE_URL || API_LOCAL_URL,
 );
 
-export const API_BASE_URL = API_TARGET === "remote" ? API_REMOTE_URL : API_LOCAL_URL;
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined
+  ? normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL)
+  : API_TARGET === "remote" ? API_REMOTE_URL : API_LOCAL_URL;
 
 export const API_TIMEOUT_MS =
   Number(import.meta.env.VITE_API_TIMEOUT) > 0

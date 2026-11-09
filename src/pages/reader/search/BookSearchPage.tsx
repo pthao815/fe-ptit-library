@@ -1,9 +1,10 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Field, Icon, IconButton, Status } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import type { SearchResult } from "../../../data/search-results";
-import { searchResults } from "../../../data/search-results";
+import { userService } from "../../../services/user.service";
+import type { DepartmentDto } from "../../../types/api";
 import { filterGroups } from "../../../constants/library-options";
 import { catalogService } from "../../../services/catalog.service";
 import { getAccessToken } from "../../../services/session";
@@ -31,7 +32,8 @@ function SearchResultCard({
   const navigate = useNavigate();
   const detailUrl = result.documentId
     ? `/reader/book-detail?id=${encodeURIComponent(result.documentId)}`
-    : "/reader/book-detail";
+    : "/reader/search";
+  const location = useLocation();
   return (
     <article className="search-result-card">
       <div className="result-cover-column">
@@ -64,7 +66,7 @@ function SearchResultCard({
           <small>{result.copies > 0 ? `${result.copies} bản tại thư viện` : "Có thể lưu để xem lại"}</small>
         </div>
         <div className="result-actions">
-          <Button size="sm" onClick={() => { navigate(detailUrl); }}>Xem chi tiết</Button>
+          <Button size="sm" onClick={() => { navigate(detailUrl, { state: { returnTo: location.pathname + location.search } }); }}>Xem chi tiết</Button>
           <Button variant={saved ? "secondary" : "ghost"} size="sm" icon="bookmark" onClick={onSave}>{saved ? "Đã lưu vào tủ sách" : "Lưu vào tủ sách"}</Button>
         </div>
       </div>
@@ -73,30 +75,73 @@ function SearchResultCard({
 }
 
 export default function SearchResultsPage({ empty = false }: { empty?: boolean }) {
+  const { search } = useLocation();
+  return <BookSearch key={search} empty={empty} />;
+}
+
+function BookSearch({ empty }: { empty: boolean }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialQuery = searchParams.get("q") || "trí tuệ nhân tạo";
-  const [query, setQuery] = useState(initialQuery);
-  const [submittedQuery, setSubmittedQuery] = useState(initialQuery);
-  const [results, setResults] = useState<SearchResult[]>(searchResults);
-  const [totalElements, setTotalElements] = useState<number>(128);
+  const submittedQuery = searchParams.get("q") ?? "";
+  const [query, setQuery] = useState(submittedQuery);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
   const [hasFetchedEmpty, setHasFetchedEmpty] = useState(false);
-  const [saved, setSaved] = useState<number[]>([102]);
-  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [saved, setSaved] = useState<string[]>([]);
+  const [applied] = useState(() => ({
+    docType: searchParams.get("docType") ?? "",
+    publicationYear: searchParams.get("publicationYear") ?? "",
+    departmentId: searchParams.get("departmentId") ?? "",
+    authorId: searchParams.get("authorId") ?? "",
+  }));
+  const [filters, setFilters] = useState(applied);
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [loading, setLoading] = useState(!empty);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  useEffect(() => {
+    let active = true;
+    userService.getDepartments().then((data) => {
+      if (active) setDepartments(data);
+    }).catch(() => {
+      if (active) setDepartments([]);
+    });
+    return () => { active = false; };
+  }, []);
   const [filterOpen, setFilterOpen] = useState(false);
   const [view, setView] = useState<"list" | "grid">("list");
-  const [sort, setSort] = useState("relevance");
-  const [page, setPage] = useState(1);
+  const sort = searchParams.get("sort") ?? "relevance";
+  const rawPage = Number(searchParams.get("page"));
+  const page = Number.isSafeInteger(rawPage) && rawPage > 0 && rawPage <= 2147483647 ? rawPage : 1;
+
+  function updateSearch(values: Record<string, string>) {
+    const params = new URLSearchParams(searchParams);
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+    const search = params.toString();
+    if (!empty && search === searchParams.toString()) setRevision((value) => value + 1);
+    else navigate({ pathname: "/reader/search", search });
+  }
 
   useEffect(() => {
     if (empty) return;
     let active = true;
+    setLoading(true);
+    setLoadError("");
     const sortBy = sort === "title" ? "title" : sort === "newest" ? "publicationYear" : "createdAt";
     const sortDir = sort === "title" ? "asc" : "desc";
 
     catalogService
       .searchDocuments({
         keyword: submittedQuery.trim() || undefined,
+        docType: applied.docType.trim() || undefined,
+        publicationYear: Number(applied.publicationYear) || undefined,
+        departmentId: Number(applied.departmentId) || undefined,
+        authorId: Number(applied.authorId) || undefined,
         page: page - 1,
         size: 10,
         sortBy,
@@ -109,36 +154,36 @@ export default function SearchResultsPage({ empty = false }: { empty?: boolean }
             pageData.items.map((dto, index) => mapDocumentSummaryToSearchResult(dto, index)),
           );
           setTotalElements(pageData.totalElements);
+          setTotalPages(pageData.totalPages);
           setHasFetchedEmpty(pageData.items.length === 0);
         }
       })
-      .catch(() => {
-        // Fallback to mock searchResults when backend is offline
-      });
+      .catch((error: unknown) => {
+        if (active) setLoadError(error instanceof Error ? error.message : "Không tải được kết quả.");
+      }).finally(() => { if (active) setLoading(false); });
 
     return () => {
       active = false;
     };
-  }, [empty, page, sort, submittedQuery]);
+  }, [empty, page, sort, submittedQuery, applied, revision]);
 
-  const toggleFilter = (value: string) => setSelectedFilters((items) => items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
-  const toggleSave = (result: SearchResult) => {
-    setSaved((items) =>
-      items.includes(result.id)
-        ? items.filter((item) => item !== result.id)
-        : [...items, result.id],
-    );
-    if (result.documentId && getAccessToken()) {
-      catalogService.toggleFavorite(result.documentId).catch(() => {
-        // Ignore error on optimistic favorite toggle
-      });
+  const resetFilters = () => {
+    const reset = { docType: "", publicationYear: "", departmentId: "", authorId: "" };
+    setFilters(reset);
+    updateSearch({ ...reset, page: "" });
+  };
+  const toggleSave = async (result: SearchResult) => {
+    setActionError("");
+    if (!result.documentId || !getAccessToken()) return setActionError("Vui lòng đăng nhập để lưu tài liệu.");
+    try {
+      const response = await catalogService.toggleFavorite(result.documentId);
+      setSaved((ids) => response.isFavorite ? [...new Set([...ids, response.documentId])] : ids.filter((id) => id !== response.documentId));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Không lưu được tài liệu.");
     }
   };
   const submitSearch = () => {
-    if (query.trim()) {
-      setSubmittedQuery(query.trim());
-      setPage(1);
-    }
+    updateSearch({ q: query.trim(), page: "" });
   };
 
   const isEmptyState = empty || hasFetchedEmpty;
@@ -148,7 +193,7 @@ export default function SearchResultsPage({ empty = false }: { empty?: boolean }
     <div className="search-results-page">
       <section className="results-search-area">
         <div className="results-search-inner">
-          <Breadcrumb items={["Trang chủ", "Tìm kiếm"]} />
+          <Breadcrumb items={[{ label: "Trang chủ", to: "/reader" }, "Tìm kiếm"]} />
           <div className="results-search-box">
             <Icon name="search" size={22} />
             <input
@@ -177,53 +222,55 @@ export default function SearchResultsPage({ empty = false }: { empty?: boolean }
       </section>
 
       <main className="results-layout">
-        <button className="mobile-filter-trigger" onClick={() => setFilterOpen(true)}><Icon name="filter" />Bộ lọc tìm kiếm {selectedFilters.length > 0 && <Badge tone="brand">{selectedFilters.length}</Badge>}</button>
+        <button className="mobile-filter-trigger" onClick={() => setFilterOpen(true)}><Icon name="filter" />Bộ lọc tìm kiếm</button>
         {filterOpen && <button className="mobile-scrim" aria-label="Đóng bộ lọc" onClick={() => setFilterOpen(false)} />}
         <aside className={`filter-sidebar ${filterOpen ? "open" : ""}`}>
           <div className="filter-head">
             <div><p className="eyebrow">TINH CHỈNH KẾT QUẢ</p><h2>Bộ lọc tìm kiếm</h2></div>
-            <button className="clear-filter" onClick={() => setSelectedFilters([])}>Xóa bộ lọc</button>
+            <button className="clear-filter" onClick={resetFilters}>Xóa bộ lọc</button>
             <IconButton label="Đóng bộ lọc" icon="close" onClick={() => setFilterOpen(false)} />
           </div>
-          {filterGroups.map((group) => (
-            <fieldset className="filter-group" key={group.title}>
-              <legend>{group.title}<Icon name="chevron-down" size={15} /></legend>
-              {group.options.map((option) => <label key={option}><input type="checkbox" checked={selectedFilters.includes(option)} onChange={() => toggleFilter(option)} /><span>{option}</span><small>{Math.floor(option.length * 2.4 + 8)}</small></label>)}
-            </fieldset>
-          ))}
-          <fieldset className="filter-group year-filter">
-            <legend>Năm xuất bản<Icon name="chevron-down" size={15} /></legend>
-            <div><Field label="Từ năm" type="number" defaultValue="2020" /><Field label="Đến năm" type="number" defaultValue="2026" /></div>
-          </fieldset>
-          <div className="filter-actions"><Button onClick={() => setFilterOpen(false)}>Áp dụng bộ lọc</Button></div>
+          <form className="filter-group" onSubmit={(event) => {
+            event.preventDefault();
+            setFilterOpen(false);
+            updateSearch({ ...filters, page: "" });
+          }}>
+            <Field label="Mã loại tài liệu" value={filters.docType} onChange={(event) => setFilters({ ...filters, docType: event.target.value })} />
+            <Field label="Năm xuất bản" type="number" min={1000} max={9999} value={filters.publicationYear} onChange={(event) => setFilters({ ...filters, publicationYear: event.target.value })} />
+            <Field label="ID tác giả" type="number" min={1} value={filters.authorId} onChange={(event) => setFilters({ ...filters, authorId: event.target.value })} />
+            <label>Khoa/ngành <select value={filters.departmentId} onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}>
+              <option value="">Tất cả</option>
+              {departments.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+            </select></label>
+            <Button type="submit">Áp dụng bộ lọc</Button>
+          </form>
         </aside>
 
         <section className="results-main">
           <div className="results-toolbar">
-            <div className="results-count"><strong>{displayTotal} kết quả</strong><span>Sắp xếp theo mức độ liên quan</span></div>
+            <div className="results-count"><strong>{displayTotal} kết quả</strong></div>
             <div className="toolbar-controls">
-              <label className="sort-control"><span>Sắp xếp:</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="relevance">Mức độ liên quan</option><option value="title">Tên tài liệu A–Z</option><option value="newest">Năm xuất bản mới nhất</option><option value="popular">Mức độ phổ biến</option></select><Icon name="chevron-down" size={15} /></label>
+              <label className="sort-control"><span>Sắp xếp:</span><select value={sort} onChange={(event) => updateSearch({ sort: event.target.value, page: "" })}><option value="relevance">Ngày thêm gần đây</option><option value="title">Tên tài liệu A–Z</option><option value="newest">Năm xuất bản mới nhất</option></select><Icon name="chevron-down" size={15} /></label>
               <div className="view-switch" aria-label="Kiểu hiển thị">
                 <IconButton label="Hiển thị danh sách" icon="document" className={view === "list" ? "active" : ""} onClick={() => setView("list")} />
                 <IconButton label="Hiển thị lưới" icon="dashboard" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} />
               </div>
             </div>
           </div>
-          {selectedFilters.length > 0 && <div className="active-filters">{selectedFilters.map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div>}
-          {isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Hãy thử một từ khóa khác hoặc xóa bớt bộ lọc tìm kiếm.</p><Button variant="secondary" onClick={() => { setSelectedFilters([]); setHasFetchedEmpty(false); }}>Xóa bộ lọc</Button></div> : (
+          {actionError && <p role="alert">{actionError}</p>}
+          {loadError ? <div role="alert">{loadError} <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></div>
+            : loading ? <p role="status">Đang tìm tài liệu…</p> : isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Hãy thử một từ khóa khác hoặc xóa bớt bộ lọc tìm kiếm.</p><Button variant="secondary" onClick={resetFilters}>Xóa bộ lọc</Button></div> : (
             <>
               <div className={`search-results-list ${view === "grid" ? "grid-view" : ""}`}>
-                {results.map((result) => <SearchResultCard key={result.id} result={result} query={submittedQuery} saved={saved.includes(result.id)} onSave={() => toggleSave(result)} />)}
+                {results.map((result) => <SearchResultCard key={result.documentId} result={result} query={submittedQuery} saved={saved.includes(result.documentId ?? "")} onSave={() => toggleSave(result)} />)}
               </div>
               <div className="catalog-pagination">
                 <p>Hiển thị <strong>{(page - 1) * 10 + 1}–{Math.min(page * 10, displayTotal)}</strong> trong {displayTotal} kết quả</p>
                 <nav aria-label="Phân trang kết quả">
-                  <IconButton label="Trang trước" icon="chevron-left" disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))} />
-                  {[1, 2, 3, 4].map((number) => <button key={number} className={page === number ? "active" : ""} onClick={() => setPage(number)}>{number}</button>)}
-                  <span>…</span><button className={page === 13 ? "active" : ""} onClick={() => setPage(13)}>13</button>
-                  <IconButton label="Trang sau" icon="chevron-right" disabled={page === 13} onClick={() => setPage((value) => Math.min(13, value + 1))} />
+                  <IconButton label="Trang trước" icon="chevron-left" disabled={page === 1} onClick={() => updateSearch({ page: String(page - 1) })} />
+                  <span>Trang {page}/{totalPages}</span>
+                  <IconButton label="Trang sau" icon="chevron-right" disabled={page >= totalPages} onClick={() => updateSearch({ page: String(page + 1) })} />
                 </nav>
-                <label>Hiển thị<select defaultValue="10"><option>10</option><option>20</option><option>50</option></select>/ trang</label>
               </div>
             </>
           )}

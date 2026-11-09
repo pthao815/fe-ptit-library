@@ -333,3 +333,38 @@ test("compatibility adapter stays the same singleton and refuses invalid tokens"
   assert.throws(() => sessionFromAccessToken(token("ADMIN", { exp: 1 })))
   assert.throws(() => sessionFromAccessToken(token("UNKNOWN")))
 })
+
+test("login, restoration, token rotation and logout reach the settings session", async () => {
+  const { saveAuthSession, restoreAuthSession, clearAuthSession, remembersSession } =
+    await import("../src/services/session.ts")
+  function storage() {
+    const entries = new Map()
+    return {
+      getItem: (key) => entries.get(key) ?? null,
+      setItem: (key, value) => entries.set(key, value),
+      removeItem: (key) => entries.delete(key),
+    }
+  }
+  globalThis.window = { sessionStorage: storage(), localStorage: storage() }
+  try {
+    const user = { role: "LIBRARIAN" }
+    authSession.setSession(null)
+    saveAuthSession({ accessToken: token("LIBRARIAN"), user }, false)
+    assert.equal(authSession.getSnapshot().session?.role, "LIBRARIAN")
+    assert.equal(remembersSession(), false)
+    const transport = fixture()
+    await transport.api.listPolicies()
+    assert.match(transport.calls[0].headers.Authorization, /^Bearer /)
+    authSession.setSession(null)
+    restoreAuthSession()
+    assert.equal(authSession.getSnapshot().session.role, "LIBRARIAN")
+    const { identityVersion } = authSession.getSnapshot()
+    saveAuthSession({ accessToken: token("LIBRARIAN", { jti: "rotation" }), user }, false)
+    assert.equal(authSession.getSnapshot().identityVersion, identityVersion)
+    clearAuthSession()
+    restoreAuthSession()
+    assert.equal(authSession.getSnapshot().session, null)
+  } finally {
+    delete globalThis.window
+  }
+})

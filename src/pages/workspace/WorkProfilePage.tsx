@@ -31,41 +31,47 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [contact, setContact] = useState({
-    phone: profile?.phone || data.phone,
-    address: profile?.address || data.address,
+    phone: profile?.phone ?? "",
+    address: profile?.address ?? "",
   });
   const [draft, setDraft] = useState(contact);
   const [errors, setErrors] = useState<{ phone?: string; address?: string }>({});
   const [toast, setToast] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const isAdmin = role === "admin";
 
   useEffect(() => {
     if (!getAccessToken()) return;
     let active = true;
+    setLoadingProfile(true);
+    setLoadError("");
     userService
       .getProfile()
       .then((res) => {
         if (!active) return;
         setProfile(res);
         const nextContact = {
-          phone: res.phone || data.phone,
-          address: res.address || data.address,
+          phone: res.phone ?? "",
+          address: res.address ?? "",
         };
         setContact(nextContact);
         setDraft(nextContact);
       })
-      .catch(() => {
-        // Fallback to mock workProfileData
-      });
+      .catch((error: unknown) => {
+        if (active) setLoadError(error instanceof Error ? error.message : "Không tải được hồ sơ.");
+      }).finally(() => { if (active) setLoadingProfile(false); });
     return () => {
       active = false;
     };
-  }, [data.address, data.phone]);
+  }, [revision]);
 
-  const displayName = profile?.fullName || data.name;
-  const displayEmployeeId = profile?.userCode || data.employeeId;
-  const displayDepartment = profile?.departmentName || data.department;
-  const displayEmail = profile?.email || data.email;
+  const displayName = profile?.fullName || "—";
+  const displayEmployeeId = profile?.userCode || "—";
+  const displayDepartment = profile?.departmentName || "—";
+  const displayEmail = profile?.email || "—";
 
   const startEditing = () => {
     setDraft(contact);
@@ -79,6 +85,9 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
   };
   const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (saving) return;
+    setSaveError("");
+    setToast(false);
     const nextErrors = {
       phone: draft.phone.trim() ? undefined : "Vui lòng nhập số điện thoại.",
       address: !isAdmin && !draft.address.trim() ? "Vui lòng nhập địa chỉ." : undefined,
@@ -88,26 +97,28 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
 
     setSaving(true);
     try {
-      if (getAccessToken()) {
-        const updated = await userService.updateProfile({
+      if (!getAccessToken()) throw new Error("Phiên đăng nhập đã hết hạn.");
+      const updated = await userService.updateProfile({
           phone: draft.phone.trim(),
           address: draft.address.trim(),
         });
-        setProfile(updated);
-      }
-      setContact({ phone: draft.phone.trim(), address: draft.address.trim() });
+      setProfile(updated);
+      setContact({ phone: updated.phone ?? "", address: updated.address ?? "" });
       setEditing(false);
       setToast(true);
       window.setTimeout(() => setToast(false), 3000);
-    } catch {
-      setContact({ phone: draft.phone.trim(), address: draft.address.trim() });
-      setEditing(false);
-      setToast(true);
-      window.setTimeout(() => setToast(false), 3000);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Không lưu được hồ sơ.");
     } finally {
       setSaving(false);
     }
   };
+
+  if (loadingProfile) return <p className="reader-main" role="status">Đang tải hồ sơ…</p>;
+  if (loadError || !profile) return <div className="reader-main" role="alert">
+    <p>{loadError || "Không tìm thấy hồ sơ."}</p>
+    <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
+  </div>;
 
   return (
     <div className="work-profile-page">
@@ -121,7 +132,7 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
         <Avatar name={displayName} size="lg" />
         <div className="profile-summary-identity"><h2>{displayName}</h2><p>Mã nhân viên <strong>{displayEmployeeId}</strong></p></div>
         <div className="profile-summary-meta"><span><small>Chức vụ</small><strong>{data.title}</strong></span><span><small>Đơn vị công tác</small><strong>{displayDepartment}</strong></span></div>
-        <Badge tone="success"><Status tone="success">Đang hoạt động</Status></Badge>
+        <Badge tone="success"><Status tone={profile.status === "ACTIVE" ? "success" : "neutral"}>{profile.status === "ACTIVE" ? "Đang hoạt động" : profile.status || "—"}</Status></Badge>
       </section>
 
       <div className="work-profile-layout">
@@ -133,6 +144,7 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
             </header>
             {(errors.phone || errors.address) && <div className="profile-form-alert"><Icon name="error" size={17} />Vui lòng kiểm tra lại thông tin đã nhập.</div>}
             <form className="profile-form" onSubmit={saveProfile}>
+              {saveError && <p role="alert">{saveError}</p>}
               <div className="profile-fields-grid">
                 <Field label="Họ và tên" value={displayName} readOnly hint="Thông tin này do hệ thống quản lý và không thể chỉnh sửa tại đây." />
                 <Field label="Mã nhân viên" value={displayEmployeeId} readOnly />
@@ -151,14 +163,14 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
           <section className="profile-card">
             <header className="profile-card-heading"><div><span><Icon name="settings" size={18} /></span><div><h2>Bảo mật và đăng nhập</h2><p>Thông tin xác thực của tài khoản làm việc.</p></div></div></header>
             <dl className="profile-login-details">
-              <div><dt>Phương thức đăng nhập</dt><dd><Badge tone={isAdmin ? "info" : "brand"}>{isAdmin ? "Đăng nhập bằng Microsoft" : "Tài khoản thư viện"}</Badge></dd></div>
+              <div><dt>Phương thức đăng nhập</dt><dd><Badge tone={isAdmin ? "info" : "brand"}>{"Tài khoản thư viện"}</Badge></dd></div>
               <div><dt>Email liên kết</dt><dd>{displayEmail}</dd></div>
               {!isAdmin && <div><dt>Mật khẩu</dt><dd><span className="masked-password" aria-label="Mật khẩu đã được ẩn">••••••••••••</span></dd></div>}
-              <div><dt>Lần đăng nhập thành công gần nhất</dt><dd>{data.lastLogin}</dd></div>
+              <div><dt>Lần đăng nhập thành công gần nhất</dt><dd>—</dd></div>
             </dl>
             <div className="profile-login-action">
-              {!isAdmin && <Button variant="secondary" size="sm">Đổi mật khẩu</Button>}
-              <p>{isAdmin ? "Thông tin xác thực được quản lý bởi hệ thống Microsoft của Học viện." : "Mật khẩu hiện tại luôn được bảo mật và không thể hiển thị."}</p>
+              <span>Đổi mật khẩu chưa khả dụng tại đây.</span>
+              <p>{"Mật khẩu luôn được bảo mật."}</p>
             </div>
           </section>
         </div>
@@ -170,7 +182,7 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
               <div><dt>Tên tài khoản</dt><dd>{displayEmployeeId}</dd></div>
               <div><dt>Vai trò</dt><dd><Badge tone={isAdmin ? "info" : "brand"}>{data.title}</Badge></dd></div>
               <div><dt>Trạng thái</dt><dd><Status tone="success">Đang hoạt động</Status></dd></div>
-              <div><dt>Ngày tạo tài khoản</dt><dd>{data.createdAt}</dd></div>
+              <div><dt>Ngày tạo tài khoản</dt><dd>—</dd></div>
               <div><dt>Lần đăng nhập gần nhất</dt><dd>{data.lastLogin}</dd></div>
             </dl>
             <p className="work-role-description"><Icon name="info" size={15} />{data.roleDescription}</p>
@@ -178,17 +190,13 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
 
           <section className="profile-card work-activity-card">
             <header className="profile-card-heading"><div><span><Icon name="document" size={18} /></span><div><h2>{data.activityTitle}</h2><p>Tóm tắt các thao tác gần nhất.</p></div></div></header>
-            <div className="work-activity-list">
-              {data.activities.map((activity) => <article key={`${activity.title}-${activity.time}`}><span><Icon name={activity.icon} size={16} /></span><div><strong>{activity.title}</strong><p>{activity.description}</p><time>{activity.time}</time></div><Badge tone={activity.tone}>{activity.status}</Badge></article>)}
-            </div>
-            <button className="work-activity-link">{data.activityAction}<Icon name="chevron-right" size={14} /></button>
+            <p>Nhật ký hoạt động chưa được kết nối.</p>
           </section>
 
           <section className="profile-card account-status-card">
             <span className="account-status-icon"><Icon name="success" size={23} /></span>
             <p className="eyebrow">TRẠNG THÁI TÀI KHOẢN</p>
-            <h2>Đang hoạt động</h2>
-            <p>Tài khoản đang hoạt động bình thường.</p>
+            <h2>{profile.status === "ACTIVE" ? "Đang hoạt động" : profile.status || "Chưa xác định"}</h2>
           </section>
         </aside>
       </div>

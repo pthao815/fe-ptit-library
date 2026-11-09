@@ -1,11 +1,10 @@
 import type { NavIcon } from "../types/library";
 
 export const readerNavigation = [
-  "Trang chủ",
-  "Khám phá",
-  "Ngành đào tạo",
-  "Tủ sách của tôi",
-  "Lịch sử mượn",
+  { label: "Trang chủ", path: "/reader" },
+  { label: "Khám phá", path: "/reader/search" },
+  { label: "Tủ sách của tôi", path: "/reader/my-library" },
+  { label: "Lịch sử mượn", path: "/reader/my-library/history" },
 ];
 
 export const staffNavigation: Array<{ label: string; icon: NavIcon }> = [
@@ -23,11 +22,23 @@ export const staffNavigation: Array<{ label: string; icon: NavIcon }> = [
 
 export const adminNavigation: Array<{ label: string; icon: NavIcon }> = [
   { label: "Tổng quan", icon: "dashboard" },
-  { label: "Tài khoản & phân quyền", icon: "users" },
+  { label: "Quản lý tài liệu", icon: "book" },
   { label: "Chính sách mượn trả", icon: "settings" },
   { label: "Loại hình phạt", icon: "settings" },
   { label: "Cấu hình tra cứu", icon: "search" },
-  { label: "Trạng thái chỉ mục", icon: "sparkle" },
-  { label: "Nhật ký hoạt động", icon: "document" },
   { label: "Thông tin cá nhân", icon: "users" },
 ];
+
+export const workspacePaths: Readonly<Record<string, string>> = {
+  "Tổng quan": "",
+  "Lưu thông": "circulation",
+  "Quản lý tài liệu": "materials",
+  "Tài liệu số": "digital-processing",
+  "Đặt trước": "reservations",
+  "Bạn đọc": "readers",
+  "Thống kê & báo cáo": "reports",
+  "Chính sách mượn trả": "policies",
+  "Loại hình phạt": "penalty-types",
+  "Cấu hình tra cứu": "search-configs",
+  "Thông tin cá nhân": "profile",
+};

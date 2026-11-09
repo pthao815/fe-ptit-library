@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import type * as React from "react";
 import { Badge, Button, Field, Icon, Modal, Rating, TextAreaField } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
-import { detailBook } from "../../../data/books";
+import type { DocumentDetailDto } from "../../../types/api";
+import { mapDocumentDetailToBook } from "../../../utils/mappers";
 import { reviewLabels } from "../../../constants/library-options";
 import { catalogService } from "../../../services/catalog.service";
 import { getAccessToken } from "../../../services/session";
@@ -22,13 +23,28 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
   const [searchParams] = useSearchParams();
   const documentId = searchParams.get("id") || undefined;
   const preset = mode === "edit" || mode === "error";
-  const [rating, setRating] = useState(preset ? 4 : 0);
-  const [title, setTitle] = useState(preset ? "Tài liệu hữu ích và dễ tiếp cận" : "");
-  const [content, setContent] = useState(preset ? "Nội dung được trình bày rõ ràng, có hệ thống và hữu ích cho quá trình học tập. Một số phần chuyên sâu cần đọc thêm tài liệu tham khảo để hiểu đầy đủ hơn." : "");
+  const [rating, setRating] = useState(0);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [systemError, setSystemError] = useState(false);
+  const [document, setDocument] = useState<DocumentDetailDto>();
+  const [documentError, setDocumentError] = useState("");
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setDocument(undefined);
+    setDocumentError("");
+    if (!documentId) { setDocumentError("Hãy chọn tài liệu trước khi viết đánh giá."); return; }
+    catalogService.getDocumentDetails(documentId).then((data) => {
+      if (active) setDocument(data);
+    }).catch((error: unknown) => {
+      if (active) setDocumentError(error instanceof Error ? error.message : "Không tải được tài liệu.");
+    });
+    return () => { active = false; };
+  }, [documentId, revision]);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const dirty = rating > 0 || title.length > 0 || content.length > 0;
   const valid = rating > 0 && content.trim().length >= 20 && content.length <= 2000;
@@ -54,7 +70,7 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
     event.preventDefault();
     setTouched(true);
     setSystemError(false);
-    if (!valid) return;
+    if (!valid || loading) return;
     setLoading(true);
 
     if (mode === "error") {
@@ -66,7 +82,8 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
     }
 
     try {
-      if (documentId && getAccessToken()) {
+      if (!documentId || !getAccessToken() || document?.id !== documentId) throw new Error("Thiếu phiên hoặc tài liệu.");
+      {
         const commentText = title.trim()
           ? `${title.trim()} — ${content.trim()}`
           : content.trim();
@@ -77,12 +94,17 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
       }
       setSubmitted(true);
     } catch {
-      setSubmitted(true);
+      setSystemError(true);
     } finally {
       setLoading(false);
     }
   };
 
+  if (!document || document.id !== documentId) return <main className="material-review-container">
+    <p role={documentError ? "alert" : "status"}>{documentError || "Đang tải tài liệu…"}</p>
+    {documentError && <><Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>{" "}<Button onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button></>}
+  </main>;
+  const detailBook = mapDocumentDetailToBook(document);
   return (
     <div className="material-review-page">
       <main className="material-review-container">
@@ -103,7 +125,7 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
             <div className="book-meta"><span>{detailBook.type}</span><i /><span>{detailBook.year}</span></div>
             <h2>{detailBook.title}</h2>
             <p>Tác giả: <strong>{detailBook.author}</strong></p>
-            <dl><div><dt>Nhà xuất bản</dt><dd>Thông tin và Truyền thông</dd></div><div><dt>Năm xuất bản</dt><dd>{detailBook.year}</dd></div></dl>
+            <dl><div><dt>Nhà xuất bản</dt><dd>{document.publisher || "—"}</dd></div><div><dt>Năm xuất bản</dt><dd>{detailBook.year}</dd></div></dl>
           </div>
           <div className="reviewed-material-rating"><strong>4.3</strong><Rating value={4} /><span>28 lượt đánh giá</span></div>
           <small>Dữ liệu minh họa cho giao diện</small>
@@ -112,7 +134,7 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
         {mode === "logged-out" ? (
           <section className="review-login-required">
             <span><Icon name="users" size={28} /></span><p className="eyebrow">YÊU CẦU ĐĂNG NHẬP</p><h2>Đăng nhập để đánh giá tài liệu</h2><p>Bạn cần đăng nhập bằng tài khoản PTIT Library trước khi gửi đánh giá. Sau khi đăng nhập, bạn có thể quay lại đúng tài liệu này.</p>
-            <Button onClick={() => { window.sessionStorage.setItem("ptit-library-return-url", "/reader/book-detail/review"); navigate("/login"); }}>Đăng nhập</Button>
+            <Button onClick={() => { navigate("/login", { state: { returnTo: "/reader/book-detail/review" + window.location.search } }); }}>Đăng nhập</Button>
           </section>
         ) : submitted ? (
           <section className="review-submit-success">

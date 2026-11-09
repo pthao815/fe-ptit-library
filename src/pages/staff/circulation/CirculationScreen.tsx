@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Avatar, Badge, Breadcrumb, Button, Field, Icon, IconButton, Modal, SearchInput, SelectField, Status, Toast } from "../../../design-system";
 import { circulationTabs } from "../../../constants/library-options";
 import { circulationService } from "../../../services/circulation.service";
@@ -211,10 +211,13 @@ function RenewalTransaction({ onConfirm }: { onConfirm: () => void }) {
 export default function CirculationScreen() {
   const [activeTab, setActiveTab] = useState("Cho mượn");
   const [searchType, setSearchType] = useState("Mã bạn đọc");
-  const [readerQuery, setReaderQuery] = useState("CT050145");
+  const readerLookup = useRef(0);
+  const [readerQuery, setReaderQuery] = useState("");
   const [currentReader, setCurrentReader] = useState<UserDto | null>(null);
-  const [loanItems, setLoanItems] = useState<ScannedBookRow[]>(initialScannedBooks);
-  const [returnBarcode, setReturnBarcode] = useState("PTIT-24-02016");
+  const [loanItems, setLoanItems] = useState<ScannedBookRow[]>([]);
+  const [returnBarcode, setReturnBarcode] = useState("");
+  const [renewBarcode, setRenewBarcode] = useState("");
+  const [processing, setProcessing] = useState(false);
   const [returnCondition, setReturnCondition] = useState("good");
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -223,9 +226,12 @@ export default function CirculationScreen() {
 
   const handleFindReader = () => {
     if (!readerQuery.trim() || !getAccessToken()) return;
+    const request = ++readerLookup.current;
+    setCurrentReader(null);
     userService
       .searchAdminUsers({ keyword: readerQuery.trim(), page: 0, size: 1 })
       .then((pageData) => {
+        if (request !== readerLookup.current) return;
         if (pageData.items?.length) {
           setCurrentReader(pageData.items[0]);
           setToastMsg(`Đã tải hồ sơ bạn đọc: ${pageData.items[0].fullName}`);
@@ -234,7 +240,7 @@ export default function CirculationScreen() {
         }
       })
       .catch(() => {
-        // Keep mock reader card
+        if (request === readerLookup.current) setToastMsg("Không tải được hồ sơ bạn đọc.");
       });
   };
 
@@ -256,69 +262,41 @@ export default function CirculationScreen() {
 
   const executeConfirmedTransaction = async () => {
     const mode = confirmation;
-    setConfirmation(null);
-    if (!mode) return;
-
-    const userCode = currentReader?.userCode || readerQuery.trim() || "CT050145";
-
-    if (mode === "loan") {
-      if (getAccessToken()) {
-        try {
-          const res = await circulationService.borrowBooks({
-            userCode,
-            barcodes: loanItems.map((i) => i.barcode),
-          });
-          setToastMsg(
-            `Lập phiếu mượn thành công ${res.totalBorrowed} cuốn cho bạn đọc ${res.fullName || userCode}.`,
-          );
-          return;
-        } catch (err) {
-          setToastMsg(err instanceof Error ? err.message : "Đã ghi nhận phiếu mượn tài liệu.");
-          return;
-        }
-      }
-      setToastMsg(`Đã ghi nhận phiếu mượn ${loanItems.length} tài liệu cho ${userCode}.`);
+    if (!mode || processing) return;
+    if (!getAccessToken()) { setToastMsg("Vui lòng đăng nhập lại."); return; }
+    if (mode === "loan" && (!currentReader || !loanItems.length)) {
+      setToastMsg("Hãy tìm đúng bạn đọc và nhập mã vạch tài liệu.");
       return;
     }
-
-    if (mode === "return") {
-      const mappedCondition: BookReturnCondition =
-        returnCondition === "lost"
-          ? "LOST"
-          : returnCondition === "light" || returnCondition === "heavy"
-            ? "DAMAGED"
-            : "NORMAL";
-      if (getAccessToken()) {
-        try {
-          const res = await circulationService.returnBook({
-            barcode: returnBarcode.trim() || "PTIT-24-02016",
-            condition: mappedCondition,
-          });
-          setToastMsg(
-            `Đã nhận trả sách "${res.documentTitle}". Phí phạt phát sinh: ${res.totalFineAmount.toLocaleString("vi-VN")}đ.`,
-          );
-          return;
-        } catch (err) {
-          setToastMsg(err instanceof Error ? err.message : "Đã ghi nhận trả tài liệu.");
-          return;
-        }
-      }
-      setToastMsg(`Đã ghi nhận trả tài liệu mã ${returnBarcode}.`);
+    if (mode === "return" && !returnBarcode.trim() || mode === "renew" && !renewBarcode.trim()) {
+      setToastMsg("Vui lòng nhập mã vạch tài liệu.");
       return;
     }
-
-    if (mode === "renew") {
-      if (getAccessToken()) {
-        try {
-          const res = await circulationService.renewLoan({ barcode: "PTIT-23-01564" });
-          setToastMsg(res.message || "Gia hạn tài liệu thành công.");
-          return;
-        } catch (err) {
-          setToastMsg(err instanceof Error ? err.message : "Đã gia hạn tài liệu.");
-          return;
-        }
+    setProcessing(true);
+    try {
+      if (mode === "loan" && currentReader) {
+        const result = await circulationService.borrowBooks({
+          userCode: currentReader.userCode,
+          barcodes: loanItems.map((item) => item.barcode),
+        });
+        setToastMsg("Đã lập phiếu mượn cho " + result.totalBorrowed + " tài liệu.");
+        setLoanItems([]);
+      } else if (mode === "return") {
+        const condition: BookReturnCondition = returnCondition === "lost" ? "LOST"
+          : returnCondition === "light" || returnCondition === "heavy" ? "DAMAGED" : "NORMAL";
+        const result = await circulationService.returnBook({ barcode: returnBarcode.trim(), condition });
+        setToastMsg("Đã nhận trả " + result.documentTitle + ". Phí phát sinh: " + result.totalFineAmount.toLocaleString("vi-VN") + "đ.");
+        setReturnBarcode("");
+      } else if (mode === "renew") {
+        const result = await circulationService.renewLoan({ barcode: renewBarcode.trim() });
+        setToastMsg(result.message || (result.renewalStatus === "SUCCESS" ? "Đã gia hạn tài liệu." : "Yêu cầu gia hạn bị từ chối."));
+        setRenewBarcode("");
       }
-      setToastMsg("Đã gia hạn tài liệu thêm 28 ngày.");
+      setConfirmation(null);
+    } catch (error) {
+      setToastMsg(error instanceof Error ? error.message : "Máy chủ chưa xác nhận giao dịch.");
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -331,14 +309,14 @@ export default function CirculationScreen() {
         <div className="staff-reader-search">
           <SearchInput
             value={readerQuery}
-            onChange={(event) => setReaderQuery(event.target.value)}
+            onChange={(event) => { readerLookup.current++; setReaderQuery(event.target.value); setCurrentReader(null); }}
             placeholder={searchType === "Mã bạn đọc" ? "Nhập hoặc quét mã bạn đọc..." : searchType === "Mã cá biệt" ? "Nhập mã cá biệt..." : "Nhập họ tên bạn đọc..."}
           />
           <Button icon="search" onClick={handleFindReader}>Tìm bạn đọc</Button>
         </div>
         <span><Icon name="info" size={14} />Có thể sử dụng máy quét mã vạch tại quầy</span>
       </section>
-      <ReaderInformationCard reader={currentReader} />
+      {currentReader && <ReaderInformationCard reader={currentReader} />}
       <div className="circulation-content">
         {activeTab === "Cho mượn" && (
           <LoanTransaction
@@ -348,7 +326,7 @@ export default function CirculationScreen() {
               setLoanItems((prev) => prev.filter((item) => item.barcode !== code))
             }
             onClear={() => setLoanItems([])}
-            onConfirm={() => setConfirmation("loan")}
+            onConfirm={() => currentReader ? setConfirmation("loan") : setToastMsg("Hãy tìm bạn đọc trước khi lập phiếu.")}
           />
         )}
         {activeTab === "Nhận trả" && (
@@ -360,19 +338,22 @@ export default function CirculationScreen() {
             onConfirm={() => setConfirmation("return")}
           />
         )}
-        {activeTab === "Gia hạn" && <RenewalTransaction onConfirm={() => setConfirmation("renew")} />}
+        {activeTab === "Gia hạn" && <section className="circulation-search-area">
+          <SearchInput aria-label="Mã vạch tài liệu gia hạn" value={renewBarcode} onChange={(event) => setRenewBarcode(event.target.value)} />
+          <Button disabled={!renewBarcode.trim()} onClick={() => setConfirmation("renew")}>Gia hạn</Button>
+        </section>}
       </div>
-      <Modal open={confirmation !== null} onClose={() => setConfirmation(null)} title={actionLabel}>
+      <Modal open={confirmation !== null} onClose={() => { if (!processing) setConfirmation(null); }} title={actionLabel}>
         <div className="transaction-confirmation">
           <span><Icon name={confirmation === "return" ? "arrow-left" : confirmation === "renew" ? "sparkle" : "book"} size={25} /></span>
-          <div><strong>{confirmation === "loan" ? `Cho mượn ${String(loanItems.length).padStart(2, "0")} tài liệu cho ${currentReader?.fullName || "Trần Minh Quân"}?` : confirmation === "return" ? "Xác nhận đã nhận trả tài liệu?" : "Gia hạn 01 tài liệu thêm 28 ngày?"}</strong><p>{confirmation === "loan" ? "Giao dịch sẽ cập nhật hạn mức lên 08/08 cuốn. Vui lòng xác nhận đã kiểm tra cảnh báo đặt trước." : confirmation === "return" ? "Tài liệu sẽ được chuyển về trạng thái có sẵn và ghi nhận công nợ phát sinh 20.000đ." : "Hạn trả mới là 03/08/2025. Thao tác sẽ được ghi vào lịch sử lưu thông."}</p></div>
+          <div><strong>{confirmation === "loan" ? `Cho mượn ${String(loanItems.length).padStart(2, "0")} tài liệu cho ${currentReader?.fullName ?? ""}?` : confirmation === "return" ? "Nhận trả mã " + returnBarcode + "?" : "Gia hạn mã " + renewBarcode + "?"}</strong><p>Kiểm tra mã vạch và thông tin bạn đọc trước khi xác nhận.</p></div>
         </div>
         <label className="staff-checkbox confirmation-checkbox"><input type="checkbox" defaultChecked /><span>Tôi đã kiểm tra thông tin và tình trạng tài liệu</span></label>
-        <div className="modal-actions"><Button variant="ghost" onClick={() => setConfirmation(null)}>Quay lại</Button><Button onClick={executeConfirmedTransaction}>{actionLabel}</Button></div>
+        <div className="modal-actions"><Button variant="ghost" onClick={() => setConfirmation(null)}>Quay lại</Button><Button loading={processing} onClick={executeConfirmedTransaction}>{actionLabel}</Button></div>
       </Modal>
       {toastMsg && (
         <div className="toast-position">
-          <Toast title="Lưu thông tài liệu" onClose={() => setToastMsg(null)}>
+          <Toast tone="info" title="Lưu thông tài liệu" onClose={() => setToastMsg(null)}>
             {toastMsg}
           </Toast>
         </div>

@@ -95,41 +95,43 @@ function PersonalShelf({ group }: { group: string }) {
 
 export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initialTab?: string }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [loans, setLoans] = useState<LoanItem[]>(loanBooks);
-  const [historyItems, setHistoryItems] = useState(loanHistory);
+  const activeTab = initialTab;
+  const [loans, setLoans] = useState<LoanItem[]>([]);
+  const [historyItems, setHistoryItems] = useState<typeof loanHistory>([]);
   const [finesSummary, setFinesSummary] = useState<UserFinesSummaryDto | null>(null);
-  const [reservations, setReservations] = useState(reservedBooks);
+  const [reservations, setReservations] = useState<typeof reservedBooks>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<"loading" | "error" | "ready">("loading");
+  const [revision, setRevision] = useState(0);
+  const [renewing, setRenewing] = useState(false);
 
-  useEffect(() => setActiveTab(initialTab), [initialTab]);
 
   useEffect(() => {
     if (!getAccessToken()) return;
     let active = true;
+    setHistoryStatus("loading");
 
     circulationService
       .getMyCirculationHistory(undefined, { page: 0, size: 50 })
       .then((pageData) => {
-        if (!active || !pageData.items?.length) return;
+        if (!active) return;
         const activeList = pageData.items.filter(
           (i) => i.status === "BORROWING" || i.status === "OVERDUE" || !i.returnDate,
         );
         const returnedList = pageData.items.filter(
           (i) => i.status === "RETURNED" || Boolean(i.returnDate),
         );
-        if (activeList.length > 0) {
+        {
           setLoans(activeList.map((dto, idx) => mapCirculationItemToLoanBook(dto, idx)));
         }
-        if (returnedList.length > 0) {
+        {
           setHistoryItems(
             returnedList.map((dto, idx) => mapCirculationItemToHistoryBook(dto, idx)),
           );
         }
       })
-      .catch(() => {
-        // Keep mock loanBooks and loanHistory
-      });
+      .then(() => { if (active) setHistoryStatus("ready"); })
+      .catch(() => { if (active) setHistoryStatus("error"); });
 
     circulationService
       .getMyFines()
@@ -143,22 +145,28 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
     return () => {
       active = false;
     };
-  }, []);
+  }, [revision]);
 
   const handleRenewLoan = async (loan: LoanItem) => {
-    if (getAccessToken() && (loan.circulationId || loan.barcode)) {
+    if (renewing) return;
+    if (getAccessToken() && loan.circulationId) {
+      setRenewing(true);
       try {
         const res = await circulationService.renewLoan({
           circulationId: loan.circulationId,
           barcode: loan.barcode,
         });
+        if (res.renewalStatus !== "SUCCESS") {
+          setToastMsg(res.message || "Yêu cầu gia hạn bị từ chối.");
+          return;
+        }
         setLoans((items) =>
           items.map((item) =>
             item.id === loan.id
               ? {
                   ...item,
                   due: formatDateVi(res.newDueDate),
-                  days: item.days + 7,
+                  days: Math.ceil((new Date(res.newDueDate).getTime() - Date.now()) / 86400000),
                   renewable: res.renewalsCount < res.maxRenewals,
                 }
               : item,
@@ -169,15 +177,11 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
       } catch (err) {
         setToastMsg(err instanceof Error ? err.message : "Không thể gia hạn tài liệu này.");
         return;
+      } finally {
+        setRenewing(false);
       }
     }
-
-    setLoans((items) =>
-      items.map((item) =>
-        item.id === loan.id ? { ...item, days: item.days + 7, renewable: false } : item,
-      ),
-    );
-    setToastMsg("Đã gia hạn tài liệu thêm 07 ngày.");
+    setToastMsg("Không thể gia hạn khi thiếu phiên hoặc mã lượt mượn.");
   };
 
   const handleCancelReservation = async (holdId: number) => {
@@ -185,14 +189,16 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
       try {
         await circulationService.cancelHold(holdId, "Bạn đọc tự hủy trên cổng trực tuyến");
       } catch {
-        // Proceed with UI removal
+        setToastMsg("Không thể hủy yêu cầu đặt trước.");
+        return;
       }
     }
+    if (!getAccessToken()) return;
     setReservations((items) => items.filter((item) => item.id !== holdId));
     setToastMsg("Đã hủy yêu cầu đặt trước tài liệu.");
   };
 
-  const unpaidDebt = finesSummary ? finesSummary.totalUnpaidAmount : 20000;
+  const unpaidDebt = finesSummary ? finesSummary.totalUnpaidAmount : 0;
   const overdueCount = loans.filter((l) => l.days < 0).length;
 
   return (
@@ -207,14 +213,18 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         <section className="library-summary-grid" aria-label="Tổng quan tài khoản thư viện">
           <article><span className="summary-icon summary-brand"><Icon name="book" /></span><div><small>Đang mượn</small><strong>{String(loans.length).padStart(2, "0")}</strong><p>{loans.length} tài liệu đang lưu thông</p></div></article>
           <article><span className="summary-icon summary-warning"><Icon name="info" /></span><div><small>Sắp đến hạn</small><strong>{String(loans.filter((l) => l.days <= 7).length).padStart(2, "0")}</strong><p>{overdueCount} tài liệu đã quá hạn</p></div></article>
-          <article><span className="summary-icon summary-info"><Icon name="bookmark" /></span><div><small>Đặt trước</small><strong>{String(reservations.length).padStart(2, "0")}</strong><p>1 tài liệu chờ nhận</p></div></article>
-          <article><span className="summary-icon summary-error"><Icon name="error" /></span><div><small>Công nợ</small><strong>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</strong><p>{unpaidDebt > 0 ? "Cần hoàn tất thanh toán" : "Không có công nợ"}</p></div></article>
+          <article><span className="summary-icon summary-info"><Icon name="bookmark" /></span><div><small>Đặt trước</small><strong>{"—"}</strong><p>Chưa có nguồn danh sách đặt trước</p></div></article>
+          <article><span className="summary-icon summary-error"><Icon name="error" /></span><div><small>Công nợ</small><strong>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</strong><p>{!finesSummary ? "Chưa tải được công nợ" : unpaidDebt > 0 ? "Cần hoàn tất thanh toán" : "Không có công nợ"}</p></div></article>
         </section>
 
         <div className="library-tabs" role="tablist">
-          {libraryTabs.map((tab) => <button key={tab} className={activeTab === tab ? "active" : ""} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}>{tab}{tab === "Đang mượn" && <span>{loans.length}</span>}{tab === "Đặt trước" && <span>{reservations.length}</span>}</button>)}
+          {libraryTabs.map((tab) => <button key={tab} className={activeTab === tab ? "active" : ""} role="tab" aria-selected={activeTab === tab} onClick={() => navigate(tab === "Lịch sử mượn" ? "/reader/my-library/history" : tab === "Đặt trước" ? "/reader/my-library/reservations" : "/reader/my-library")}>{tab}{tab === "Đang mượn" && <span>{loans.length}</span>}{tab === "Đặt trước" && <span>{reservations.length}</span>}</button>)}
         </div>
 
+        {activeTab !== "Đặt trước" && historyStatus === "loading" && <p role="status">Đang tải lượt mượn…</p>}
+        {activeTab !== "Đặt trước" && historyStatus === "error" && <p role="alert">Không tải được lượt mượn. <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></p>}
+        {historyStatus === "ready" && (activeTab === "Đang mượn" && !loans.length || activeTab === "Lịch sử mượn" && !historyItems.length) && <p>Chưa có lượt mượn.</p>}
+        {activeTab === "Đặt trước" && <p>Danh sách đặt trước chưa được kết nối.</p>}
         {activeTab === "Đang mượn" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Tài liệu đang mượn</h2><p>Kiểm tra thời hạn và gia hạn các tài liệu đủ điều kiện.</p></div><Badge tone="warning">{String(overdueCount).padStart(2, "0")} TÀI LIỆU QUÁ HẠN</Badge></div>
@@ -282,7 +292,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
       </main>
       {toastMsg && (
         <div className="toast-position">
-          <Toast title="Thư viện của tôi" onClose={() => setToastMsg(null)}>
+          <Toast tone="info" title="Thư viện của tôi" onClose={() => setToastMsg(null)}>
             {toastMsg}
           </Toast>
         </div>

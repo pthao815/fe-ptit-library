@@ -1,5 +1,9 @@
+import { authSession, sessionFromAccessToken } from "../shared/auth/auth-session.ts";
 import type { Role } from "../types/library";
 import type { TokenResponse, UserDto } from "../types/api";
+
+let expired = false;
+export const isSessionExpired = () => expired;
 
 const SESSION_KEY = "ptit-library-session";
 const USER_KEY = "ptit-library-user";
@@ -22,7 +26,7 @@ export function mapBackendRoleToPortalRole(backendRole?: string): Role {
 }
 
 export function getPortalHomePath(role: Role): string {
-  if (role === "admin") return "/admin/profile";
+  if (role === "admin") return "/admin";
   if (role === "staff") return "/staff";
   return "/reader";
 }
@@ -34,6 +38,7 @@ function readStorageItem(key: string): string | null {
 
 export function saveAuthSession(tokenData: TokenResponse, remember = true): Role {
   if (typeof window === "undefined") return "reader";
+  const session = sessionFromAccessToken(tokenData.accessToken);
   const targetStorage = remember ? window.localStorage : window.sessionStorage;
   const otherStorage = remember ? window.sessionStorage : window.localStorage;
 
@@ -45,13 +50,15 @@ export function saveAuthSession(tokenData: TokenResponse, remember = true): Role
     tokenType: tokenData.tokenType || "Bearer",
     expiresIn: tokenData.expiresIn,
   };
-  const role = mapBackendRoleToPortalRole(tokenData.user?.role);
+  const role = mapBackendRoleToPortalRole(session.role);
 
   targetStorage.setItem(SESSION_KEY, JSON.stringify(sessionPayload));
   if (tokenData.user) {
     targetStorage.setItem(USER_KEY, JSON.stringify(tokenData.user));
   }
   targetStorage.setItem(ROLE_KEY, role);
+  expired = false;
+  authSession.setSession(session);
   return role;
 }
 
@@ -95,4 +102,30 @@ export function getStoredRole(): Role | null {
   const raw = readStorageItem(ROLE_KEY);
   if (raw === "reader" || raw === "staff" || raw === "admin") return raw;
   return null;
+}
+
+export function restoreAuthSession(): void {
+  const token = getAccessToken();
+  if (!token) {
+    authSession.setSession(null);
+    return;
+  }
+  try {
+    authSession.setSession(sessionFromAccessToken(token));
+  } catch {
+    authSession.setSession(null);
+  }
+}
+
+export function clearAuthSession(reason?: "expired"): void {
+  expired = reason === "expired";
+  [SESSION_KEY, USER_KEY, ROLE_KEY].forEach((key) => {
+    window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem(key);
+  });
+  authSession.setSession(null);
+}
+
+export function remembersSession(): boolean {
+  return window.localStorage.getItem(SESSION_KEY) !== null;
 }

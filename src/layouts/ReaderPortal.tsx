@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useRoutes } from "react-router-dom";
+import { useState, useSyncExternalStore } from "react";
+import { Link, useLocation, useNavigate, useRoutes } from "react-router-dom";
 import { IconButton, SearchInput } from "../design-system";
 import { readerNavigation } from "../constants/navigation";
 import { logout } from "../utils/logout";
 import Brand from "../components/common/Brand";
 import UserMenu from "../components/common/UserMenu";
-import ShellPlaceholder from "../components/common/ShellPlaceholder";
+import { authSession } from "../shared/auth/auth-session";
 import NotificationDropdown from "../components/notifications/NotificationDropdown";
 import ReaderHome from "../pages/reader/home/ReaderHomePage";
 import GuidelinesPage from "../pages/reader/guidelines/GuidelinesPage";
@@ -19,23 +19,18 @@ import NotificationDetailPage from "../pages/reader/notifications/NotificationDe
 
 export default function ReaderPortal({ path }: { path: string }) {
   const navigate = useNavigate();
-  const [active, setActive] = useState(path.startsWith("reader/my-library/history") ? "Lịch sử mượn" : path.startsWith("reader/my-library") ? "Tủ sách của tôi" : "Trang chủ");
+  const { search } = useLocation();
+  const { session } = useSyncExternalStore(authSession.subscribe, authSession.getSnapshot);
+  const isReader = session?.role === "READER";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  useEffect(() => {
-    if (path.startsWith("reader/profile")) setActive("");
-    else if (path.startsWith("reader/my-library/history")) setActive("Lịch sử mượn");
-    else if (path.startsWith("reader/my-library")) setActive("Tủ sách của tôi");
-    else if (path.includes("search") || path === "reader/guidelines") setActive("");
-    else if (path === "reader") setActive("Trang chủ");
-  }, [path]);
-
   const page = useRoutes([
     { path: "profile/*", element: <PersonalProfilePage restricted={path.endsWith("/restricted")} /> },
-    { path: "notifications/:notificationId/*", element: <NotificationDetailPage notificationId={path.split("/")[2] || ""} /> },
-    { path: "book-detail/review/*", element: <MaterialReviewPage mode={path.endsWith("/edit") ? "edit" : path.endsWith("/login-required") ? "logged-out" : path.endsWith("/error") ? "error" : "create"} /> },
+    { path: "notifications", element: <NotificationDetailPage key="notification-list" /> },
+    { path: "notifications/:notificationId", element: <NotificationDetailPage key={path} notificationId={path.split("/")[2]} /> },
+    { path: "book-detail/review/*", element: <MaterialReviewPage key={path + search} mode={path.endsWith("/edit") ? "edit" : path.endsWith("/login-required") ? "logged-out" : path.endsWith("/error") ? "error" : "create"} /> },
     { path: "guidelines", element: <GuidelinesPage /> },
     { path: "my-library/*", element: <MyLibraryPage initialTab={path.endsWith("/history") ? "Lịch sử mượn" : path.endsWith("/reservations") ? "Đặt trước" : "Đang mượn"} /> },
     { path: "book-detail", element: <BookDetailPage /> },
@@ -43,20 +38,12 @@ export default function ReaderPortal({ path }: { path: string }) {
     { path: "search-empty", element: <SearchResultsPage empty /> },
     { path: "content-search", element: <ContentSearchResultsPage empty={false} /> },
     { path: "content-search-empty", element: <ContentSearchResultsPage empty /> },
-    { path: "*", element: active === "Trang chủ" ? <ReaderHome /> : (
-        <main className="reader-main">
-          <ShellPlaceholder
-            role="reader"
-            title={active}
-            description="Không gian khám phá tri thức, tài liệu học thuật và các bộ sưu tập dành riêng cho bạn."
-          />
-        </main>
-      ) },
+    { index: true, element: <ReaderHome /> },
   ]);
 
   return (
     <div className="reader-portal">
-      <header className="reader-header">
+      <header className={mobileOpen ? "reader-header menu-open" : "reader-header"}>
         <div className="reader-header-inner">
           <IconButton label="Mở điều hướng" icon="menu" onClick={() => setMobileOpen(true)} />
           <Brand />
@@ -65,30 +52,27 @@ export default function ReaderPortal({ path }: { path: string }) {
               <Brand compact />
               <IconButton label="Đóng điều hướng" icon="close" onClick={() => setMobileOpen(false)} />
             </div>
-            {readerNavigation.map((item) => (
-              <button
-                key={item}
-                className={active === item ? "active" : ""}
-                onClick={() => {
-                  setActive(item);
-                  setMobileOpen(false);
-                  if (item === "Tủ sách của tôi") navigate("/reader/my-library");
-                  else if (item === "Lịch sử mượn") navigate("/reader/my-library/history");
-                  else if (item === "Trang chủ") navigate("/reader");
-                }}
-              >
-                {item}
-              </button>
-            ))}
+            {readerNavigation.filter((item) => isReader || !item.path.includes("/my-library")).map((item) => {
+              const active = item.path === "/" + path
+                || item.path === "/reader/search" && /^reader\/(search|content-search|book-detail)/.test(path)
+                || item.path === "/reader/my-library" && path === "reader/my-library/reservations";
+              return <button key={item.path} className={active ? "active" : ""} aria-current={active ? "page" : undefined}
+                onClick={() => { setMobileOpen(false); navigate(item.path); }}>{item.label}</button>;
+            })}
           </nav>
           <div className="reader-actions">
-            <SearchInput className="reader-search" placeholder="Tìm tài liệu..." />
-            <span className="notification">
+            <form role="search" onSubmit={(event) => {
+              event.preventDefault();
+              const keyword = String(new FormData(event.currentTarget).get("keyword") ?? "").trim();
+              navigate("/reader/search?" + new URLSearchParams({ q: keyword }));
+            }}><SearchInput name="keyword" className="reader-search" placeholder="Tìm tài liệu..." /></form>
+            {isReader && <span className="notification">
               <IconButton label="Thông báo" icon="bell" onClick={() => setNotificationsOpen(!notificationsOpen)} />
               <i />
               <NotificationDropdown open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
-            </span>
-            <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate("/reader/profile"); }} onLogout={() => { setUserOpen(false); logout(navigate); }} role="reader" />
+            </span>}
+            {isReader && <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate("/reader/profile"); }} onLogout={() => { setUserOpen(false); logout(navigate); }} role="reader" />}
+            {!isReader && <Link className="btn btn-secondary" to={session ? session.role === "ADMIN" ? "/admin" : "/staff" : "/login"}>{session ? "Về cổng nghiệp vụ" : "Đăng nhập"}</Link>}
           </div>
         </div>
       </header>

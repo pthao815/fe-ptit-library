@@ -1,285 +1,157 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { Avatar, Badge, Breadcrumb, Button, Icon, Rating, Status, Toast } from "../../../design-system";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { Avatar, Badge, Breadcrumb, Button, Rating, Toast } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
-import BookCard from "../../../components/books/BookCard";
-import HomeSection from "../../../components/common/HomeSection";
-import { detailBook, relatedSimilar, relatedBorrowed } from "../../../data/books";
 import { catalogService } from "../../../services/catalog.service";
 import { circulationService } from "../../../services/circulation.service";
+import { authSession } from "../../../shared/auth/auth-session";
 import { getAccessToken } from "../../../services/session";
 import type { DocumentDetailDto, ReviewDto } from "../../../types/api";
+import { safeReturnPath } from "../../../utils/portal-routes";
 import type { Book } from "../../../types/library";
 import { formatDateVi, mapDocumentDetailToBook } from "../../../utils/mappers";
 
 export default function BookDetailPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const requestedDocId = searchParams.get("id") || undefined;
+  const requestedDocId = searchParams.get("id") ?? "";
+  return <DocumentDetail key={requestedDocId} requestedDocId={requestedDocId} />;
+}
+
+function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { session } = useSyncExternalStore(authSession.subscribe, authSession.getSnapshot);
+  const returnTo = safeReturnPath(location.state?.returnTo, session?.role);
+  const fromCatalog = returnTo && /^\/(staff|admin)\/materials(?:\?|$)/.test(returnTo);
+  const resultsPath = fromCatalog || returnTo?.startsWith("/reader/search") ? returnTo! : "/reader/search";
+  const backLabel = fromCatalog ? "Quay lại danh mục" : "Quay lại kết quả tìm kiếm";
+  const readerActions = !session || session.role === "READER";
+  const [loadError, setLoadError] = useState("");
+  const [reviewError, setReviewError] = useState("");
+  const [reviewCount, setReviewCount] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const [detail, setDetail] = useState<DocumentDetailDto | null>(null);
   const [reviews, setReviews] = useState<ReviewDto[]>([]);
   const [saved, setSaved] = useState(false);
   const [holdStatus, setHoldStatus] = useState<string | null>(null);
-  const [relatedSaved, setRelatedSaved] = useState<number[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-
-    const fetchById = (docId: string) => {
-      catalogService
-        .getDocumentDetails(docId)
-        .then((data) => {
-          if (active) setDetail(data);
-        })
-        .catch(() => {
-          // Keep mock detailBook
-        });
-
-      catalogService
-        .getDocumentReviews(docId, { page: 0, size: 10 })
-        .then((pageData) => {
-          if (active && pageData.items?.length) {
-            setReviews(pageData.items);
-          }
-        })
-        .catch(() => {
-          // Keep mock reviews
-        });
-
-      if (getAccessToken()) {
-        catalogService
-          .checkFavoriteStatus(docId)
-          .then((res) => {
-            if (active) setSaved(Boolean(res.isFavorite));
-          })
-          .catch(() => {
-            // Ignore favorite status check error
-          });
-      }
-    };
-
-    if (requestedDocId) {
-      fetchById(requestedDocId);
-    } else {
-      catalogService
-        .searchDocuments({ page: 0, size: 1 })
-        .then((pageData) => {
-          if (active && pageData.items?.length) {
-            fetchById(pageData.items[0].id);
-          }
-        })
-        .catch(() => {
-          // Keep mock detailBook
-        });
-    }
-
-    return () => {
-      active = false;
-    };
-  }, [requestedDocId]);
-
-  const currentBook: Book = detail ? mapDocumentDetailToBook(detail) : detailBook;
-  const activeDocId = detail?.id || requestedDocId;
-  const totalCopies = detail ? detail.totalPhysicalCopies : 5;
-  const availableCopies = detail ? detail.availablePhysicalCopies : 3;
-  const isAvailable = availableCopies > 0;
-  const ratingAverage = detail?.averageRating ? detail.averageRating.toFixed(1) : "4.7";
-  const reviewCount = reviews.length > 0 ? reviews.length : 38;
-
-  const toggleRelatedSave = (id: number) =>
-    setRelatedSaved((items) =>
-      items.includes(id) ? items.filter((item) => item !== id) : [...items, id],
-    );
-
-  const handleToggleFavorite = async () => {
-    setSaved((prev) => !prev);
-    if (activeDocId && getAccessToken()) {
-      try {
-        const res = await catalogService.toggleFavorite(activeDocId);
-        setSaved(res.isFavorite);
-        setToastMessage(
-          res.isFavorite ? "Đã lưu tài liệu vào danh sách yêu thích." : "Đã bỏ lưu tài liệu.",
-        );
-      } catch {
-        setToastMessage("Đã cập nhật trạng thái lưu tài liệu.");
-      }
-    }
-  };
-
-  const handlePlaceHold = async () => {
-    if (activeDocId && getAccessToken()) {
-      try {
-        const res = await circulationService.placeHold({ documentId: activeDocId });
-        setHoldStatus(`Vị trí hàng chờ #${res.queuePosition}`);
-        setToastMessage(`Đặt trước thành công! Vị trí hàng chờ: #${res.queuePosition}`);
-      } catch (err) {
-        setToastMessage(err instanceof Error ? err.message : "Đã ghi nhận yêu cầu đặt trước.");
-      }
-    } else {
-      setHoldStatus("Đã đặt trước");
-      setToastMessage("Yêu cầu đặt trước tài liệu đã được ghi nhận.");
-    }
-  };
-
-  const handleOpenDigital = () => {
-    if (detail?.digitalCopyId) {
-      window.open(catalogService.getDigitalDownloadUrl(detail.digitalCopyId), "_blank", "noopener");
+    setLoading(true);
+    setLoadError("");
+    setReviewError("");
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(requestedDocId)) {
+      setLoadError("Hãy chọn tài liệu có UUID hợp lệ từ kết quả tìm kiếm.");
+      setLoading(false);
       return;
     }
-    navigate("/reader/document/1");
+    catalogService.getDocumentDetails(requestedDocId).then((data) => {
+      if (active) setDetail(data);
+    }).catch((error: unknown) => {
+      if (active) setLoadError(error instanceof Error ? error.message : "Không tải được chi tiết tài liệu.");
+    }).finally(() => { if (active) setLoading(false); });
+    catalogService.getDocumentReviews(requestedDocId, { page: 0, size: 10 }).then((data) => {
+      if (active) { setReviews(data.items); setReviewCount(data.totalElements); }
+    }).catch(() => { if (active) setReviewError("Không tải được đánh giá."); });
+    if (getAccessToken()) {
+      catalogService.checkFavoriteStatus(requestedDocId).then((data) => {
+        if (active) setSaved(data.isFavorite);
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [requestedDocId, revision]);
+
+  if (loading) return <p role="status">Đang tải chi tiết tài liệu…</p>;
+  if (loadError || !detail) return <div role="alert">
+    <p>{loadError || "Không tìm thấy tài liệu."}</p>
+    <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>{" "}
+    <Button onClick={() => navigate(resultsPath)}>Về trang tìm kiếm</Button>
+  </div>;
+
+  const currentBook: Book = mapDocumentDetailToBook(detail);
+  const activeDocId = detail.id;
+  const totalCopies = detail.totalPhysicalCopies;
+  const availableCopies = detail.availablePhysicalCopies;
+  const isAvailable = availableCopies > 0;
+  const ratingAverage = detail.averageRating?.toFixed(1) ?? "—";
+
+  const handleToggleFavorite = async () => {
+    if (!getAccessToken()) return setToastMessage("Vui lòng đăng nhập để lưu tài liệu.");
+    try {
+      const response = await catalogService.toggleFavorite(activeDocId);
+      setSaved(response.isFavorite);
+      setToastMessage(response.isFavorite ? "Đã lưu tài liệu." : "Đã bỏ lưu tài liệu.");
+    } catch (error) {
+      setToastMessage(error instanceof Error ? error.message : "Không lưu được tài liệu.");
+    }
+  };
+  const handlePlaceHold = async () => {
+    if (!getAccessToken()) return setToastMessage("Vui lòng đăng nhập để đặt trước.");
+    try {
+      const response = await circulationService.placeHold({ documentId: activeDocId });
+      setHoldStatus("Vị trí hàng chờ #" + response.queuePosition);
+    } catch (error) {
+      setToastMessage(error instanceof Error ? error.message : "Không đặt trước được tài liệu.");
+    }
+  };
+  const handleOpenDigital = () => {
+    if (detail.digitalCopyId) {
+      window.open(catalogService.getDigitalDownloadUrl(detail.digitalCopyId), "_blank", "noopener");
+    }
   };
 
   return (
     <div className="book-detail-page">
       <main className="book-detail-container">
-        <Breadcrumb items={["Trang chủ", "Kết quả tìm kiếm", currentBook.title]} />
+        <Link className="btn btn-ghost" to={resultsPath}>{backLabel}</Link>
+        <Breadcrumb items={[{ label: "Trang chủ", to: "/reader" }, { label: fromCatalog ? "Danh mục" : "Kết quả tìm kiếm", to: resultsPath }, currentBook.title]} />
         <section className="book-detail-hero">
-          <div className="detail-cover-panel">
-            <BookCover book={currentBook} />
-            <span className="detail-call-number">Mã phân loại · {currentBook.code}</span>
-          </div>
+          <div className="detail-cover-panel"><BookCover book={currentBook} /></div>
           <div className="detail-information">
-            <div className="detail-title-row">
-              <div>
-                <div className="book-meta"><span>{currentBook.type}</span><i /><span>Tái bản lần thứ 2</span></div>
-                <h1>{currentBook.title}</h1>
-                <p className="detail-subtitle">Nền tảng, phương pháp và kinh nghiệm triển khai trong bối cảnh chuyển đổi số</p>
-                <p className="detail-author">Tác giả: <strong>{currentBook.author}</strong></p>
-              </div>
-              <Badge tone={isAvailable ? "success" : "warning"}>
-                <Status tone={isAvailable ? "success" : "warning"}>
-                  {isAvailable ? "Có sẵn" : "Hết bản trống"}
-                </Status>
-              </Badge>
-            </div>
-            <div className="detail-rating-row">
-              <strong>{ratingAverage}</strong><Rating value={currentBook.rating} /><span>{reviewCount} đánh giá</span><i /><span>124 lượt mượn</span>
-            </div>
+            <h1>{detail.title}</h1>
+            <p>Tác giả: {detail.authors?.join(", ") || "Chưa cập nhật"}</p>
+            <Badge tone={isAvailable ? "success" : "warning"}>{isAvailable ? "Có sẵn" : "Hết bản trống"}</Badge>
             <dl className="bibliographic-grid">
               <div><dt>Loại tài liệu</dt><dd>{currentBook.type}</dd></div>
-              <div><dt>ISBN</dt><dd>{detail?.isbn || "978-604-80-8932-1"}</dd></div>
-              <div><dt>Ngôn ngữ</dt><dd>{detail?.language || "Tiếng Việt"}</dd></div>
-              <div><dt>Mã phân loại</dt><dd>{detail?.classificationNumber || "378.173 NG-H 2024"}</dd></div>
-              <div><dt>Nhà xuất bản</dt><dd>{detail?.publisher || "Thông tin và Truyền thông"}</dd></div>
-              <div><dt>Năm xuất bản</dt><dd>{currentBook.year}</dd></div>
+              <div><dt>ISBN</dt><dd>{detail.isbn || "—"}</dd></div>
+              <div><dt>Ngôn ngữ</dt><dd>{detail.language || "—"}</dd></div>
+              <div><dt>Mã phân loại</dt><dd>{detail.classificationNumber || "—"}</dd></div>
+              <div><dt>Nhà xuất bản</dt><dd>{detail.publisher || "—"}</dd></div>
+              <div><dt>Năm xuất bản</dt><dd>{detail.publicationYear ?? "—"}</dd></div>
             </dl>
-            <div className="detail-availability">
-              <div className="detail-physical"><span><Icon name="library" />BẢN IN</span><strong>{`${availableCopies} / ${totalCopies} bản có sẵn`}</strong><small>Kệ A2-03 · Phòng đọc tầng 2</small></div>
-              <div className="detail-digital"><span><Icon name="document" />TÀI LIỆU SỐ</span><strong>{detail ? (detail.hasDigitalCopy ? "Có thể xem trực tuyến" : "Chưa có bản số") : "Có thể xem trực tuyến"}</strong><small>Toàn văn · Quyền truy cập PTIT</small></div>
-            </div>
+            <p>Bản giấy: {availableCopies}/{totalCopies} bản có sẵn.</p>
+            <p>{detail.hasDigitalCopy ? (detail.pageCount ? "PDF · " + detail.pageCount + " trang" : "Có bản PDF") : "Chưa có bản số."}</p>
             <div className="detail-primary-actions">
-              <Button icon="document" onClick={() => { navigate("/reader/document/1"); }}>Đọc tài liệu số</Button>
-              <Button variant="secondary" icon="bookmark" disabled={Boolean(holdStatus)} onClick={handlePlaceHold}>{holdStatus || "Đặt trước"}</Button>
-              <Button variant="ghost" icon="bookmark" onClick={handleToggleFavorite}>{saved ? "Đã lưu vào tủ sách" : "Lưu vào tủ sách"}</Button>
+              <Button icon="document" disabled={!detail.digitalCopyId} onClick={handleOpenDigital}>Đọc tài liệu số</Button>
+              {readerActions && <Button variant="secondary" disabled={Boolean(holdStatus)} onClick={handlePlaceHold}>{holdStatus || "Đặt trước"}</Button>}
+              {readerActions && <Button variant="ghost" icon="bookmark" onClick={handleToggleFavorite}>{saved ? "Đã lưu vào tủ sách" : "Lưu vào tủ sách"}</Button>}
             </div>
           </div>
         </section>
-
-        <div className="detail-content-layout">
-          <article className="detail-main-column">
-            <section className="detail-section">
-              <div className="detail-section-heading"><span>01</span><div><h2>Tóm tắt</h2><p>Nội dung tổng quan của tài liệu</p></div></div>
-              <div className="summary-content">
-                {detail?.abstractText ? (
-                  <p>{detail.abstractText}</p>
-                ) : (
-                  <>
-                    <p>Cuốn sách trình bày một cách hệ thống những nền tảng lý luận và thực tiễn về ứng dụng trí tuệ nhân tạo trong giáo dục đại học. Tác giả phân tích sự thay đổi của hoạt động dạy, học và quản trị nhà trường khi các công nghệ học máy, xử lý ngôn ngữ tự nhiên và phân tích dữ liệu học tập được đưa vào sử dụng.</p>
-                    <p>Nội dung tài liệu tập trung vào ba nhóm vấn đề chính: thiết kế trải nghiệm học tập cá nhân hóa; hỗ trợ giảng viên trong xây dựng nội dung và đánh giá người học; ứng dụng dữ liệu để nâng cao chất lượng quản trị đại học. Các nghiên cứu tình huống tại Việt Nam và quốc tế giúp người đọc nhận diện điều kiện triển khai, rủi ro đạo đức và yêu cầu bảo vệ dữ liệu cá nhân.</p>
-                    <p>Đây là tài liệu tham khảo dành cho giảng viên, cán bộ quản lý giáo dục, nghiên cứu viên và sinh viên quan tâm đến chuyển đổi số, công nghệ giáo dục và tương lai của giáo dục đại học.</p>
-                  </>
-                )}
-                <div className="subject-tags">
-                  <strong>Chủ đề:</strong>
-                  {(detail?.departmentNames?.length
-                    ? detail.departmentNames
-                    : ["Trí tuệ nhân tạo", "Giáo dục đại học", "Chuyển đổi số", "Công nghệ giáo dục"]
-                  ).map((tag) => (
-                    <button key={tag}>{tag}</button>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="detail-section">
-              <div className="detail-section-heading"><span>02</span><div><h2>Bản cá biệt</h2><p>Thông tin các bản in hiện có tại thư viện</p></div></div>
-              <div className="detail-table-wrap">
-                <table className="detail-table">
-                  <thead><tr><th>Mã cá biệt</th><th>Vị trí kệ</th><th>Tình trạng vật lý</th><th>Trạng thái lưu thông</th></tr></thead>
-                  <tbody>
-                    <tr><td><strong>PTIT-24-01842</strong></td><td>A2-03</td><td><Status tone="success">Tốt</Status></td><td><Badge tone="success">Có sẵn</Badge></td></tr>
-                    <tr><td><strong>PTIT-24-01843</strong></td><td>A2-03</td><td><Status tone="success">Tốt</Status></td><td><Badge tone="warning">Đang mượn</Badge><small>Đến 28/06/2025</small></td></tr>
-                    <tr><td><strong>PTIT-24-01844</strong></td><td>A2-03</td><td><Status tone="success">Tốt</Status></td><td><Badge tone="brand">Đang giữ</Badge><small>Đến 25/06/2025</small></td></tr>
-                    <tr><td><strong>PTIT-24-01845</strong></td><td>Kho dự trữ</td><td><Status tone="error">Hư hỏng nhẹ</Status></td><td><Badge>Không lưu thông</Badge></td></tr>
-                    <tr><td><strong>PTIT-24-01846</strong></td><td>A2-03</td><td><Status tone="success">Tốt</Status></td><td><Badge tone="success">Có sẵn</Badge></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="detail-section">
-              <div className="detail-section-heading"><span>03</span><div><h2>Tài liệu số</h2><p>Tệp toàn văn và quyền truy cập</p></div></div>
-              <div className="digital-file-list">
-                <article><span className="file-icon">PDF</span><div className="file-information"><strong>tri-tue-nhan-tao-trong-giao-duc-dai-hoc.pdf</strong><span>{`PDF · 18.6 MB · ${detail?.pageCount || 286} trang`}</span></div><Badge tone="info">CHỈ XEM TRỰC TUYẾN</Badge><Status tone="success">{detail?.digitalProcessingStatus || "Đã xử lý"}</Status><Button variant="secondary" size="sm" onClick={handleOpenDigital}>Mở tài liệu</Button></article>
-                <article><span className="file-icon">EPUB</span><div className="file-information"><strong>tri-tue-nhan-tao-giao-duc.epub</strong><span>EPUB · 6.2 MB · Phiên bản dễ tiếp cận</span></div><Badge tone="success">CÓ THỂ TẢI XUỐNG</Badge><Status tone="success">Đã xử lý</Status><Button variant="secondary" size="sm" onClick={handleOpenDigital}>Tải xuống</Button></article>
-              </div>
-              <p className="digital-access-note"><Icon name="info" size={15} />Bạn cần đăng nhập bằng tài khoản PTIT để truy cập toàn văn. Việc sử dụng tài liệu tuân theo quy định bản quyền của thư viện.</p>
-            </section>
-
-            <section className="detail-section reviews-section">
-              <div className="detail-section-heading review-heading"><span>04</span><div><h2>Đánh giá từ bạn đọc</h2><p>{reviewCount} đánh giá đã được xác thực</p></div><Button variant="secondary" size="sm" onClick={() => { navigate(activeDocId ? `/reader/book-detail/review?id=${encodeURIComponent(activeDocId)}` : "/reader/book-detail/review"); }}>Viết đánh giá</Button></div>
-              <div className="rating-summary">
-                <div className="rating-total"><strong>{ratingAverage}</strong><Rating value={currentBook.rating} /><span>{reviewCount} đánh giá</span></div>
-                <div className="rating-bars">{[["5", "78%", "rating-bar-78"], ["4", "17%", "rating-bar-17"], ["3", "5%", "rating-bar-5"], ["2", "0%", "rating-bar-0"], ["1", "0%", "rating-bar-0"]].map(([star, width, barClass]) => <div key={star}><span>{star} ★</span><i><b className={barClass} /></i><small>{width}</small></div>)}</div>
-              </div>
-              <div className="review-list">
-                {reviews.length > 0 ? (
-                  reviews.map((rev) => (
-                    <article key={rev.id}>
-                      <Avatar name={`Bạn đọc #${rev.id}`} />
-                      <div>
-                        <div className="review-meta">
-                          <strong>{`Bạn đọc PTIT #${rev.id}`}</strong>
-                          <Rating value={rev.rating} />
-                          <span>{formatDateVi(rev.createdAt)}</span>
-                        </div>
-                        <p>{rev.comment || "Tài liệu rất hữu ích cho quá trình học tập và nghiên cứu."}</p>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <>
-                    <article><Avatar name="Trần Minh Quân" /><div><div className="review-meta"><strong>Trần Minh Quân</strong><Rating value={5} /><span>12/05/2025</span></div><p>Tài liệu có cấu trúc rõ ràng, các ví dụ triển khai tại trường đại học Việt Nam rất hữu ích cho nghiên cứu của tôi. Phần đạo đức AI được trình bày cân bằng và có chiều sâu.</p></div></article>
-                    <article><Avatar name="Lê Thảo Nguyên" /><div><div className="review-meta"><strong>Lê Thảo Nguyên</strong><Rating value={4} /><span>28/04/2025</span></div><p>Nội dung phù hợp với giảng viên và sinh viên ngành Công nghệ giáo dục. Một số chương mang tính tổng quan nhưng danh mục tài liệu tham khảo rất đầy đủ.</p></div></article>
-                  </>
-                )}
-              </div>
-            </section>
-          </article>
-          <aside className="detail-side-column">
-            <div className="catalog-note"><Icon name="library" /><div><strong>Thông tin thư mục</strong><p>Bản ghi được kiểm duyệt bởi Thư viện PTIT</p><small>Cập nhật lần cuối: {detail?.updatedAt ? formatDateVi(detail.updatedAt) : "18/06/2025"}</small></div></div>
-            <nav className="detail-anchor-nav" aria-label="Mục lục trang"><p>TRONG TRANG NÀY</p><button>Tóm tắt</button><button>Bản cá biệt</button><button>Tài liệu số</button><button>Đánh giá</button></nav>
-          </aside>
-        </div>
-
-        <section className="related-section">
-          <HomeSection title="Có nội dung tương đồng" subtitle="Được phân tích từ chủ đề và nội dung toàn văn của tài liệu." action="Xem thêm">
-            <div className="related-book-grid">{relatedSimilar.map((book) => <BookCard key={book.id} book={book} saved={relatedSaved.includes(book.id)} onSave={() => toggleRelatedSave(book.id)} />)}</div>
-          </HomeSection>
-          <HomeSection title="Bạn đọc khác thường mượn cùng" subtitle="Dựa trên hành vi mượn và đọc của cộng đồng PTIT." action="Xem thêm">
-            <div className="related-book-grid">{relatedBorrowed.map((book) => <BookCard key={book.id} book={book} saved={relatedSaved.includes(book.id)} onSave={() => toggleRelatedSave(book.id)} />)}</div>
-          </HomeSection>
+        <section className="detail-section">
+          <h2>Tóm tắt</h2><p>{detail.abstractText || "Chưa có tóm tắt."}</p>
+          <div className="subject-tags">{detail.departmentNames?.map((name) => <span key={name}>{name}</span>)}</div>
+        </section>
+        <section className="detail-section reviews-section">
+          <h2>Đánh giá từ bạn đọc</h2>
+          <p>{ratingAverage} · {reviewCount} đánh giá</p>
+          {readerActions && <Button variant="secondary" onClick={() => navigate("/reader/book-detail/review?id=" + encodeURIComponent(activeDocId), { state: { returnTo: resultsPath } })}>Viết đánh giá</Button>}
+          <div className="review-list">
+            {reviewError ? <p role="alert">{reviewError}</p> : reviews.length ? reviews.map((review) => (
+              <article key={review.id}><Avatar name="Bạn đọc" /><div>
+                <Rating value={review.rating} /><span>{formatDateVi(review.createdAt)}</span>
+                <p>{review.comment || "—"}</p>
+              </div></article>
+            )) : <p>Chưa có đánh giá.</p>}
+          </div>
         </section>
       </main>
-      {toastMessage && (
-        <div className="toast-position">
-          <Toast title="Thông báo thư viện" onClose={() => setToastMessage(null)}>
-            {toastMessage}
-          </Toast>
-        </div>
-      )}
+      {toastMessage && <div className="toast-position">
+        <Toast title="Thông báo thư viện" onClose={() => setToastMessage(null)}>{toastMessage}</Toast>
+      </div>}
     </div>
   );
 }

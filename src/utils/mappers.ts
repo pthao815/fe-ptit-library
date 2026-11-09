@@ -64,7 +64,7 @@ export function mapDocumentSummaryToBook(dto: DocumentSummaryDto, index = 0): Bo
     documentId: dto.id,
     title: dto.title,
     author: dto.authors?.length ? dto.authors.join(", ") : "Chưa cập nhật tác giả",
-    year: dto.publicationYear ? String(dto.publicationYear) : "2024",
+    year: dto.publicationYear?.toString() ?? "—",
     type: formatDocTypeLabel(dto.docType),
     rating: 5,
     available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
@@ -119,12 +119,13 @@ export function mapDocumentSummaryToSearchResult(
   const base = mapDocumentSummaryToBook(dto, index);
   return {
     ...base,
-    publisher: "Nhà xuất bản Thông tin và Truyền thông",
+    publisher: "—",
     identifier: `ID ${dto.id.slice(0, 8).toUpperCase()}`,
+    available: dto.availablePhysicalCopies > 0,
     subject: formatDocTypeLabel(dto.docType),
     description:
       dto.abstractText ||
-      "Tài liệu học thuật thuộc kho lưu trữ số của Học viện Công nghệ Bưu chính Viễn thông.",
+      "Chưa có tóm tắt.",
     copies: Number(dto.availablePhysicalCopies ?? 0),
     digital: Boolean(dto.hasDigitalCopy),
   };

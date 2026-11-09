@@ -9,11 +9,6 @@ import { userService } from "../../../services/user.service";
 import type { CirculationHistoryItemDto, UserProfileResponse } from "../../../types/api";
 import { formatDateVi } from "../../../utils/mappers";
 
-const profileInitialContact = {
-  phone: "09xx xxx 123",
-  address: "Hà Nội",
-};
-
 export default function PersonalProfilePage({ restricted = false }: { restricted?: boolean }) {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfileResponse | null>(() => {
@@ -36,20 +31,28 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
       debt: cached.debt,
     };
   });
+  const [historyError, setHistoryError] = useState(false);
   const [recentHistory, setRecentHistory] = useState<CirculationHistoryItemDto[]>([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [contact, setContact] = useState({
-    phone: profile?.phone || profileInitialContact.phone,
-    address: profile?.address || profileInitialContact.address,
+    phone: profile?.phone ?? "",
+    address: profile?.address ?? "",
   });
   const [draft, setDraft] = useState(contact);
   const [errors, setErrors] = useState<{ phone?: string; address?: string }>({});
   const [toast, setToast] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
     if (!getAccessToken()) return;
     let active = true;
+    setLoadingProfile(true);
+    setLoadError("");
+    setHistoryError(false);
 
     userService
       .getProfile()
@@ -57,36 +60,36 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
         if (!active) return;
         setProfile(data);
         const nextContact = {
-          phone: data.phone || profileInitialContact.phone,
-          address: data.address || profileInitialContact.address,
+          phone: data.phone ?? "",
+          address: data.address ?? "",
         };
         setContact(nextContact);
         setDraft(nextContact);
       })
-      .catch(() => {
-        // Fallback to cached or mock profile
-      });
+      .catch((error: unknown) => {
+        if (active) setLoadError(error instanceof Error ? error.message : "Không tải được hồ sơ.");
+      }).finally(() => { if (active) setLoadingProfile(false); });
 
     circulationService
       .getMyCirculationHistory(undefined, { page: 0, size: 3 })
       .then((pageData) => {
-        if (active && pageData.items?.length) {
+        if (active) {
           setRecentHistory(pageData.items);
         }
       })
       .catch(() => {
-        // Keep mock activity items
+        if (active) setHistoryError(true);
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [revision]);
 
-  const displayName = profile?.fullName || "Nguyễn Minh Anh";
-  const displayCode = profile?.userCode || "PTIT-202600128";
-  const displayEmail = profile?.email || "minhanh@example.edu.vn";
-  const displayDepartment = profile?.departmentName || "Công nghệ thông tin";
+  const displayName = profile?.fullName || "—";
+  const displayCode = profile?.userCode || "—";
+  const displayEmail = profile?.email || "—";
+  const displayDepartment = profile?.departmentName || "—";
   const displayUserType =
     profile?.userType === "LECTURER"
       ? "Giảng viên"
@@ -111,6 +114,9 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
   };
   const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (saving) return;
+    setSaveError("");
+    setToast(false);
     const nextErrors = {
       phone: draft.phone.trim() ? undefined : "Vui lòng nhập số điện thoại.",
       address: draft.address.trim() ? undefined : "Vui lòng nhập địa chỉ.",
@@ -120,26 +126,28 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
 
     setSaving(true);
     try {
-      if (getAccessToken()) {
-        const updated = await userService.updateProfile({
+      if (!getAccessToken()) throw new Error("Phiên đăng nhập đã hết hạn.");
+      const updated = await userService.updateProfile({
           phone: draft.phone.trim(),
           address: draft.address.trim(),
         });
-        setProfile(updated);
-      }
-      setContact({ phone: draft.phone.trim(), address: draft.address.trim() });
+      setProfile(updated);
+      setContact({ phone: updated.phone ?? "", address: updated.address ?? "" });
       setEditing(false);
       setToast(true);
       window.setTimeout(() => setToast(false), 3000);
-    } catch {
-      setContact({ phone: draft.phone.trim(), address: draft.address.trim() });
-      setEditing(false);
-      setToast(true);
-      window.setTimeout(() => setToast(false), 3000);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Không lưu được hồ sơ.");
     } finally {
       setSaving(false);
     }
   };
+
+  if (loadingProfile) return <p className="reader-main" role="status">Đang tải hồ sơ…</p>;
+  if (loadError || !profile) return <div className="reader-main" role="alert">
+    <p>{loadError || "Không tìm thấy hồ sơ."}</p>
+    <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
+  </div>;
 
   return (
     <div className="profile-page">
@@ -166,10 +174,11 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
               </header>
               {(errors.phone || errors.address) && <div className="profile-form-alert"><Icon name="error" size={17} /><span>Vui lòng kiểm tra lại thông tin đã nhập.</span></div>}
               <form className="profile-form" onSubmit={saveProfile}>
+              {saveError && <p role="alert">{saveError}</p>}
                 <div className="profile-fields-grid">
                   <Field label="Họ và tên" value={displayName} readOnly />
                   <Field label="Mã độc giả" value={displayCode} readOnly />
-                  <Field label="Ngày sinh" value={profile?.enrollmentYear ? `Khóa ${profile.enrollmentYear}` : "15/08/2004"} readOnly />
+                  <Field label="Năm nhập học" value={profile.enrollmentYear?.toString() ?? "—"} readOnly />
                   <Field label="Giới tính" value="Không hiển thị" readOnly />
                   <Field label="Email" value={displayEmail} readOnly />
                   <Field label="Số điện thoại" value={editing ? draft.phone : contact.phone} readOnly={!editing} onChange={(event) => { setDraft((current) => ({ ...current, phone: event.target.value })); setErrors((current) => ({ ...current, phone: undefined })); }} error={errors.phone} />
@@ -190,7 +199,7 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
                 <div><dt>Email liên kết</dt><dd>{displayEmail}</dd></div>
                 <div><dt>Mật khẩu</dt><dd><span className="masked-password" aria-label="Mật khẩu đã được ẩn">••••••••••••</span></dd></div>
               </dl>
-              <div className="profile-login-action"><Button variant="secondary" size="sm">Đổi mật khẩu</Button><p>Mật khẩu hiện tại luôn được bảo mật và không thể hiển thị.</p></div>
+              <div className="profile-login-action"><span>Đổi mật khẩu chưa khả dụng tại đây.</span><p>Mật khẩu hiện tại luôn được bảo mật và không thể hiển thị.</p></div>
             </section>
 
             <section className="profile-card recent-activity-card">
@@ -215,13 +224,7 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
                       </article>
                     );
                   })
-                ) : (
-                  <>
-                    <article><span className="activity-icon borrow"><Icon name="book" size={17} /></span><div><strong>Mượn tài liệu</strong><p>Nhập môn học máy</p></div><time>12/06/2026</time><Badge tone="success">Đang mượn</Badge></article>
-                    <article><span className="activity-icon returned"><Icon name="success" size={17} /></span><div><strong>Trả tài liệu</strong><p>Cơ sở dữ liệu</p></div><time>08/06/2026</time><Badge tone="neutral">Đã trả</Badge></article>
-                    <article><span className="activity-icon reserved"><Icon name="bookmark" size={17} /></span><div><strong>Đặt trước</strong><p>Trí tuệ nhân tạo – Cơ sở và ứng dụng</p></div><time>02/06/2026</time><Badge tone="warning">Đang chờ</Badge></article>
-                  </>
-                )}
+                ) : <p>{historyError ? "Không tải được hoạt động gần đây." : "Chưa có hoạt động gần đây."}</p>}
               </div>
             </section>
           </div>

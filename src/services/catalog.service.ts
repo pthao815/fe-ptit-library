@@ -14,16 +14,33 @@ import type {
   ReviewDto,
   ReviewRequestDto,
 } from "../types/api";
-import { http } from "./http";
+import { ApiError, http } from "./http";
+
+const uuidPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+function confirmedId(id: unknown): string {
+  if (typeof id !== "string" || !uuidPattern.test(id)) {
+    throw new ApiError("Backend không trả về UUID hợp lệ để xác nhận thao tác.", 0);
+  }
+  return id;
+}
 
 export const catalogService = {
   // Public Documents & Authors
   searchDocuments(params?: DocumentFilterParams): Promise<PageResponse<DocumentSummaryDto>> {
-    return http.get<PageResponse<DocumentSummaryDto>>("/api/catalog/documents", { ...params });
+    return http.get<PageResponse<DocumentSummaryDto>>("/api/catalog/documents", { ...params }).then((page) => {
+      if (!Array.isArray(page?.items)) throw new ApiError("Backend không trả về danh sách tài liệu hợp lệ.", 0);
+      return page;
+    });
   },
 
   getDocumentDetails(id: string): Promise<DocumentDetailDto> {
-    return http.get<DocumentDetailDto>(`/api/catalog/documents/${id}`);
+    return http.get<DocumentDetailDto>(`/api/catalog/documents/${id}`).then((document) => {
+      if (confirmedId(document?.id).toLowerCase() !== id.toLowerCase()) {
+        throw new ApiError("Backend trả về tài liệu khác với tài liệu đã chọn.", 0);
+      }
+      return document;
+    });
   },
 
   searchAuthors(keyword?: string, params?: PaginationParams): Promise<PageResponse<AuthorDto>> {
@@ -64,12 +81,18 @@ export const catalogService = {
   },
 
   // Digital Copy Upload & Download
-  uploadPdf(documentId: string, file: File, version = "1.0"): Promise<DigitalCopyDto> {
+  uploadPdf(documentId: string, file: File, version = "1.0"): Promise<{ digitalCopyId: string; jobId: number }> {
     const formData = new FormData();
     formData.append("documentId", documentId);
     formData.append("file", file);
     formData.append("version", version);
-    return http.post<DigitalCopyDto>("/api/catalog/digital/upload", formData);
+    return http.post<{ digitalCopyId: string; jobId: number }>(`/api/admin/documents/${documentId}/digital-copies`, formData).then((result) => {
+      confirmedId(result?.digitalCopyId);
+      if (!Number.isSafeInteger(result.jobId) || result.jobId < 1) {
+        throw new ApiError("Backend chưa xác nhận mã tiến trình xử lý PDF.", 0);
+      }
+      return result;
+    });
   },
 
   getDigitalDownloadUrl(digitalCopyId: string): string {
@@ -78,11 +101,11 @@ export const catalogService = {
 
   // Admin / Staff Catalog Management
   createDocument(payload: DocumentRequestDto): Promise<string> {
-    return http.post<string>("/api/catalog-admin/documents", payload);
+    return http.post<string>("/api/catalog-admin/documents", payload).then(confirmedId);
   },
 
   updateDocument(id: string, payload: DocumentRequestDto): Promise<string> {
-    return http.put<string>(`/api/catalog-admin/documents/${id}`, payload);
+    return http.put<string>(`/api/catalog-admin/documents/${id}`, payload).then(confirmedId);
   },
 
   deleteDocument(id: string): Promise<void> {
@@ -94,7 +117,10 @@ export const catalogService = {
   },
 
   createPhysicalCopy(payload: PhysicalCopyRequestDto): Promise<PhysicalCopyDto> {
-    return http.post<PhysicalCopyDto>("/api/catalog-admin/physical-copies", payload);
+    return http.post<PhysicalCopyDto>("/api/catalog-admin/physical-copies", payload).then((copy) => {
+      confirmedId(copy?.id);
+      return copy;
+    });
   },
 
   updatePhysicalCopy(id: string, payload: PhysicalCopyRequestDto): Promise<PhysicalCopyDto> {

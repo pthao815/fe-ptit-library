@@ -1,289 +1,251 @@
-import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Field, Icon, IconButton, SelectField, Status, TextAreaField } from "../../../design-system";
-import BookCover from "../../../components/books/BookCover";
-import { trainingPrograms } from "../../../constants/library-options";
-import { detailBook } from "../../../data/books";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Breadcrumb, Button, Field, TextAreaField } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
-import { getAccessToken } from "../../../services/session";
 import { userService } from "../../../services/user.service";
-import type { DepartmentDto } from "../../../types/api";
-import { formatDocTypeLabel } from "../../../utils/mappers";
+import { ApiError } from "../../../services/http";
+import { authSession } from "../../../shared/auth/auth-session";
+import { getAccessToken } from "../../../services/session";
+import type { DepartmentDto, DocumentRequestDto, PhysicalCopyDto } from "../../../types/api";
 
-type CopyRow = {
-  id: number;
-  copyUuid?: string;
+type CopyDraft = {
+  key: number;
+  id?: string;
   barcode: string;
-  shelf: string;
-  condition: string;
-  circulation: string;
-  received: string;
-};
-
-type DigitalFileRow = {
-  id: number;
-  name: string;
-  size: string;
-  access: string;
+  callNumber: string;
+  shelfLocation: string;
   status: string;
-  rawFile?: File;
 };
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+const emptyRecord = {
+  title: "", isbn: "", authors: "", publisher: "", year: "", abstractText: "",
+  docType: "", classificationNumber: "", language: "", coverUrl: "",
+};
+const copyStatuses = ["AVAILABLE", "BORROWED", "RESERVED", "LOST", "DAMAGED", "MAINTENANCE"];
+
+function toDraft(copy: PhysicalCopyDto, key: number): CopyDraft {
+  return {
+    key, id: copy.id, barcode: copy.barcode, callNumber: copy.callNumber ?? "",
+    shelfLocation: copy.shelfLocation ?? "", status: copy.status ?? "",
+  };
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Yêu cầu thất bại.";
+}
+
+function outcomeUnknown(error: unknown) {
+  return !(error instanceof ApiError) || [0, 408].includes(error.status) || error.status >= 500;
+}
 
 export default function BibliographicRecordForm({ edit = false }: { edit?: boolean }) {
-  const navigate = useNavigate();
-  const { id: routeId } = useParams();
-  const editingUuid = edit && routeId && UUID_REGEX.test(routeId) ? routeId : undefined;
+  const { id } = useParams();
+  return <RecordEditor key={edit ? id ?? "invalid" : "new"} edit={edit} id={id} />;
+}
 
+function RecordEditor({ edit, id }: { edit: boolean; id?: string }) {
+  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  const base = pathname.startsWith("/admin/") ? "/admin/materials" : "/staff/materials";
+  const [record, setRecord] = useState(emptyRecord);
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
-  const [form, setForm] = useState({
-    title: edit ? "Trí tuệ nhân tạo: Nền tảng và ứng dụng" : "",
-    subtitle: edit ? "Nguyên lý, thuật toán và các bài toán thực tiễn" : "",
-    author: edit ? "Nguyễn Thanh Thủy" : "",
-    type: edit ? "Sách chuyên khảo" : "",
-    isbn: edit ? "978-604-80-8932-1" : "",
-    language: edit ? "Tiếng Việt" : "",
-    classification: edit ? "005.1 NG-T 2024" : "",
-    publicationPlace: edit ? "Hà Nội" : "",
-    year: edit ? "2024" : "",
-    physicalDescription: edit ? "386 trang : minh họa ; 24 cm" : "",
-    summary: edit ? "Tài liệu trình bày các nền tảng quan trọng của trí tuệ nhân tạo, từ biểu diễn tri thức, tìm kiếm, học máy đến các ứng dụng trong giáo dục, y tế và công nghiệp." : "",
-  });
-  const [programs, setPrograms] = useState<string[]>(edit ? ["Công nghệ thông tin", "Khoa học máy tính", "An toàn thông tin"] : []);
-  const [copies, setCopies] = useState<CopyRow[]>(edit ? [
-    { id: 1, barcode: "PTIT-24-01842", shelf: "A2-03", condition: "Tốt", circulation: "Có sẵn", received: "2024-08-12" },
-    { id: 2, barcode: "PTIT-24-01843", shelf: "A2-03", condition: "Tốt", circulation: "Đang mượn", received: "2024-08-12" },
-  ] : [{ id: 1, barcode: "", shelf: "", condition: "Tốt", circulation: "Có sẵn", received: "2025-06-22" }]);
-  const [digitalFiles, setDigitalFiles] = useState<DigitalFileRow[]>(edit ? [
-    { id: 1, name: "tri-tue-nhan-tao-nen-tang-va-ung-dung.pdf", size: "24.8 MB", access: "Chỉ xem trực tuyến", status: "Đã xử lý" },
-  ] : []);
-  const [restricted, setRestricted] = useState(false);
-  const [restrictionReason, setRestrictionReason] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [savedMessage, setSavedMessage] = useState("");
+  const [departmentIds, setDepartmentIds] = useState<number[]>([]);
+  const [copies, setCopies] = useState<CopyDraft[]>([]);
+  const [pdf, setPdf] = useState<File>();
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [uncertain, setUncertain] = useState(false);
+  const documentId = useRef(edit ? id : undefined);
+  const nextKey = useRef(0);
+  const submitting = useRef(false);
+  const savedCopies = useRef(new Map<number, CopyDraft>());
 
   useEffect(() => {
     let active = true;
-
-    userService
-      .getDepartments()
-      .then((list) => {
-        if (active && list?.length) setDepartments(list);
-      })
-      .catch(() => {
-        // Ignore department fetch error
+    setLoading(true);
+    setLoadError("");
+    async function load() {
+      if (edit && (!id || !uuidPattern.test(id))) throw new Error("UUID tài liệu không hợp lệ.");
+      const [units, detail, physical] = await Promise.all([
+        userService.getDepartments(),
+        edit && id ? catalogService.getDocumentDetails(id) : undefined,
+        edit && id ? catalogService.getPhysicalCopies(id) : [],
+      ]);
+      if (!active) return;
+      setDepartments(units);
+      if (!detail) return;
+      setRecord({
+        title: detail.title, isbn: detail.isbn ?? "", authors: detail.authors?.join(", ") ?? "",
+        publisher: detail.publisher ?? "", year: detail.publicationYear?.toString() ?? "",
+        abstractText: detail.abstractText ?? "", docType: detail.docType ?? "",
+        classificationNumber: detail.classificationNumber ?? "", language: detail.language ?? "",
+        coverUrl: detail.coverUrl ?? "",
       });
-
-    if (editingUuid) {
-      catalogService
-        .getDocumentDetails(editingUuid)
-        .then((detail) => {
-          if (!active) return;
-          setForm((prev) => ({
-            ...prev,
-            title: detail.title || prev.title,
-            author: detail.authors?.join(", ") || prev.author,
-            type: formatDocTypeLabel(detail.docType),
-            isbn: detail.isbn || prev.isbn,
-            language: detail.language || "Tiếng Việt",
-            classification: detail.classificationNumber || prev.classification,
-            publicationPlace: detail.publisher || prev.publicationPlace,
-            year: detail.publicationYear ? String(detail.publicationYear) : prev.year,
-            summary: detail.abstractText || prev.summary,
-          }));
-          if (detail.departmentNames?.length) {
-            setPrograms(detail.departmentNames);
-          }
-        })
-        .catch(() => {
-          // Keep default edit values
-        });
-
-      if (getAccessToken()) {
-        catalogService
-          .getPhysicalCopies(editingUuid)
-          .then((list) => {
-            if (!active || !list?.length) return;
-            setCopies(
-              list.map((c, idx) => ({
-                id: idx + 1,
-                copyUuid: c.id,
-                barcode: c.barcode,
-                shelf: c.shelfLocation || "A2-03",
-                condition: "Tốt",
-                circulation: c.status === "AVAILABLE" ? "Có sẵn" : "Đang mượn",
-                received: c.accessionDate ? c.accessionDate.slice(0, 10) : "2025-06-22",
-              })),
-            );
-          })
-          .catch(() => {
-            // Keep default copies
-          });
-      }
+      setDepartmentIds(detail.departmentIds ?? []);
+      const drafts = physical.map((copy) => toDraft(copy, ++nextKey.current));
+      savedCopies.current = new Map(drafts.map((copy) => [copy.key, copy]));
+      setCopies(drafts);
     }
+    load().catch((cause) => {
+      if (active) setLoadError(errorMessage(cause));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [edit, id, revision]);
 
-    return () => {
-      active = false;
+  function change(field: keyof typeof emptyRecord, value: string) {
+    setRecord((previous) => ({ ...previous, [field]: value }));
+    setMessage("");
+  }
+
+  async function save() {
+    if (submitting.current || uncertain) return;
+    setError("");
+    setMessage("");
+    if (!getAccessToken()) return setError("Vui lòng đăng nhập trước khi lưu.");
+    if (!record.title.trim()) return setError("Vui lòng nhập nhan đề.");
+    if (record.year && !/^[1-9][0-9]{3}$/.test(record.year)) return setError("Năm xuất bản phải từ 1000 đến 9999.");
+    const barcodes = copies.map((copy) => copy.barcode.trim());
+    if (barcodes.some((barcode) => !barcode) || new Set(barcodes).size !== barcodes.length) {
+      return setError("Mỗi bản giấy cần có mã vạch riêng.");
+    }
+    if (pdf && (!pdf.name.toLowerCase().endsWith(".pdf") || pdf.size === 0 || pdf.size > 100 * 1024 * 1024)) {
+      return setError("Chọn tệp PDF có dung lượng từ 1 byte đến 100 MB.");
+    }
+    const payload: DocumentRequestDto = {
+      title: record.title.trim(), isbn: record.isbn.trim() || undefined,
+      authors: record.authors.split(",").map((name) => name.trim()).filter(Boolean),
+      publisher: record.publisher.trim() || undefined,
+      publicationYear: record.year ? Number(record.year) : undefined,
+      abstractText: record.abstractText.trim() || undefined, docType: record.docType.trim() || undefined,
+      classificationNumber: record.classificationNumber.trim() || undefined,
+      language: record.language.trim() || undefined, coverUrl: record.coverUrl.trim() || undefined,
+      departmentIds,
     };
-  }, [editingUuid]);
-
-  const updateForm = (key: keyof typeof form, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
-    setErrors((current) => ({ ...current, [key]: "" }));
-  };
-  const updateCopy = (id: number, key: keyof CopyRow, value: string) => setCopies((items) => items.map((copy) => copy.id === id ? { ...copy, [key]: value } : copy));
-
-  const validate = async (draft = false) => {
-    if (draft) {
-      setSavedMessage("Bản nháp đã được lưu lúc 10:24");
-      return;
-    }
-    const nextErrors: Record<string, string> = {};
-    if (!form.title.trim()) nextErrors.title = "Vui lòng nhập nhan đề tài liệu.";
-    if (!form.author.trim()) nextErrors.author = "Vui lòng nhập ít nhất một tác giả.";
-    if (!form.type) nextErrors.type = "Vui lòng chọn dạng tài liệu.";
-    if (!form.language) nextErrors.language = "Vui lòng chọn ngôn ngữ.";
-    if (!form.year) nextErrors.year = "Vui lòng nhập năm xuất bản.";
-    else if (!/^\d{4}$/.test(form.year)) nextErrors.year = "Năm xuất bản phải gồm 4 chữ số.";
-    if (programs.length === 0) nextErrors.programs = "Chọn ít nhất một ngành đào tạo phù hợp.";
-    if (copies.some((copy) => !copy.barcode.trim())) nextErrors.copies = "Mỗi bản cá biệt cần có mã cá biệt.";
-    if (restricted && !restrictionReason) nextErrors.restriction = "Vui lòng chọn lý do không cho phép mượn về.";
-    setErrors(nextErrors);
-
-    if (Object.keys(nextErrors).length > 0) {
-      setSavedMessage("");
-      document.querySelector(".record-form-section")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-
-    if (getAccessToken()) {
-      setSaving(true);
-      try {
-        const matchedDepartmentIds = departments
-          .filter((d) => programs.some((p) => p.toLowerCase() === d.name.toLowerCase()))
-          .map((d) => d.id);
-
-        const docPayload = {
-          title: form.title.trim(),
-          isbn: form.isbn.trim() || undefined,
-          authors: form.author
-            .split(",")
-            .map((a) => a.trim())
-            .filter(Boolean),
-          publisher: form.publicationPlace.trim() || undefined,
-          publicationYear: Number(form.year),
-          abstractText: form.summary.trim() || undefined,
-          docType: form.type,
-          classificationNumber: form.classification.trim() || undefined,
-          language: form.language,
-          departmentIds: matchedDepartmentIds.length > 0 ? matchedDepartmentIds : undefined,
+    submitting.current = true;
+    setSaving(true);
+    let stage = "biểu ghi";
+    let documentSaved = false;
+    let copiesSaved = 0;
+    let creating = !documentId.current;
+    const { identityVersion } = authSession.getSnapshot();
+    const ensureSession = () => {
+      if (authSession.getSnapshot().identityVersion !== identityVersion) throw new ApiError("Phiên đã thay đổi. Kiểm tra dữ liệu trước khi tiếp tục.", 401);
+    };
+    try {
+      const target = documentId.current
+        ? await catalogService.updateDocument(documentId.current, payload)
+        : await catalogService.createDocument(payload);
+      documentId.current = target;
+      documentSaved = true;
+      for (const copy of copies) {
+        if (JSON.stringify(copy) === JSON.stringify(savedCopies.current.get(copy.key))) continue;
+        ensureSession();
+        stage = `bản giấy ${copy.barcode}`;
+        creating = !copy.id;
+        const copyPayload = {
+          documentId: target, barcode: copy.barcode.trim(), callNumber: copy.callNumber.trim() || undefined,
+          shelfLocation: copy.shelfLocation.trim() || undefined, status: copy.status || undefined,
         };
-
-        const targetDocId = editingUuid
-          ? await catalogService.updateDocument(editingUuid, docPayload)
-          : await catalogService.createDocument(docPayload);
-
-        for (const copy of copies) {
-          if (!copy.copyUuid && copy.barcode.trim()) {
-            await catalogService
-              .createPhysicalCopy({
-                documentId: targetDocId,
-                barcode: copy.barcode.trim(),
-                callNumber: form.classification.trim() || undefined,
-                shelfLocation: copy.shelf.trim() || "A2-03",
-                status: copy.circulation === "Có sẵn" ? "AVAILABLE" : "BORROWED",
-              })
-              .catch(() => undefined);
-          }
-        }
-
-        for (const dFile of digitalFiles) {
-          if (dFile.rawFile) {
-            await catalogService.uploadPdf(targetDocId, dFile.rawFile).catch(() => undefined);
-          }
-        }
-      } catch {
-        // Still show saved message in UI fallback
-      } finally {
-        setSaving(false);
+        const saved = copy.id
+          ? await catalogService.updatePhysicalCopy(copy.id, copyPayload)
+          : await catalogService.createPhysicalCopy(copyPayload);
+        const updated = toDraft(saved, copy.key);
+        savedCopies.current.set(copy.key, updated);
+        copiesSaved++;
+        setCopies((previous) => previous.map((row) => row.key === copy.key ? updated : row));
       }
+      if (pdf) {
+        ensureSession();
+        stage = "tệp PDF";
+        creating = true;
+        const uploaded = await catalogService.uploadPdf(target, pdf);
+        setPdf(undefined);
+        setMessage(`Đã lưu biểu ghi, bản giấy và nhận tệp PDF. Mã tiến trình: ${uploaded.jobId}.`);
+      } else {
+        setMessage("Đã lưu biểu ghi và bản giấy.");
+      }
+    } catch (cause) {
+      const unknown = creating && outcomeUnknown(cause);
+      if (unknown) setUncertain(true);
+      setError(`${documentSaved ? "Đã lưu biểu ghi. " : ""}${copiesSaved ? "Đã lưu " + copiesSaved + " bản giấy. " : ""}Không thể xác nhận lưu ${stage}: ${errorMessage(cause)}${unknown ? " Kiểm tra dữ liệu trong danh sách trước khi tạo lại." : ""}`);
+    } finally {
+      submitting.current = false;
+      setSaving(false);
     }
+  }
 
-    setSavedMessage("Tài liệu đã được lưu thành công.");
-  };
-
-  return (
-    <div className="record-form-page">
-      <div className="record-form-heading">
-        <div><Breadcrumb items={["Quản lý tài liệu", edit ? "Chỉnh sửa biểu ghi" : "Thêm tài liệu"]} /><p className="eyebrow">BIÊN MỤC TÀI LIỆU</p><h1>{edit ? "Chỉnh sửa biểu ghi thư mục" : "Thêm biểu ghi thư mục"}</h1><p>{edit ? "BIB-0001842 · Cập nhật lần cuối 18/06/2025 bởi Nguyễn Minh Anh" : "Tạo biểu ghi dùng chung cho bản in và tài liệu số."}</p></div>
-        <Badge tone={edit ? "success" : "warning"}>{edit ? "ĐÃ XUẤT BẢN" : "BẢN GHI MỚI"}</Badge>
+  return <div className="record-form-page">
+    <Breadcrumb items={[{ label: "Quản lý tài liệu", to: base + search }, edit ? "Chỉnh sửa" : "Thêm mới"]} />
+    <h1>{edit ? "Chỉnh sửa biểu ghi thư mục" : "Thêm biểu ghi thư mục"}</h1>
+    {loading ? <p role="status">Đang tải dữ liệu…</p> : loadError ? (
+      <div role="alert"><p>{loadError}</p><Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></div>
+    ) : <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <fieldset className="record-form-main" disabled={saving}>
+        <section className="record-form-section">
+          <header><h2>Thông tin biểu ghi</h2></header>
+          <div className="bibliographic-form-grid">
+            <Field label="Nhan đề" required value={record.title} onChange={(event) => change("title", event.target.value)} />
+            <Field label="ISBN" value={record.isbn} onChange={(event) => change("isbn", event.target.value)} />
+            <Field label="Tác giả (phân cách bằng dấu phẩy)" value={record.authors} onChange={(event) => change("authors", event.target.value)} />
+            <Field label="Nhà xuất bản" value={record.publisher} onChange={(event) => change("publisher", event.target.value)} />
+            <Field label="Năm xuất bản" type="number" min={1000} max={9999} value={record.year} onChange={(event) => change("year", event.target.value)} />
+            <Field label="Mã loại tài liệu" value={record.docType} onChange={(event) => change("docType", event.target.value)} />
+            <Field label="Mã phân loại" value={record.classificationNumber} onChange={(event) => change("classificationNumber", event.target.value)} />
+            <Field label="Ngôn ngữ" value={record.language} onChange={(event) => change("language", event.target.value)} />
+            <Field label="URL ảnh bìa" value={record.coverUrl} onChange={(event) => change("coverUrl", event.target.value)} />
+            <TextAreaField label="Tóm tắt" value={record.abstractText} onChange={(event) => change("abstractText", event.target.value)} />
+          </div>
+          <fieldset className="program-selector"><legend>Khoa/ngành</legend>
+            {departments.map((unit) => <label key={unit.id}>
+              <input type="checkbox" checked={departmentIds.includes(unit.id)} onChange={(event) => {
+                const checked = event.target.checked;
+                setDepartmentIds((ids) => checked ? [...ids, unit.id] : ids.filter((value) => value !== unit.id));
+              }} /> {unit.name}{" "}
+            </label>)}
+          </fieldset>
+        </section>
+        <section className="record-form-section">
+          <header><h2>Bản giấy</h2></header>
+          {copies.length === 0 && <p>Chưa có bản giấy.</p>}
+          {copies.map((copy) => {
+            const update = (field: "barcode" | "callNumber" | "shelfLocation" | "status", value: string) =>
+              setCopies((rows) => rows.map((row) => row.key === copy.key ? { ...row, [field]: value } : row));
+            return <fieldset key={copy.key} className="bibliographic-form-grid">
+              <legend>{copy.id ? "Bản đã lưu" : "Bản mới"}</legend>
+              <Field label="Mã vạch" required value={copy.barcode} onChange={(event) => update("barcode", event.target.value)} />
+              <Field label="Mã xếp giá" value={copy.callNumber} onChange={(event) => update("callNumber", event.target.value)} />
+              <Field label="Vị trí kệ" value={copy.shelfLocation} onChange={(event) => update("shelfLocation", event.target.value)} />
+              <label>Trạng thái <select value={copy.status} onChange={(event) => update("status", event.target.value)}>
+                {[...new Set([copy.status, ...copyStatuses])].map((status) => <option key={status} value={status}>{status || "Mặc định"}</option>)}
+              </select></label>
+              {!copy.id && <Button type="button" variant="ghost" onClick={() => setCopies((rows) => rows.filter((row) => row.key !== copy.key))}>Bỏ dòng mới</Button>}
+            </fieldset>;
+          })}
+          <Button type="button" onClick={() => {
+            const key = ++nextKey.current;
+            setCopies((rows) => [...rows, { key, barcode: "", callNumber: "", shelfLocation: "", status: "AVAILABLE" }]);
+          }}>Thêm bản giấy</Button>
+        </section>
+        <section className="record-form-section">
+          <header><h2>Tài liệu số</h2></header>
+          <label>Chọn PDF <input type="file" accept=".pdf,application/pdf" onChange={(event) => setPdf(event.target.files?.[0])} /></label>
+          {pdf && <span> {pdf.name} <Button type="button" variant="ghost" onClick={() => setPdf(undefined)}>Bỏ tệp</Button></span>}
+        </section>
+      </fieldset>
+      {error && <p role="alert" className="form-error-summary">{error}</p>}
+      {uncertain && documentId.current && <Link to={base + "/edit/" + documentId.current}>Đối soát biểu ghi đã lưu</Link>}
+      {message && <p role="status" className="form-success-summary">{message}</p>}
+      <div className="record-form-actions">
+        <Button type="button" variant="ghost" disabled={saving} onClick={() => navigate(base + search)}>Về danh sách</Button>
+        <Button type="submit" disabled={saving || uncertain}>{saving ? "Đang lưu…" : "Lưu tài liệu"}</Button>
       </div>
-
-      {Object.values(errors).some(Boolean) && <div className="form-error-summary"><Icon name="error" /><div><strong>Không thể lưu tài liệu</strong><p>Vui lòng kiểm tra các trường được đánh dấu bên dưới.</p></div></div>}
-      {savedMessage && <div className="form-success-summary"><Icon name="success" /><span>{savedMessage}</span></div>}
-
-      <div className="record-form-layout">
-        <main className="record-form-main">
-          <section className="record-form-section">
-            <header><span>01</span><div><h2>Thông tin thư mục</h2><p>Thông tin mô tả và định danh chính của tài liệu.</p></div><Badge tone="error">BẮT BUỘC</Badge></header>
-            <div className="bibliographic-form-grid">
-              <Field fieldClassName="span-2" label="Nhan đề *" value={form.title} onChange={(event) => updateForm("title", event.target.value)} error={errors.title} placeholder="Nhập nhan đề chính của tài liệu" />
-              <Field fieldClassName="span-2" label="Phụ đề" value={form.subtitle} onChange={(event) => updateForm("subtitle", event.target.value)} placeholder="Nhập phụ đề nếu có" />
-              <Field fieldClassName="span-2" label="Tác giả *" value={form.author} onChange={(event) => updateForm("author", event.target.value)} error={errors.author} placeholder="Nhập tên tác giả hoặc cơ quan" />
-              <SelectField label="Dạng tài liệu *" value={form.type} onChange={(event) => updateForm("type", event.target.value)} error={errors.type}><option value="">Chọn dạng tài liệu</option><option>Sách chuyên khảo</option><option>Giáo trình</option><option>Sách tham khảo</option><option>Luận án</option><option>Tài liệu hội thảo</option></SelectField>
-              <Field label="ISBN" value={form.isbn} onChange={(event) => updateForm("isbn", event.target.value)} placeholder="978-604-..." />
-              <SelectField label="Ngôn ngữ *" value={form.language} onChange={(event) => updateForm("language", event.target.value)} error={errors.language}><option value="">Chọn ngôn ngữ</option><option>Tiếng Việt</option><option>Tiếng Anh</option><option>Tiếng Pháp</option></SelectField>
-              <Field label="Ký hiệu phân loại" value={form.classification} onChange={(event) => updateForm("classification", event.target.value)} placeholder="VD: 005.1 NG-T 2024" />
-              <Field label="Nơi xuất bản" value={form.publicationPlace} onChange={(event) => updateForm("publicationPlace", event.target.value)} placeholder="Hà Nội" />
-              <Field label="Năm xuất bản *" value={form.year} onChange={(event) => updateForm("year", event.target.value)} error={errors.year} placeholder="YYYY" />
-              <Field fieldClassName="span-2" label="Mô tả vật lý" value={form.physicalDescription} onChange={(event) => updateForm("physicalDescription", event.target.value)} placeholder="Số trang, minh họa, kích thước..." />
-              <TextAreaField fieldClassName="span-2" label="Tóm tắt" value={form.summary} onChange={(event) => updateForm("summary", event.target.value)} rows={5} placeholder="Nhập tóm tắt nội dung tài liệu..." hint={`${form.summary.length}/2.000 ký tự`} />
-              <div className="cover-upload span-2">
-                <span className="field-label">Ảnh bìa</span>
-                <div>{edit ? <BookCover book={detailBook} /> : <span className="cover-placeholder"><Icon name="book" size={28} /></span>}<label><Icon name="plus" /><strong>{edit ? "Thay ảnh bìa" : "Tải ảnh bìa lên"}</strong><small>JPG hoặc PNG · Tối đa 5 MB · Tỷ lệ khuyến nghị 2:3</small><input type="file" accept="image/png,image/jpeg" /></label></div>
-              </div>
-            </div>
-          </section>
-
-          <section className="record-form-section">
-            <header><span>02</span><div><h2>Ngành đào tạo</h2><p>Một biểu ghi có thể thuộc nhiều ngành đào tạo.</p></div><Badge>{programs.length} ĐÃ CHỌN</Badge></header>
-            <div className="program-selector">
-              <div className="selected-programs">{programs.length > 0 ? programs.map((program) => <button key={program} onClick={() => setPrograms((items) => items.filter((item) => item !== program))}>{program}<Icon name="close" size={13} /></button>) : <span>Chưa chọn ngành đào tạo</span>}</div>
-              <div className="program-options">{trainingPrograms.filter((program) => !programs.includes(program)).map((program) => <button key={program} onClick={() => { setPrograms((items) => [...items, program]); setErrors((current) => ({ ...current, programs: "" })); }}><Icon name="plus" size={14} />{program}</button>)}</div>
-              {errors.programs && <p className="section-error"><Icon name="error" size={14} />{errors.programs}</p>}
-            </div>
-          </section>
-
-          <section className="record-form-section">
-            <header><span>03</span><div><h2>Bản cá biệt</h2><p>Quản lý các bản in vật lý thuộc biểu ghi.</p></div><Button variant="secondary" size="sm" icon="plus" onClick={() => setCopies((items) => [...items, { id: Date.now(), barcode: "", shelf: "", condition: "Tốt", circulation: "Có sẵn", received: "2025-06-22" }])}>Thêm bản cá biệt</Button></header>
-            <div className="copy-editor-wrap"><table className="copy-editor"><thead><tr><th>Mã cá biệt *</th><th>Vị trí kệ</th><th>Tình trạng vật lý</th><th>Trạng thái lưu thông</th><th>Ngày nhập kho</th><th /></tr></thead><tbody>{copies.map((copy) => <tr key={copy.id}><td><input value={copy.barcode} onChange={(event) => { updateCopy(copy.id, "barcode", event.target.value); setErrors((current) => ({ ...current, copies: "" })); }} placeholder="PTIT-YY-XXXXX" /></td><td><input value={copy.shelf} onChange={(event) => updateCopy(copy.id, "shelf", event.target.value)} placeholder="A2-03" /></td><td><select value={copy.condition} onChange={(event) => updateCopy(copy.id, "condition", event.target.value)}><option>Tốt</option><option>Hư hỏng nhẹ</option><option>Hư hỏng nặng</option></select></td><td><select value={copy.circulation} onChange={(event) => updateCopy(copy.id, "circulation", event.target.value)}><option>Có sẵn</option><option>Đang mượn</option><option>Đang giữ</option><option>Không lưu thông</option></select></td><td><input type="date" value={copy.received} onChange={(event) => updateCopy(copy.id, "received", event.target.value)} /></td><td><IconButton label="Xóa bản" icon="close" disabled={copies.length === 1} onClick={() => setCopies((items) => items.filter((item) => item.id !== copy.id))} /></td></tr>)}</tbody></table></div>
-            {errors.copies && <p className="section-error copy-error"><Icon name="error" size={14} />{errors.copies}</p>}
-          </section>
-
-          <section className="record-form-section">
-            <header><span>04</span><div><h2>Tài liệu số</h2><p>Tải lên và thiết lập quyền truy cập tệp PDF.</p></div><Badge tone="info">{digitalFiles.length} TỆP</Badge></header>
-            <label className="digital-upload-zone"><input type="file" accept=".pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDigitalFiles((items) => [...items, { id: Date.now(), name: file.name, size: `${(file.size / 1024 / 1024).toFixed(1)} MB`, access: "Chỉ xem trực tuyến", status: "Đang xử lý", rawFile: file }]); }} /><span><Icon name="document" size={26} /></span><strong>Kéo thả tệp PDF hoặc chọn từ máy tính</strong><small>PDF · Tối đa 200 MB mỗi tệp</small><Button variant="secondary" size="sm" type="button">Chọn tệp</Button></label>
-            {digitalFiles.length > 0 && <div className="digital-file-editor">{digitalFiles.map((file) => <article key={file.id}><span className="file-icon">PDF</span><div><strong>{file.name}</strong><small>{file.size}</small></div><label><span>Mức truy cập</span><select value={file.access} onChange={(event) => setDigitalFiles((items) => items.map((item) => item.id === file.id ? { ...item, access: event.target.value } : item))}><option>Chỉ xem trực tuyến</option><option>Cho phép tải</option></select></label><Status tone={file.status === "Đã xử lý" ? "success" : "warning"}>{file.status}</Status><IconButton label="Xóa tệp" icon="close" onClick={() => setDigitalFiles((items) => items.filter((item) => item.id !== file.id))} /></article>)}</div>}
-          </section>
-
-          <section className="record-form-section">
-            <header><span>05</span><div><h2>Giới hạn mượn</h2><p>Thiết lập hạn chế lưu thông cho biểu ghi.</p></div></header>
-            <div className="borrowing-restriction">
-              <label className="restriction-toggle"><input type="checkbox" checked={restricted} onChange={(event) => { setRestricted(event.target.checked); if (!event.target.checked) setRestrictionReason(""); }} /><span><strong>Không cho phép mượn về</strong><small>Tài liệu chỉ được sử dụng tại phòng đọc hoặc khu vực được chỉ định.</small></span></label>
-              {restricted && <div className="restriction-reasons"><p>Lý do hạn chế *</p><div>{["Dấu đỏ", "Sách tra cứu", "Luận án", "Luận văn", "Báo", "Tạp chí"].map((reason) => <label key={reason} className={restrictionReason === reason ? "selected" : ""}><input type="radio" name="restriction" value={reason} checked={restrictionReason === reason} onChange={() => { setRestrictionReason(reason); setErrors((current) => ({ ...current, restriction: "" })); }} />{reason}</label>)}</div>{errors.restriction && <p className="section-error"><Icon name="error" size={14} />{errors.restriction}</p>}</div>}
-            </div>
-          </section>
-        </main>
-
-        <aside className="record-form-aside">
-          <div><p>TRẠNG THÁI BIỂU GHI</p><Status tone={edit ? "success" : "warning"}>{edit ? "Đã xuất bản" : "Chưa lưu"}</Status><dl><div><dt>Người tạo</dt><dd>Nguyễn Minh Anh</dd></div><div><dt>Ngày tạo</dt><dd>{edit ? "12/08/2024" : "22/06/2025"}</dd></div><div><dt>Mã biểu ghi</dt><dd>{editingUuid ? `BIB-${editingUuid.slice(0, 7).toUpperCase()}` : edit ? "BIB-0001842" : "Tạo sau khi lưu"}</dd></div></dl></div>
-          <div className="form-checklist"><p>KIỂM TRA NHANH</p><span className={form.title ? "complete" : ""}><Icon name={form.title ? "success" : "info"} size={14} />Thông tin cơ bản</span><span className={programs.length ? "complete" : ""}><Icon name={programs.length ? "success" : "info"} size={14} />Ngành đào tạo</span><span className={copies.every((copy) => copy.barcode) ? "complete" : ""}><Icon name={copies.every((copy) => copy.barcode) ? "success" : "info"} size={14} />Bản cá biệt</span><span className={digitalFiles.length ? "complete" : ""}><Icon name={digitalFiles.length ? "success" : "info"} size={14} />Tài liệu số</span></div>
-        </aside>
-      </div>
-
-      <div className="record-form-actions"><div>{savedMessage ? <Status tone="success">{savedMessage}</Status> : <span><Icon name="info" size={14} />Các trường có dấu * là bắt buộc</span>}</div><Button variant="ghost" onClick={() => { navigate("/staff/materials"); }}>Hủy</Button><Button variant="secondary" onClick={() => validate(true)}>Lưu nháp</Button><Button loading={saving} onClick={() => validate(false)}>Lưu tài liệu</Button></div>
-    </div>
-  );
+    </form>}
+  </div>;
 }

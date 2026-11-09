@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import {
   createContext,
   type ButtonHTMLAttributes,
@@ -193,18 +194,38 @@ function handleModalEscape(event: KeyboardEvent) {
 export function Modal({ open, onClose, title, children, className = "", eyebrow = "XÁC NHẬN THAO TÁC" }: { open: boolean; onClose: () => void; title: string; children: ReactNode; className?: string; eyebrow?: string }) {
   const id = useId();
   const titleId = `modal-title-${Array.from(id, (character) => character.codePointAt(0)!.toString(16)).join("-")}`;
+  const dialog = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
   useEffect(() => {
     if (!open) return;
+    const previous = document.activeElement;
+    dialog.current?.focus();
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || modalEscapeStack[modalEscapeStack.length - 1]?.id !== id || !dialog.current) return;
+      const controls = Array.from(dialog.current.querySelectorAll<HTMLElement>(
+        "button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex='0']",
+      )).filter((control) => control.getClientRects().length);
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      const focused = document.activeElement;
+      if (!controls.some((control) => control === focused) || focused === (event.shiftKey ? first : last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
+    document.addEventListener("keydown", trapFocus);
     const entry = { id, onClose: () => onCloseRef.current() };
     modalEscapeStack.push(entry);
     if (modalEscapeStack.length === 1) {
       document.addEventListener("keydown", handleModalEscape);
     }
     return () => {
+      document.removeEventListener("keydown", trapFocus);
+      if (modalEscapeStack[modalEscapeStack.length - 1]?.id === id && previous instanceof HTMLElement && previous.isConnected) previous.focus();
       const index = modalEscapeStack.indexOf(entry);
       if (index !== -1) modalEscapeStack.splice(index, 1);
       if (modalEscapeStack.length === 0) {
@@ -213,7 +234,7 @@ export function Modal({ open, onClose, title, children, className = "", eyebrow 
     };
   }, [open, id]);
   if (!open) return null;
-  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className={`modal ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}><div className="modal-header"><div><p className="eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label="Đóng" icon="close" onClick={onClose} /></div><div className="modal-body">{children}</div></section></div>;
+  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className={`modal ${className}`} ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}><div className="modal-header"><div><p className="eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label="Đóng" icon="close" onClick={onClose} /></div><div className="modal-body">{children}</div></section></div>;
 }
 
 export function Toast({ tone = "success", title, children, onClose }: { tone?: Tone; title: string; children: ReactNode; onClose?: () => void }) {
@@ -238,6 +259,14 @@ export function EmptyState({ error = false }: { error?: boolean }) {
   return <div className={`empty-state ${error ? "error-state" : ""}`}><span className="empty-icon"><Icon name={error ? "error" : "book"} size={28} /></span><strong>{error ? "Không thể tải dữ liệu" : "Chưa có tài liệu"}</strong><p>{error ? "Đã xảy ra lỗi kết nối. Vui lòng thử lại sau." : "Các tài liệu được thêm vào sẽ xuất hiện tại đây."}</p><Button variant={error ? "secondary" : "primary"} size="sm">{error ? "Thử lại" : "Thêm tài liệu"}</Button></div>;
 }
 
-export function Breadcrumb({ items }: { items: string[] }) {
-  return <nav className="breadcrumb" aria-label="Đường dẫn">{items.map((item, index) => <span key={item}>{index > 0 && <Icon name="chevron-right" size={14} />}<button className={index === items.length - 1 ? "current" : ""}>{item}</button></span>)}</nav>;
+export function Breadcrumb({ items }: { items: (string | { label: string; to: string })[] }) {
+  return <nav className="breadcrumb" aria-label="Đường dẫn">{items.map((item, index) => {
+    const current = index === items.length - 1;
+    const label = typeof item === "string" ? item : item.label;
+    return <span key={index}>
+      {index > 0 && <Icon name="chevron-right" size={14} />}
+      {typeof item !== "string" && !current ? <Link to={item.to}>{label}</Link>
+        : <span className={current ? "current" : undefined} aria-current={current ? "page" : undefined}>{label}</span>}
+    </span>;
+  })}</nav>;
 }

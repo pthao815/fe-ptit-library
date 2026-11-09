@@ -1,122 +1,107 @@
-import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Dropdown, Icon, IconButton, Modal, Pagination, SearchInput } from "../../../design-system";
-import BookCover from "../../../components/books/BookCover";
-import type { CatalogRecord } from "../../../data/catalog";
-import { catalogRecords } from "../../../data/catalog";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { Breadcrumb, Button, Modal } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
-import { getAccessToken } from "../../../services/session";
-import { mapDocumentSummaryToCatalogRecord } from "../../../utils/mappers";
+import { authSession } from "../../../shared/auth/auth-session";
+import type { DocumentSummaryDto, PageResponse } from "../../../types/api";
 
 export default function MaterialsManagementPage() {
-  const navigate = useNavigate();
-  const [records, setRecords] = useState<CatalogRecord[]>(catalogRecords);
-  const [totalElements, setTotalElements] = useState<number>(48632);
-  const [keyword, setKeyword] = useState("");
-  const [searchType, setSearchType] = useState("Nhan đề");
-  const [selected, setSelected] = useState<number[]>([]);
-  const [actionMenu, setActionMenu] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CatalogRecord | null>(null);
-  const allSelected = records.length > 0 && selected.length === records.length;
-  const toggleRow = (id: number) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
-
-  const loadCatalogRecords = (searchKeyword?: string) => {
-    catalogService
-      .searchDocuments({
-        keyword: searchKeyword?.trim() || undefined,
-        page: 0,
-        size: 20,
-      })
-      .then((pageData) => {
-        if (pageData.items?.length) {
-          setRecords(
-            pageData.items.map((dto, index) => mapDocumentSummaryToCatalogRecord(dto, index)),
-          );
-          setTotalElements(pageData.totalElements || pageData.items.length);
-        }
-      })
-      .catch(() => {
-        // Fallback to mock catalogRecords
-      });
+  const [params, setParams] = useSearchParams();
+  const { pathname, search } = useLocation();
+  const base = pathname.startsWith("/admin/") ? "/admin/materials" : "/staff/materials";
+  const { session, identityVersion } = useSyncExternalStore(authSession.subscribe, authSession.getSnapshot);
+  const query = params.get("q") ?? "";
+  const rawPage = Number(params.get("page"));
+  const page = Number.isSafeInteger(rawPage) && rawPage >= 0 && rawPage <= 2147483647 ? rawPage : 0;
+  const [keyword, setKeyword] = useState(query);
+  useEffect(() => setKeyword(query), [query]);
+  const changePage = (next: number, replace = false) => {
+    setParams({ q: query, page: String(next) }, { replace });
   };
+  const [revision, setRevision] = useState(0);
+  const [result, setResult] = useState<PageResponse<DocumentSummaryDto>>();
+  const [loadError, setLoadError] = useState("");
+  const [target, setTarget] = useState<DocumentSummaryDto>();
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const submitting = useRef(false);
 
   useEffect(() => {
-    loadCatalogRecords();
-  }, []);
+    let active = true;
+    setResult(undefined);
+    setLoadError("");
+    catalogService.searchDocuments({ keyword: query, page, size: 20 }).then((data) => {
+      if (!active) return;
+      if (page > 0 && page >= data.totalPages) changePage(Math.max(0, data.totalPages - 1), true);
+      else setResult(data);
+    }).catch((cause: unknown) => {
+      if (active) setLoadError(cause instanceof Error ? cause.message : "Không tải được danh mục.");
+    });
+    return () => { active = false; };
+  }, [query, page, revision]);
 
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
-    if (deleteTarget.documentId && getAccessToken()) {
-      try {
-        await catalogService.deleteDocument(deleteTarget.documentId);
-      } catch {
-        // Proceed with local removal on fallback
+  async function remove() {
+    if (submitting.current || !target || session?.role !== "ADMIN") return;
+    submitting.current = true;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await catalogService.deleteDocument(target.id);
+      if (authSession.getSnapshot().identityVersion !== identityVersion) return;
+      setTarget(undefined);
+      setResult(undefined);
+      setRevision((value) => value + 1);
+    } catch (cause) {
+      if (authSession.getSnapshot().identityVersion === identityVersion) {
+        setDeleteError(cause instanceof Error ? cause.message : "Không thể xác nhận xóa biểu ghi.");
       }
+    } finally {
+      submitting.current = false;
+      setDeleting(false);
     }
-    setRecords((prev) => prev.filter((item) => item.id !== deleteTarget.id));
-    setSelected((prev) => prev.filter((id) => id !== deleteTarget.id));
-    setDeleteTarget(null);
-  };
+  }
 
-  return (
-    <div className="materials-page">
-      <div className="materials-page-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Quản lý tài liệu"]} /><p className="eyebrow">QUẢN LÝ BIỂU GHI</p><h1>Quản lý tài liệu</h1><p>Biên mục, kiểm soát và cập nhật kho tài liệu thư viện.</p></div>
-        <div className="materials-top-actions"><Button variant="ghost" icon="document">Xuất dữ liệu</Button><Button variant="secondary" icon="plus">Nhập dữ liệu hàng loạt</Button><Button icon="plus" onClick={() => { navigate("/staff/materials/new"); }}>Thêm tài liệu</Button></div>
-      </div>
-
-      <section className="materials-search-panel">
-        <div className="catalog-search-types">{["Nhan đề", "Tác giả", "ISBN", "Mã biểu ghi"].map((type) => <button key={type} className={searchType === type ? "active" : ""} onClick={() => setSearchType(type)}>{type}</button>)}</div>
-        <div className="catalog-search-row">
-          <SearchInput
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder={`Tìm theo ${searchType.toLowerCase()}...`}
-          />
-          <Button icon="search" onClick={() => loadCatalogRecords(keyword)}>Tìm kiếm</Button>
+  return <div className="materials-page">
+    <Breadcrumb items={[{ label: "Tổng quan", to: "/" + base.split("/")[1] }, "Quản lý tài liệu"]} />
+    <div className="materials-page-heading"><h1>Quản lý tài liệu</h1><Link to={base + "/new" + search}>Thêm tài liệu</Link></div>
+    <form className="materials-search-panel" onSubmit={(event) => {
+      event.preventDefault();
+      setParams({ q: keyword.trim() });
+      setRevision((value) => value + 1);
+    }}>
+      <input aria-label="Từ khóa" placeholder="Nhan đề, tác giả hoặc ISBN" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+      <Button type="submit" icon="search">Tìm kiếm</Button>
+    </form>
+    {loadError ? <div role="alert">{loadError} <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></div>
+      : !result ? <p role="status">Đang tải danh mục…</p>
+      : !result.items.length ? <p>Không tìm thấy tài liệu.</p>
+      : <>
+        <div className="catalog-table-panel catalog-table-wrap"><table>
+          <thead><tr><th>Nhan đề</th><th>Tác giả</th><th>Loại</th><th>Bản giấy có sẵn</th><th>Thao tác</th></tr></thead>
+          <tbody>{result.items.map((document) => <tr key={document.id}>
+            <td>{document.title}</td><td>{document.authors?.join(", ") || "—"}</td><td>{document.docType || "—"}</td>
+            <td>{document.availablePhysicalCopies}/{document.totalPhysicalCopies}</td>
+            <td>
+              <Link to={"/reader/book-detail?id=" + encodeURIComponent(document.id)} state={{ returnTo: base + search }}>Xem</Link>{" "}
+              <Link to={base + "/edit/" + document.id + search}>Sửa biểu ghi và bản giấy</Link>{" "}
+              {session?.role === "ADMIN" && <Button size="sm" variant="danger" onClick={() => {
+                setTarget(document);
+                setDeleteError("");
+              }}>Xóa</Button>}
+            </td>
+          </tr>)}</tbody>
+        </table></div>
+        <div className="catalog-pagination">
+          <Button disabled={page === 0} onClick={() => changePage(page - 1)}>Trang trước</Button>
+          <span>Trang {page + 1}/{result.totalPages} · {result.totalElements} tài liệu</span>
+          <Button disabled={page + 1 >= result.totalPages} onClick={() => changePage(page + 1)}>Trang sau</Button>
         </div>
-        <div className="catalog-filter-grid">
-          <label><span>Dạng tài liệu</span><select defaultValue="all"><option value="all">Tất cả dạng tài liệu</option><option>Sách chuyên khảo</option><option>Giáo trình</option><option>Luận án, luận văn</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Ngành đào tạo</span><select defaultValue="all"><option value="all">Tất cả ngành</option><option>Công nghệ thông tin</option><option>Điện tử viễn thông</option><option>Quản trị kinh doanh</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Ngôn ngữ</span><select defaultValue="all"><option value="all">Tất cả ngôn ngữ</option><option>Tiếng Việt</option><option>Tiếng Anh</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Năm xuất bản</span><select defaultValue="all"><option value="all">Tất cả các năm</option><option>2025</option><option>2024</option><option>2023</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Trạng thái</span><select defaultValue="all"><option value="all">Tất cả trạng thái</option><option>Đã xuất bản</option><option>Bản nháp</option><option>Cần bổ sung</option></select><Icon name="chevron-down" size={14} /></label>
-          <label className="digital-filter"><input type="checkbox" /><span><strong>Có tài liệu số</strong><small>Chỉ hiện biểu ghi có tệp số</small></span></label>
-        </div>
-      </section>
-
-      <section className="catalog-table-panel">
-        <div className="catalog-table-toolbar">
-          <div><h2>Danh sách biểu ghi</h2><p>{totalElements.toLocaleString("vi-VN")} biểu ghi · Cập nhật 5 phút trước</p></div>
-          {selected.length > 0 ? <div className="bulk-actions"><strong>Đã chọn {selected.length}</strong><Button variant="ghost" size="sm">Đổi trạng thái</Button><Button variant="ghost" size="sm">Xuất dữ liệu</Button><Button variant="danger" size="sm" onClick={() => setSelected([])}>Xóa đã chọn</Button></div> : <Button variant="ghost" size="sm" icon="filter">Tùy chỉnh cột</Button>}
-        </div>
-        <div className="catalog-table-wrap">
-          <table className="catalog-table">
-            <thead><tr><th><input type="checkbox" aria-label="Chọn tất cả" checked={allSelected} onChange={() => setSelected(allSelected ? [] : records.map((item) => item.id))} /></th><th>Cover</th><th>Nhan đề</th><th>Tác giả</th><th>ISBN</th><th>Dạng tài liệu</th><th>Số bản</th><th>Tài liệu số</th><th>Trạng thái</th><th>Actions</th></tr></thead>
-            <tbody>{records.map((record) => (
-              <tr key={record.id} className={selected.includes(record.id) ? "selected-row" : ""}>
-                <td><input type="checkbox" aria-label={`Chọn ${record.title}`} checked={selected.includes(record.id)} onChange={() => toggleRow(record.id)} /></td>
-                <td><div className="catalog-cover"><BookCover book={record} /></div></td>
-                <td><div className="catalog-title-cell"><strong>{record.title}</strong><small>{record.recordCode} · {record.code}</small></div></td>
-                <td>{record.author}</td>
-                <td><code>{record.isbn}</code></td>
-                <td><Badge>{record.type}</Badge></td>
-                <td><button className="copy-count"><strong>{record.copies}</strong><small>Bản cá biệt</small></button></td>
-                <td>{record.digitalFiles > 0 ? <button className="digital-count"><Icon name="document" size={15} /><span><strong>{record.digitalFiles} tệp</strong><small>Đã xử lý</small></span></button> : <span className="no-digital">Chưa có</span>}</td>
-                <td><Badge tone={record.recordStatus === "Đã xuất bản" ? "success" : record.recordStatus === "Bản nháp" ? "warning" : "error"}>{record.recordStatus}</Badge></td>
-                <td><div className="catalog-row-actions"><Button variant="ghost" size="sm" onClick={() => navigate(record.documentId ? `/reader/book-detail?id=${encodeURIComponent(record.documentId)}` : "/reader/book-detail")}>Xem</Button><Button variant="ghost" size="sm" onClick={() => { navigate(`/staff/materials/edit/${record.documentId || record.id}`); }}>Sửa</Button><div className="catalog-more-wrap"><IconButton label="Thêm thao tác" icon="more" onClick={() => setActionMenu(actionMenu === record.id ? null : record.id)} /><Dropdown open={actionMenu === record.id}><button><Icon name="library" />Bản cá biệt</button><button><Icon name="document" />Tài liệu số</button><hr /><button className="danger" onClick={() => { setDeleteTarget(record); setActionMenu(null); }}><Icon name="error" />Xóa biểu ghi</button></Dropdown></div></div></td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-        <div className="catalog-pagination"><p>Hiển thị 1–{records.length} trong tổng số {totalElements.toLocaleString("vi-VN")} biểu ghi</p><Pagination /></div>
-      </section>
-
-      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Xóa biểu ghi thư mục">
-        <div className="catalog-delete-warning"><span><Icon name="error" size={24} /></span><div><strong>Bạn có chắc muốn xóa biểu ghi này?</strong><p>{deleteTarget?.title}</p></div></div>
-        <p className="delete-explanation">Biểu ghi chỉ có thể xóa khi không còn bản cá biệt đang lưu thông hoặc tài liệu số được liên kết. Thao tác này sẽ được ghi vào nhật ký hệ thống.</p>
-        <div className="modal-actions"><Button variant="ghost" onClick={() => setDeleteTarget(null)}>Hủy</Button><Button variant="danger" onClick={handleConfirmDelete}>Xóa biểu ghi</Button></div>
-      </Modal>
-    </div>
-  );
+      </>}
+    <Modal open={Boolean(target && session?.role === "ADMIN")} onClose={() => { if (!deleting) setTarget(undefined); }} title="Xóa biểu ghi">
+      <p>{target?.title}</p>
+      {deleteError && <p role="alert">{deleteError}</p>}
+      <Button variant="secondary" disabled={deleting} onClick={() => setTarget(undefined)}>Hủy</Button>{" "}
+      <Button variant="danger" disabled={deleting} onClick={() => void remove()}>{deleting ? "Đang xóa…" : "Xác nhận xóa"}</Button>
+    </Modal>
+  </div>;
 }

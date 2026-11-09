@@ -1,6 +1,7 @@
+import { authSession } from "../shared/auth/auth-session";
 import { API_TIMEOUT_MS, buildApiUrl } from "../config/env";
 import type { ApiResponse, TokenResponse } from "../types/api";
-import { getAccessToken, getRefreshToken, saveAuthSession } from "./session";
+import { clearAuthSession, getAccessToken, getRefreshToken, remembersSession, saveAuthSession } from "./session";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -39,35 +40,40 @@ function buildUrlWithParams(
   return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}${queryString}`;
 }
 
-let refreshPromise: Promise<string | null> | null = null;
+let refreshFlight: { refreshToken: string; promise: Promise<string | null> } | undefined;
 
-async function tryRefreshAccessToken(): Promise<string | null> {
+export async function tryRefreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
-  if (refreshPromise) return refreshPromise;
+  if (refreshFlight?.refreshToken === refreshToken) return refreshFlight.promise;
 
-  refreshPromise = (async () => {
+  const remember = remembersSession();
+  const originalAccessToken = getAccessToken();
+  const promise = (async () => {
     try {
       const url = buildUrlWithParams("/api/auth/refresh", { token: refreshToken });
       const response = await fetch(url, {
         method: "POST",
         headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
       });
       if (!response.ok) return null;
       const payload = (await response.json()) as ApiResponse<TokenResponse>;
       if (payload?.success && payload.data?.accessToken) {
-        saveAuthSession(payload.data, true);
+        if (getRefreshToken() !== refreshToken || getAccessToken() !== originalAccessToken) return null;
+        saveAuthSession(payload.data, remember);
         return payload.data.accessToken;
       }
       return null;
     } catch {
       return null;
-    } finally {
-      refreshPromise = null;
     }
   })();
-
-  return refreshPromise;
+  refreshFlight = { refreshToken, promise };
+  void promise.then(() => {
+    if (refreshFlight?.promise === promise) refreshFlight = undefined;
+  });
+  return promise;
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -85,6 +91,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   const token = !skipAuth ? getAccessToken() : null;
+  const { identityVersion } = authSession.getSnapshot();
+  const assertIdentity = () => {
+    if (token && identityVersion !== authSession.getSnapshot().identityVersion) {
+      throw new ApiError("Tài khoản đã thay đổi trong khi xử lý yêu cầu.", 401);
+    }
+  };
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
@@ -109,9 +121,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       signal: controller.signal,
     });
 
-    if (response.status === 401 && !skipAuth && !path.startsWith("/api/auth/")) {
+    assertIdentity();
+    if (response.status === 401 && token === getAccessToken() && !skipAuth && !path.startsWith("/api/auth/")) {
       const refreshedToken = await tryRefreshAccessToken();
-      if (refreshedToken) {
+      assertIdentity();
+      if (refreshedToken && (!rest.method || rest.method === "GET")) {
         headers.set("Authorization", `Bearer ${refreshedToken}`);
         response = await fetch(url, {
           ...rest,
@@ -122,15 +136,18 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       }
     }
 
+    assertIdentity();
+    if (response.status === 401 && token && token === getAccessToken() && !skipAuth) clearAuthSession("expired");
+
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       const json = (await response.json()) as ApiResponse<T>;
-      if (!response.ok || json.success === false) {
+      if (!response.ok || json?.success !== true) {
         throw new ApiError(
-          json.message || `Yêu cầu thất bại (${response.status})`,
+          json?.message || `Yêu cầu thất bại (${response.status})`,
           response.status,
-          json.code || response.status,
-          json.data,
+          json?.code || response.status,
+          json?.data,
         );
       }
       return json.data;
@@ -140,7 +157,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       throw new ApiError(`Lỗi kết nối máy chủ (${response.status})`, response.status);
     }
 
-    return (await response.text()) as unknown as T;
+    throw new ApiError("Backend không trả về JSON hợp lệ.", 0);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
