@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Icon, IconButton } from "../../../design-system";
+import { Badge, Breadcrumb, Button, Icon, IconButton, Toast } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import type { ContentSearchResult } from "../../../data/search-results";
 import { contentSearchResults } from "../../../data/search-results";
@@ -11,9 +11,20 @@ import { searchService } from "../../../services/search.service";
 import { getAccessToken } from "../../../services/session";
 import { mapContentSearchDtoToViewModel } from "../../../utils/mappers";
 
-function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSearchResult; saved: boolean; onSave: () => void }) {
+function ContentSearchResultCard({
+  result,
+  saved,
+  onSave,
+  onNotify,
+}: {
+  result: ContentSearchResult;
+  saved: boolean;
+  onSave: () => void;
+  onNotify: (msg: string) => void;
+}) {
   const navigate = useNavigate();
   const [holdPlaced, setHoldPlaced] = useState(false);
+  const [holding, setHolding] = useState(false);
   const pageMatch = result.location.match(/Trang\s+(\d+)/i);
   const documentPage = pageMatch ? Number(pageMatch[1]) : result.id === 301 ? 42 : result.id === 302 ? 18 : 76;
   const detailUrl = result.documentId
@@ -21,13 +32,27 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
     : "/reader/book-detail";
 
   const handlePlaceHold = () => {
-    if (result.documentId && getAccessToken()) {
+    if (!getAccessToken()) {
+      onNotify("Vui lòng đăng nhập để đặt trước tài liệu.");
+      return;
+    }
+    if (result.documentId) {
+      setHolding(true);
       circulationService
         .placeHold({ documentId: result.documentId })
-        .then(() => setHoldPlaced(true))
-        .catch(() => setHoldPlaced(true));
+        .then((res) => {
+          setHoldPlaced(true);
+          onNotify(`Đặt trước thành công! Vị trí hàng chờ: #${res.queuePosition}.`);
+        })
+        .catch((err) => {
+          setHoldPlaced(false);
+          onNotify(err instanceof Error ? err.message : "Không thể đặt trước tài liệu này.");
+        })
+        .finally(() => {
+          setHolding(false);
+        });
     } else {
-      setHoldPlaced(true);
+      onNotify("Tài liệu chưa có mã biểu ghi trên hệ thống.");
     }
   };
 
@@ -55,7 +80,18 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
         <div className="semantic-actions">
           <Button size="sm" onClick={() => { navigate(detailUrl); }}>Xem chi tiết</Button>
           <Button variant="secondary" size="sm" icon="document" onClick={() => { navigate(`/reader/document/${documentPage}`); }}>Đọc trực tuyến</Button>
-          {!result.available && <Button variant="ghost" size="sm" icon="bookmark" disabled={holdPlaced} onClick={handlePlaceHold}>{holdPlaced ? "Đã đặt trước" : "Đặt trước"}</Button>}
+          {!result.available && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="bookmark"
+              loading={holding}
+              disabled={holdPlaced || holding}
+              onClick={handlePlaceHold}
+            >
+              {holdPlaced ? "Đã đặt trước" : "Đặt trước"}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" icon="bookmark" onClick={onSave}>{saved ? "Đã lưu" : "Lưu"}</Button>
         </div>
       </div>
@@ -73,6 +109,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
   const [saved, setSaved] = useState<number[]>([302]);
   const [selectedFilters, setSelectedFilters] = useState<string[]>(["Công nghệ thông tin", "Tiếng Việt"]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const runContentSearch = (searchQuery: string) => {
     if (empty || !searchQuery.trim()) return;
@@ -80,7 +117,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
       .searchContent({
         query: searchQuery.trim(),
         limit: 10,
-        searchType: "HYBRID",
+        searchMode: "hybrid",
       })
       .then((items) => {
         if (items) {
@@ -101,15 +138,32 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
 
   const toggleFilter = (value: string) => setSelectedFilters((items) => items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
   const toggleSave = (result: ContentSearchResult) => {
+    const isSaved = saved.includes(result.id);
     setSaved((items) =>
-      items.includes(result.id)
+      isSaved
         ? items.filter((item) => item !== result.id)
         : [...items, result.id],
     );
     if (result.documentId && getAccessToken()) {
-      catalogService.toggleFavorite(result.documentId).catch(() => {
-        // Ignore error on optimistic favorite toggle
-      });
+      catalogService
+        .toggleFavorite(result.documentId)
+        .then((res) => {
+          if (res.isFavorite !== !isSaved) {
+            setSaved((items) =>
+              res.isFavorite ? [...new Set([...items, result.id])] : items.filter((item) => item !== result.id),
+            );
+          }
+          setToastMsg(res.isFavorite ? "Đã lưu vào tủ sách." : "Đã bỏ lưu tài liệu.");
+        })
+        .catch((err) => {
+          // Rollback on error
+          setSaved((items) =>
+            isSaved ? [...items, result.id] : items.filter((item) => item !== result.id),
+          );
+          setToastMsg(err instanceof Error ? err.message : "Lỗi khi cập nhật yêu thích.");
+        });
+    } else if (!getAccessToken()) {
+      setToastMsg("Vui lòng đăng nhập để lưu tài liệu vào tủ sách.");
     }
   };
 
@@ -148,11 +202,28 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
         <section className="semantic-results-main">
           <div className="semantic-toolbar"><div>{selectedFilters.slice(0, 3).map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div><label><span>Sắp xếp:</span><select defaultValue="relevance"><option value="relevance">Mức độ liên quan</option><option value="popular">Mức độ phổ biến</option><option value="newest">Năm xuất bản mới nhất</option></select><Icon name="chevron-down" size={15} /></label></div>
           {isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Thử thay đổi truy vấn hoặc sử dụng một mô tả rộng hơn.</p><Button variant="secondary" onClick={() => { setSelectedFilters([]); setHasFetchedEmpty(false); }}>Xóa bộ lọc</Button></div> : <>
-            <div className="semantic-results-list">{results.map((result) => <ContentSearchResultCard key={result.id} result={result} saved={saved.includes(result.id)} onSave={() => toggleSave(result)} />)}</div>
+            <div className="semantic-results-list">
+              {results.map((result) => (
+                <ContentSearchResultCard
+                  key={result.id}
+                  result={result}
+                  saved={saved.includes(result.id)}
+                  onSave={() => toggleSave(result)}
+                  onNotify={(msg) => setToastMsg(msg)}
+                />
+              ))}
+            </div>
             <div className="results-load-more"><p>Đang hiển thị {results.length} kết quả phù hợp nhất</p><Button variant="secondary" onClick={() => runContentSearch(query)}>Xem thêm kết quả</Button></div>
           </>}
         </section>
       </main>
+      {toastMsg && (
+        <div className="toast-position">
+          <Toast tone="info" title="Tìm kiếm nội dung" onClose={() => setToastMsg(null)}>
+            {toastMsg}
+          </Toast>
+        </div>
+      )}
     </div>
   );
 }

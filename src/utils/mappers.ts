@@ -26,6 +26,7 @@ export function formatDocTypeLabel(docType?: string): string {
   if (upper === "TEXTBOOK" || upper === "GIAO_TRINH") return "Giáo trình";
   if (upper === "BOOK" || upper === "MONOGRAPH") return "Sách chuyên khảo";
   if (upper === "REFERENCE") return "Sách tham khảo";
+  if (upper === "SLIDE" || upper === "LECTURE") return "Bài giảng";
   if (upper === "THESIS" || upper === "DISSERTATION") return "Luận án tiến sĩ";
   if (upper === "DIGITAL") return "Tài liệu số";
   return docType;
