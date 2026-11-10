@@ -4,9 +4,15 @@ import { Badge, Breadcrumb, Button, Icon, Rating, Status, Toast } from "../../..
 import LibraryListCard from "../../../components/books/LibraryListCard";
 import { libraryTabs } from "../../../constants/library-options";
 import { loanBooks, reservedBooks, shelfGroups, loanHistory } from "../../../data/my-library";
-import { circulationService } from "../../../services/circulation.service";
+import { getTrackedFavorites, removeTrackedFavoriteById } from "../../../services/catalog.service";
+import {
+  circulationService,
+  getTrackedHolds,
+  removeTrackedHold,
+} from "../../../services/circulation.service";
 import { getAccessToken } from "../../../services/session";
 import type { UserFinesSummaryDto } from "../../../types/api";
+import type { Book } from "../../../types/library";
 import {
   formatDateVi,
   mapCirculationItemToHistoryBook,
@@ -65,14 +71,28 @@ function LoanCard({
 }
 
 function PersonalShelf({ group }: { group: string }) {
-  const books = shelfGroups[group] || [];
-  const [saved, setSaved] = useState<number[]>(books.map((book) => book.id));
+  const trackedFavorites = getTrackedFavorites();
+  const initialBooks: Book[] =
+    group === "Muốn đọc" && trackedFavorites.length > 0
+      ? trackedFavorites
+      : shelfGroups[group] || [];
+  const [shelfBooks, setShelfBooks] = useState<Book[]>(initialBooks);
+  const [saved, setSaved] = useState<number[]>(initialBooks.map((book) => book.id));
   const status = group === "Muốn đọc" ? "Đã lưu" : group === "Đang đọc" ? "Đang đọc dở" : "Đã hoàn thành";
   const statusHint = group === "Muốn đọc" ? "Trong danh sách cá nhân" : group === "Đang đọc" ? "Tiếp tục từ lần gần nhất" : "Đã đọc toàn bộ";
+
+  const handleRemove = (book: Book) => {
+    setSaved((items) => items.filter((item) => item !== book.id));
+    setShelfBooks((items) => items.filter((item) => item.id !== book.id));
+    if (group === "Muốn đọc" && book.documentId) {
+      removeTrackedFavoriteById(book.documentId);
+    }
+  };
+
   return (
     <div className="personal-shelf">
-      <div className="shelf-toolbar"><p><strong>{books.length} tài liệu</strong> trong danh sách “{group}”</p><Button variant="secondary" size="sm" icon="plus">Thêm tài liệu</Button></div>
-      <div className="loan-list">{books.map((book, index) => (
+      <div className="shelf-toolbar"><p><strong>{shelfBooks.length} tài liệu</strong> trong danh sách “{group}”</p><Button variant="secondary" size="sm" icon="plus">Thêm tài liệu</Button></div>
+      <div className="loan-list">{shelfBooks.map((book, index) => (
         <LibraryListCard
           key={book.id}
           book={book}
@@ -86,7 +106,7 @@ function PersonalShelf({ group }: { group: string }) {
             { label: "Định dạng", value: book.type === "Tài liệu số" ? "Tài liệu số" : "Bản in" },
             { label: group === "Đang đọc" ? "Tiến độ đọc" : "Đánh giá", value: group === "Đang đọc" ? `${42 + index * 23}% hoàn thành` : <Rating value={book.rating} /> },
           ]}
-          actions={<><Button size="sm">{group === "Đang đọc" ? "Tiếp tục đọc" : group === "Đã đọc" ? "Đọc lại" : "Xem chi tiết"}</Button><Button variant="ghost" size="sm" icon="bookmark" onClick={() => setSaved((items) => items.filter((item) => item !== book.id))}>{saved.includes(book.id) ? "Bỏ khỏi danh sách" : "Đã xóa"}</Button></>}
+          actions={<><Button size="sm">{group === "Đang đọc" ? "Tiếp tục đọc" : group === "Đã đọc" ? "Đọc lại" : "Xem chi tiết"}</Button><Button variant="ghost" size="sm" icon="bookmark" onClick={() => handleRemove(book)}>{saved.includes(book.id) ? "Bỏ khỏi danh sách" : "Đã xóa"}</Button></>}
         />
       ))}</div>
     </div>
@@ -142,6 +162,28 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         // Keep mock fine display
       });
 
+    const trackedHolds = getTrackedHolds();
+    if (trackedHolds.length > 0) {
+      setReservations(
+        trackedHolds.map((h) => ({
+          id: h.holdId,
+          title: h.documentTitle || `Tài liệu đặt trước #${h.holdId}`,
+          author: `Hàng chờ vị trí #${h.queuePosition}`,
+          cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400",
+          type: "Bản in",
+          year: "2024",
+          rating: 5,
+          available: false,
+          code: `HOLD-${h.holdId}`,
+          documentId: h.documentId,
+          status: h.status === "ACTIVE" ? "Đang chờ" : h.status,
+          position: `#${h.queuePosition}`,
+          reserved: h.requestDate ? formatDateVi(h.requestDate) : "Gần đây",
+          expiration: "Theo thông báo quầy",
+        })),
+      );
+    }
+
     return () => {
       active = false;
     };
@@ -188,14 +230,16 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
     if (getAccessToken()) {
       try {
         await circulationService.cancelHold(holdId, "Bạn đọc tự hủy trên cổng trực tuyến");
-      } catch {
-        setToastMsg("Không thể hủy yêu cầu đặt trước.");
+        removeTrackedHold(holdId);
+        setReservations((items) => items.filter((item) => item.id !== holdId));
+        setToastMsg("Đã hủy yêu cầu đặt trước tài liệu thành công.");
+        return;
+      } catch (err) {
+        setToastMsg(err instanceof Error ? err.message : "Không thể hủy yêu cầu đặt trước.");
         return;
       }
     }
-    if (!getAccessToken()) return;
-    setReservations((items) => items.filter((item) => item.id !== holdId));
-    setToastMsg("Đã hủy yêu cầu đặt trước tài liệu.");
+    setToastMsg("Vui lòng đăng nhập để thao tác.");
   };
 
   const unpaidDebt = finesSummary ? finesSummary.totalUnpaidAmount : 0;
@@ -213,7 +257,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         <section className="library-summary-grid" aria-label="Tổng quan tài khoản thư viện">
           <article><span className="summary-icon summary-brand"><Icon name="book" /></span><div><small>Đang mượn</small><strong>{String(loans.length).padStart(2, "0")}</strong><p>{loans.length} tài liệu đang lưu thông</p></div></article>
           <article><span className="summary-icon summary-warning"><Icon name="info" /></span><div><small>Sắp đến hạn</small><strong>{String(loans.filter((l) => l.days <= 7).length).padStart(2, "0")}</strong><p>{overdueCount} tài liệu đã quá hạn</p></div></article>
-          <article><span className="summary-icon summary-info"><Icon name="bookmark" /></span><div><small>Đặt trước</small><strong>{"—"}</strong><p>Chưa có nguồn danh sách đặt trước</p></div></article>
+          <article><span className="summary-icon summary-info"><Icon name="bookmark" /></span><div><small>Đặt trước</small><strong>{String(reservations.length).padStart(2, "0")}</strong><p>{reservations.length > 0 ? `${reservations.length} tài liệu trong hàng chờ` : "Chưa có lượt đặt trước"}</p></div></article>
           <article><span className="summary-icon summary-error"><Icon name="error" /></span><div><small>Công nợ</small><strong>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</strong><p>{!finesSummary ? "Chưa tải được công nợ" : unpaidDebt > 0 ? "Cần hoàn tất thanh toán" : "Không có công nợ"}</p></div></article>
         </section>
 
@@ -223,15 +267,38 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
 
         {activeTab !== "Đặt trước" && historyStatus === "loading" && <p role="status">Đang tải lượt mượn…</p>}
         {activeTab !== "Đặt trước" && historyStatus === "error" && <p role="alert">Không tải được lượt mượn. <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></p>}
-        {historyStatus === "ready" && (activeTab === "Đang mượn" && !loans.length || activeTab === "Lịch sử mượn" && !historyItems.length) && <p>Chưa có lượt mượn.</p>}
-        {activeTab === "Đặt trước" && <p>Danh sách đặt trước chưa được kết nối.</p>}
+        {historyStatus === "ready" && ((activeTab === "Đang mượn" && !loans.length) || (activeTab === "Lịch sử mượn" && !historyItems.length)) && <p>Chưa có lượt mượn.</p>}
+        {activeTab === "Đặt trước" && !reservations.length && <p>Bạn chưa có yêu cầu đặt trước nào.</p>}
         {activeTab === "Đang mượn" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Tài liệu đang mượn</h2><p>Kiểm tra thời hạn và gia hạn các tài liệu đủ điều kiện.</p></div><Badge tone="warning">{String(overdueCount).padStart(2, "0")} TÀI LIỆU QUÁ HẠN</Badge></div>
             <div className="loan-list">{loans.map((loan) => <LoanCard key={loan.id} loan={loan} onRenew={handleRenewLoan} />)}</div>
             <section className="debt-section">
               <div className="debt-heading"><span><Icon name="error" /></span><div><h2>Công nợ thư viện</h2><p>Các khoản phí chưa hoàn tất trong tài khoản của bạn.</p></div><strong>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</strong></div>
-              <div className="debt-row"><div><Badge tone="error">CHƯA THANH TOÁN</Badge><strong>{finesSummary?.fines?.[0]?.reason || "Phí quá hạn tài liệu"}</strong><small>{finesSummary?.fines?.[0]?.documentTitle ? `Phát sinh từ “${finesSummary.fines[0].documentTitle}”` : "Phát sinh từ “Mạng máy tính và hệ thống phân tán” · 3 ngày quá hạn"}</small></div><div><span>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</span><Button variant="secondary" size="sm">Xem hướng dẫn thanh toán</Button></div></div>
+              {finesSummary?.fines?.length ? (
+                finesSummary.fines.map((fine) => (
+                  <div key={fine.fineId} className="debt-row">
+                    <div>
+                      <Badge tone={fine.status === "PAID" ? "success" : "error"}>
+                        {fine.status === "PAID" ? "ĐÃ THANH TOÁN" : "CHƯA THANH TOÁN"}
+                      </Badge>
+                      <strong>{fine.reason || "Phí phạt thư viện"}</strong>
+                      <small>
+                        {fine.documentTitle ? `Phát sinh từ “${fine.documentTitle}”` : "Khoản phạt phát sinh"}
+                        {fine.barcode ? ` · Mã vạch: ${fine.barcode}` : ""}
+                        {fine.createdAt ? ` · ${formatDateVi(fine.createdAt)}` : ""}
+                      </small>
+                    </div>
+                    <div>
+                      <span>{`${fine.fineAmount.toLocaleString("vi-VN")}đ`}</span>
+                    </div>
+                  </div>
+                ))
+              ) : unpaidDebt > 0 ? (
+                <div className="debt-row"><div><Badge tone="error">CHƯA THANH TOÁN</Badge><strong>Phí phạt lưu thông</strong><small>Khoản nợ ghi nhận từ hệ thống</small></div><div><span>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</span></div></div>
+              ) : (
+                <p className="debt-clear">Bạn không có khoản phạt nào chưa thanh toán.</p>
+              )}
               <p className="debt-note"><Icon name="info" size={14} />Vui lòng thanh toán tại quầy lưu thông. Một số chức năng mượn và gia hạn có thể bị giới hạn khi còn công nợ.</p>
             </section>
           </div>

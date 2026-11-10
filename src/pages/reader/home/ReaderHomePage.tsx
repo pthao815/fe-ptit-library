@@ -6,7 +6,7 @@ import HomeSection from "../../../components/common/HomeSection";
 import BookCard from "../../../components/books/BookCard";
 import BookCover from "../../../components/books/BookCover";
 import { fieldBooks, recommendationBooks, newBooks } from "../../../data/books";
-import { catalogService } from "../../../services/catalog.service";
+import { catalogService, getTrackedFavorites, syncFavoriteBook } from "../../../services/catalog.service";
 import { searchService } from "../../../services/search.service";
 import { getAccessToken } from "../../../services/session";
 import type { Book } from "../../../types/library";
@@ -16,7 +16,10 @@ export default function ReaderHome() {
   const navigate = useNavigate();
   const [searchMode, setSearchMode] = useState<"keyword" | "content">("keyword");
   const [searchInput, setSearchInput] = useState("");
-  const [saved, setSaved] = useState<number[]>([2]);
+  const [saved, setSaved] = useState<number[]>(() => {
+    const tracked = getTrackedFavorites();
+    return tracked.length > 0 ? tracked.map((b) => b.id) : [2];
+  });
   const [hiddenRecommendations, setHiddenRecommendations] = useState<number[]>([]);
   const [majorBooks, setMajorBooks] = useState<Book[]>(fieldBooks);
   const [latestBooks, setLatestBooks] = useState<Book[]>(newBooks);
@@ -60,13 +63,33 @@ export default function ReaderHome() {
   }, []);
 
   const toggleSave = (book: Book) => {
-    setSaved((items) =>
-      items.includes(book.id) ? items.filter((item) => item !== book.id) : [...items, book.id],
-    );
+    const wasSaved = saved.includes(book.id);
+    const nextSaved = wasSaved ? saved.filter((item) => item !== book.id) : [...saved, book.id];
+    setSaved(nextSaved);
+
     if (book.documentId && getAccessToken()) {
-      catalogService.toggleFavorite(book.documentId).catch(() => {
-        // Ignore error on optimistic toggle
-      });
+      catalogService
+        .toggleFavorite(book.documentId)
+        .then((res) => {
+          syncFavoriteBook(book, res.isFavorite);
+          if (res.isFavorite !== !wasSaved) {
+            setSaved((items) =>
+              res.isFavorite
+                ? (items.includes(book.id) ? items : [...items, book.id])
+                : items.filter((item) => item !== book.id),
+            );
+          }
+        })
+        .catch(() => {
+          // Revert optimistic state when API call fails
+          setSaved((items) =>
+            wasSaved
+              ? (items.includes(book.id) ? items : [...items, book.id])
+              : items.filter((item) => item !== book.id),
+          );
+        });
+    } else {
+      syncFavoriteBook(book, !wasSaved);
     }
   };
 

@@ -4,7 +4,7 @@ import { circulationTabs } from "../../../constants/library-options";
 import { circulationService } from "../../../services/circulation.service";
 import { getAccessToken } from "../../../services/session";
 import { userService } from "../../../services/user.service";
-import type { BookReturnCondition, UserDto } from "../../../types/api";
+import type { BookReturnCondition, FineItemDto, UserDto } from "../../../types/api";
 
 function ReaderInformationCard({ reader }: { reader: UserDto | null }) {
   const fullName = reader?.fullName || "Trần Minh Quân";
@@ -154,12 +154,22 @@ function ReturnTransaction({
   condition,
   onConditionChange,
   onConfirm,
+  payImmediately,
+  onPayImmediatelyChange,
+  recentFines,
+  onPayFine,
+  payingFineId,
 }: {
   barcode: string;
   onBarcodeChange: (val: string) => void;
   condition: string;
   onConditionChange: (val: string) => void;
   onConfirm: () => void;
+  payImmediately: boolean;
+  onPayImmediatelyChange: (val: boolean) => void;
+  recentFines: FineItemDto[];
+  onPayFine: (fineId: number) => void;
+  payingFineId: number | null;
 }) {
   return (
     <div className="return-transaction">
@@ -185,7 +195,35 @@ function ReturnTransaction({
           <SelectField label="Hư hỏng / mất" defaultValue="none"><option value="none">Không phát sinh</option><option value="damage">Lập biên bản hư hỏng</option><option value="lost">Lập biên bản mất tài liệu</option></SelectField>
         </div>
         <div className="return-debt-summary"><div><Icon name="error" /><span><strong>Công nợ phát sinh</strong><small>Phí trả muộn: 2.000đ/cuốn/ngày · Phí tồn trước đó: 14.000đ</small></span></div><strong>20.000đ</strong></div>
-        <label className="staff-checkbox"><input type="checkbox" /><span>Bạn đọc thanh toán công nợ ngay tại quầy</span></label>
+        <label className="staff-checkbox"><input type="checkbox" checked={payImmediately} onChange={(event) => onPayImmediatelyChange(event.target.checked)} /><span>Bạn đọc thanh toán công nợ ngay tại quầy</span></label>
+        {recentFines.length > 0 && (
+          <div className="debt-section">
+            <p><strong>Các khoản phạt vừa phát sinh:</strong></p>
+            {recentFines.map((fine) => (
+              <div key={fine.fineId} className="debt-row">
+                <div>
+                  <Badge tone={fine.status === "PAID" ? "success" : "error"}>
+                    {fine.status === "PAID" ? "ĐÃ THU" : "CHƯA THU"}
+                  </Badge>
+                  <strong>{fine.reason}</strong>
+                  <small>{fine.barcode ? `Mã vạch: ${fine.barcode}` : ""}</small>
+                </div>
+                <div>
+                  <span>{`${fine.fineAmount.toLocaleString("vi-VN")}đ`}</span>
+                  {fine.status !== "PAID" && (
+                    <Button
+                      size="sm"
+                      loading={payingFineId === fine.fineId}
+                      onClick={() => onPayFine(fine.fineId)}
+                    >
+                      Thu tiền ngay
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="return-actions"><Button variant="ghost">Hủy giao dịch</Button><Button icon="success" onClick={onConfirm}>Nhận trả</Button></div>
       </section>
     </div>
@@ -219,10 +257,29 @@ export default function CirculationScreen() {
   const [renewBarcode, setRenewBarcode] = useState("");
   const [processing, setProcessing] = useState(false);
   const [returnCondition, setReturnCondition] = useState("good");
+  const [payImmediately, setPayImmediately] = useState(true);
+  const [recentFines, setRecentFines] = useState<FineItemDto[]>([]);
+  const [payingFineId, setPayingFineId] = useState<number | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const actionLabel = confirmation === "loan" ? "Xác nhận cho mượn" : confirmation === "return" ? "Xác nhận nhận trả" : "Xác nhận gia hạn";
+
+  const handlePayFine = async (fineId: number) => {
+    if (payingFineId !== null) return;
+    setPayingFineId(fineId);
+    try {
+      const res = await circulationService.payFine(fineId, "Thu tiền trực tiếp tại quầy lưu thông");
+      setToastMsg(`Đã thu ${res.fineAmount.toLocaleString("vi-VN")}đ. Trạng thái: ${res.status}.`);
+      setRecentFines((prev) =>
+        prev.map((f) => (f.fineId === fineId ? { ...f, status: "PAID" as const } : f)),
+      );
+    } catch (err) {
+      setToastMsg(err instanceof Error ? err.message : "Không thể ghi nhận thanh toán khoản phạt.");
+    } finally {
+      setPayingFineId(null);
+    }
+  };
 
   const handleFindReader = () => {
     if (!readerQuery.trim() || !getAccessToken()) return;
@@ -285,7 +342,25 @@ export default function CirculationScreen() {
         const condition: BookReturnCondition = returnCondition === "lost" ? "LOST"
           : returnCondition === "light" || returnCondition === "heavy" ? "DAMAGED" : "NORMAL";
         const result = await circulationService.returnBook({ barcode: returnBarcode.trim(), condition });
-        setToastMsg("Đã nhận trả " + result.documentTitle + ". Phí phát sinh: " + result.totalFineAmount.toLocaleString("vi-VN") + "đ.");
+        let msg = `Đã nhận trả ${result.documentTitle}. Phí phát sinh: ${result.totalFineAmount.toLocaleString("vi-VN")}đ.`;
+        const generatedFines = result.generatedFines ?? [];
+        if (generatedFines.length) {
+          setRecentFines((prev) => [...generatedFines, ...prev]);
+          if (payImmediately) {
+            for (const fine of generatedFines) {
+              try {
+                await circulationService.payFine(fine.fineId, "Thu tiền ngay khi nhận trả sách tại quầy");
+                setRecentFines((prev) =>
+                  prev.map((f) => (f.fineId === fine.fineId ? { ...f, status: "PAID" as const } : f)),
+                );
+              } catch {
+                // Keep fine unpaid if error occurs
+              }
+            }
+            msg += " Đã tự động thu tiền công nợ tại quầy.";
+          }
+        }
+        setToastMsg(msg);
         setReturnBarcode("");
       } else if (mode === "renew") {
         const result = await circulationService.renewLoan({ barcode: renewBarcode.trim() });
@@ -336,6 +411,11 @@ export default function CirculationScreen() {
             condition={returnCondition}
             onConditionChange={setReturnCondition}
             onConfirm={() => setConfirmation("return")}
+            payImmediately={payImmediately}
+            onPayImmediatelyChange={setPayImmediately}
+            recentFines={recentFines}
+            onPayFine={handlePayFine}
+            payingFineId={payingFineId}
           />
         )}
         {activeTab === "Gia hạn" && <section className="circulation-search-area">

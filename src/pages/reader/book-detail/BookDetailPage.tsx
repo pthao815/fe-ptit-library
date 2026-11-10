@@ -2,8 +2,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Avatar, Badge, Breadcrumb, Button, Icon, Rating, Status, Toast } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
-import { catalogService } from "../../../services/catalog.service";
-import { circulationService } from "../../../services/circulation.service";
+import { catalogService, syncFavoriteBook } from "../../../services/catalog.service";
+import { circulationService, getTrackedHoldByDocumentId } from "../../../services/circulation.service";
 import { authSession } from "../../../shared/auth/auth-session";
 import { getAccessToken } from "../../../services/session";
 import type { DocumentDetailDto, PhysicalCopyDto, ReviewDto } from "../../../types/api";
@@ -76,6 +76,12 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     catalogService.getDocumentReviews(requestedDocId, { page: 0, size: REVIEW_SAMPLE }).then((data) => {
       if (active) { setReviews(data.items); setReviewCount(data.totalElements); }
     }).catch(() => { if (active) setReviewError("Không tải được đánh giá."); });
+    if (requestedDocId) {
+      const trackedHold = getTrackedHoldByDocumentId(requestedDocId);
+      if (trackedHold) {
+        setHoldStatus(`Vị trí hàng chờ #${trackedHold.queuePosition}`);
+      }
+    }
     if (getAccessToken()) {
       catalogService.checkFavoriteStatus(requestedDocId).then((data) => {
         if (active) setSaved(data.isFavorite);
@@ -122,7 +128,8 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     try {
       const response = await catalogService.toggleFavorite(activeDocId);
       setSaved(response.isFavorite);
-      setToastMessage(response.isFavorite ? "Đã lưu tài liệu." : "Đã bỏ lưu tài liệu.");
+      syncFavoriteBook(currentBook, response.isFavorite);
+      setToastMessage(response.isFavorite ? "Đã lưu tài liệu vào tủ sách." : "Đã bỏ lưu tài liệu khỏi tủ sách.");
     } catch (error) {
       setToastMessage(error instanceof Error ? error.message : "Không lưu được tài liệu.");
     }
@@ -132,6 +139,7 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     try {
       const response = await circulationService.placeHold({ documentId: activeDocId });
       setHoldStatus("Vị trí hàng chờ #" + response.queuePosition);
+      setToastMessage("Đặt trước tài liệu thành công. Vị trí hàng chờ #" + response.queuePosition);
     } catch (error) {
       setToastMessage(error instanceof Error ? error.message : "Không đặt trước được tài liệu.");
     }
@@ -202,7 +210,6 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
             </div>
           </div>
         </section>
-
         <div className="detail-content-layout">
           <article className="detail-main-column">
             <section className="detail-section" id="detail-summary">
@@ -278,19 +285,22 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
               ) : !reviews.length ? (
                 <div className="summary-content"><p>Tài liệu này chưa có đánh giá nào.</p></div>
               ) : <div className="review-list">
-                {reviews.slice(0, 10).map((review) => (
-                  <article key={review.id}>
-                    <Avatar name="Bạn đọc PTIT" />
-                    <div>
-                      <div className="review-meta">
-                        <strong>Bạn đọc PTIT</strong>
-                        <Rating value={review.rating} />
-                        <span>{formatDateVi(review.createdAt)}</span>
+                {reviews.slice(0, 10).map((review) => {
+                  const reviewerName = review.userFullName || review.user?.fullName || review.user?.userCode || "Bạn đọc PTIT";
+                  return (
+                    <article key={review.id}>
+                      <Avatar name={reviewerName} />
+                      <div>
+                        <div className="review-meta">
+                          <strong>{reviewerName}</strong>
+                          <Rating value={review.rating} />
+                          <span>{formatDateVi(review.createdAt)}</span>
+                        </div>
+                        <p>{review.comment || "Không có nhận xét."}</p>
                       </div>
-                      <p>{review.comment || "Không có nhận xét."}</p>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>}
             </section>
           </article>
