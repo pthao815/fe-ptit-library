@@ -23,3 +23,13 @@ test("login only restores known authorized internal destinations", () => {
     assert.equal(safeReturnPath(value, "READER"), undefined, value);
   }
 });
+
+test("document reader opens a digital copy for any signed-in role", () => {
+  const reader = "/reader/document/0df91979-345f-45b6-9c08-9059edb400e0";
+  assert.equal(routeAccess(reader), "login");
+  assert.equal(routeAccess(reader, "READER"), "allowed");
+  assert.equal(routeAccess(reader, "LIBRARIAN"), "allowed");
+  assert.equal(routeAccess(reader, "ADMIN"), "allowed");
+  assert.equal(routeAccess("/reader/document/42", "READER"), "missing");
+  assert.equal(safeReturnPath(`${reader}?page=2&q=chung+khoan`, "READER"), `${reader}?page=2&q=chung+khoan`);
+});

@@ -1,6 +1,5 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
-import DocumentReader from "./pages/reader/document/DocumentPage";
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPortal from "./layouts/DashboardPortal";
 import ReaderPortal from "./layouts/ReaderPortal";
@@ -8,10 +7,21 @@ import { authSession } from "./shared/auth/auth-session";
 import { getPortalHomePath, isSessionExpired, mapBackendRoleToPortalRole } from "./services/session";
 import { routeAccess, safeReturnPath } from "./utils/portal-routes";
 
+// PDF.js nặng (~400 kB): chỉ tải khi mở trình đọc
+const DocumentReader = lazy(() => import("./pages/reader/document/DocumentPage"));
+
+const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// /reader/document/<documentId>?page=<trang>&q=<truy vấn để tô sáng>
 function DocumentRoute() {
   const { "*": documentPath } = useParams();
-  const requestedPage = Number(documentPath?.split("/")[0]) || 42;
-  return <DocumentReader key={requestedPage} initialPage={requestedPage} />;
+  const documentId = documentPath?.split("/")[0] ?? "";
+  if (!DOCUMENT_ID.test(documentId)) return <Navigate replace to="/reader/search" />;
+  return (
+    <Suspense fallback={<div className="document-reader" aria-busy="true" />}>
+      <DocumentReader key={documentId} documentId={documentId} />
+    </Suspense>
+  );
 }
 
 export default function App({ restoration }: { restoration?: Promise<unknown> }) {

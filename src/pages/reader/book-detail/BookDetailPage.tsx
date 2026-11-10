@@ -137,9 +137,7 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     }
   };
   const handleOpenDigital = () => {
-    if (detail.digitalCopyId) {
-      window.open(catalogService.getDigitalDownloadUrl(detail.digitalCopyId), "_blank", "noopener");
-    }
+    if (detail.digitalCopyId) navigate(`/reader/document/${encodeURIComponent(activeDocId)}`);
   };
   const writeReview = () => navigate("/reader/book-detail/review?id=" + encodeURIComponent(activeDocId), { state: { returnTo: resultsPath } });
   const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });

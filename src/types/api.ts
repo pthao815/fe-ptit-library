@@ -395,10 +395,13 @@ export interface HoldCancelResponseDto {
 }
 
 // --- Module 4 & 5: Search & Recommendations ---
+export type SearchMode = "tfidf" | "vector" | "hybrid";
+
 export interface ContentSearchRequest {
   query: string;
   limit?: number;
-  searchType?: "VECTOR" | "BM25" | "HYBRID";
+  // Bỏ trống thì backend dùng SEARCH_MODE mặc định của worker
+  searchMode?: SearchMode;
 }
 
 export interface ContentSearchResultDto {
@@ -412,6 +415,43 @@ export interface ContentSearchResultDto {
   relevanceScore?: number;
   availablePhysicalCopies: number;
   shelfLocation?: string;
+}
+
+/** Vị trí một từ/cụm từ khớp trong PDF, dùng để tô sáng khi đọc. */
+export interface TextLocationDto {
+  page: number;
+  printedPageLabel?: string | null;
+  paragraph: number;
+  sentence: number;
+  wordStart: number;
+  wordEnd: number;
+  text: string;
+  // [x0, y0, x1, y1] theo điểm PDF, gốc ở góc trên-trái trang
+  rects: number[][];
+  pageWidth: number;
+  pageHeight: number;
+}
+
+export interface DocumentMatchDto {
+  chunkIds: string[];
+  matchScore: number;
+  pageNumber?: number | null;
+  pageEnd?: number | null;
+  chapter?: string | null;
+  section?: string | null;
+  wordStart?: number | null;
+  wordEnd?: number | null;
+  snippet?: string | null;
+  locations: TextLocationDto[];
+}
+
+export interface DocumentMatchesResponse {
+  documentId: string;
+  query: string;
+  searchMode?: string;
+  booleanQuery: boolean;
+  highlightTerms: string[];
+  matches: DocumentMatchDto[];
 }
 
 export interface RecommendationItemDto {

@@ -170,6 +170,7 @@ export function mapContentSearchDtoToViewModel(
   return {
     id: index + 4000,
     documentId: dto.documentId,
+    pageNumber: dto.pageNumber ?? undefined,
     title: dto.documentTitle,
     author: "Tài liệu số PTIT",
     year: "2024",

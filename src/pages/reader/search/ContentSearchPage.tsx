@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Icon, IconButton } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import type { ContentSearchResult } from "../../../data/search-results";
-import { contentSearchResults } from "../../../data/search-results";
 import { contentFilterGroups } from "../../../constants/library-options";
 import { catalogService } from "../../../services/catalog.service";
 import { circulationService } from "../../../services/circulation.service";
@@ -11,11 +10,14 @@ import { searchService } from "../../../services/search.service";
 import { getAccessToken } from "../../../services/session";
 import { mapContentSearchDtoToViewModel } from "../../../utils/mappers";
 
-function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSearchResult; saved: boolean; onSave: () => void }) {
+function ContentSearchResultCard({ result, query, saved, onSave }: { result: ContentSearchResult; query: string; saved: boolean; onSave: () => void }) {
   const navigate = useNavigate();
   const [holdPlaced, setHoldPlaced] = useState(false);
-  const pageMatch = result.location.match(/Trang\s+(\d+)/i);
-  const documentPage = pageMatch ? Number(pageMatch[1]) : result.id === 301 ? 42 : result.id === 302 ? 18 : 76;
+  // Mở trình đọc đúng tài liệu, đúng trang, kèm truy vấn để tô sáng đoạn khớp
+  const readerUrl = result.documentId
+    ? `/reader/document/${encodeURIComponent(result.documentId)}?${new URLSearchParams({ page: String(result.pageNumber ?? 1), q: query })}`
+    : null;
+  const openReader = () => { if (readerUrl) navigate(readerUrl); };
   const detailUrl = result.documentId
     ? `/reader/book-detail?id=${encodeURIComponent(result.documentId)}`
     : "/reader/book-detail";
@@ -42,7 +44,7 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
           <div><div className="book-meta"><span>{result.type}</span><i /><span>{result.year}</span></div><h2>{result.title}</h2><p>{result.author}</p></div>
           <div className="semantic-score"><strong>{result.relevance}%</strong><span>phù hợp</span></div>
         </div>
-        <button className="semantic-match" onClick={() => { navigate(`/reader/document/${documentPage}`); }}>
+        <button className="semantic-match" disabled={!readerUrl} onClick={openReader}>
           <span className="semantic-match-title"><Icon name="sparkle" size={16} /><strong>Đoạn nội dung phù hợp</strong><Badge tone="brand">TÌM THEO NỘI DUNG</Badge></span>
           <span className="semantic-quote">“…{result.snippetBefore}<mark>{result.snippetMatch}</mark>{result.snippetAfter}…”</span>
           <span className="semantic-location"><Icon name="document" size={15} />{result.location}</span>
@@ -54,7 +56,7 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
         </div>
         <div className="semantic-actions">
           <Button size="sm" onClick={() => { navigate(detailUrl); }}>Xem chi tiết</Button>
-          <Button variant="secondary" size="sm" icon="document" onClick={() => { navigate(`/reader/document/${documentPage}`); }}>Đọc trực tuyến</Button>
+          <Button variant="secondary" size="sm" icon="document" disabled={!readerUrl} onClick={openReader}>Đọc trực tuyến</Button>
           {!result.available && <Button variant="ghost" size="sm" icon="bookmark" disabled={holdPlaced} onClick={handlePlaceHold}>{holdPlaced ? "Đã đặt trước" : "Đặt trước"}</Button>}
           <Button variant="ghost" size="sm" icon="bookmark" onClick={onSave}>{saved ? "Đã lưu" : "Lưu"}</Button>
         </div>
@@ -66,32 +68,38 @@ function ContentSearchResultCard({ result, saved, onSave }: { result: ContentSea
 export default function ContentSearchResultsPage({ empty = false }: { empty?: boolean }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialQuery = searchParams.get("q") || "Tác động của trí tuệ nhân tạo đối với giáo dục đại học";
+  const initialQuery = searchParams.get("q") || "";
   const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState<ContentSearchResult[]>(contentSearchResults);
+  const [searchedQuery, setSearchedQuery] = useState(initialQuery);
+  const [results, setResults] = useState<ContentSearchResult[]>([]);
   const [hasFetchedEmpty, setHasFetchedEmpty] = useState(false);
-  const [saved, setSaved] = useState<number[]>([302]);
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [saved, setSaved] = useState<number[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<string[]>(["Công nghệ thông tin", "Tiếng Việt"]);
   const [filterOpen, setFilterOpen] = useState(false);
 
   const runContentSearch = (searchQuery: string) => {
     if (empty || !searchQuery.trim()) return;
+    const cleaned = searchQuery.trim();
+    setStatus("loading");
     searchService
       .searchContent({
-        query: searchQuery.trim(),
+        query: cleaned,
         limit: 10,
-        searchType: "HYBRID",
+        searchMode: "hybrid",
       })
       .then((items) => {
-        if (items) {
-          setResults(
-            items.map((dto, index) => mapContentSearchDtoToViewModel(dto, searchQuery, index)),
-          );
-          setHasFetchedEmpty(items.length === 0);
-        }
+        const list = items ?? [];
+        setResults(list.map((dto, index) => mapContentSearchDtoToViewModel(dto, cleaned, index)));
+        setHasFetchedEmpty(list.length === 0);
+        setSearchedQuery(cleaned);
+        setStatus("done");
       })
       .catch(() => {
-        // Fallback to mock contentSearchResults when backend or AI worker is offline
+        // Không hiện dữ liệu mẫu thay kết quả thật: báo lỗi để bạn đọc thử lại
+        setResults([]);
+        setHasFetchedEmpty(false);
+        setStatus("error");
       });
   };
 
@@ -134,7 +142,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
             />
             <Button icon="search" onClick={() => runContentSearch(query)}>Tìm kiếm</Button>
           </div>
-          <div className="semantic-query-meta"><p><strong>{isEmptyState ? "0 kết quả" : `${results.length} kết quả`}</strong> cho truy vấn của bạn</p><span><Icon name="info" size={14} />Kết quả được phân tích theo ý nghĩa và nội dung bên trong tài liệu</span></div>
+          <div className="semantic-query-meta"><p>{status === "done" || empty ? <><strong>{isEmptyState ? "0 kết quả" : `${results.length} kết quả`}</strong> cho truy vấn của bạn</> : status === "loading" ? "Đang tìm…" : " "}</p><span><Icon name="info" size={14} />Kết quả được phân tích theo ý nghĩa và nội dung bên trong tài liệu</span></div>
         </div>
       </section>
       <main className="semantic-layout">
@@ -147,8 +155,11 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
         </aside>
         <section className="semantic-results-main">
           <div className="semantic-toolbar"><div>{selectedFilters.slice(0, 3).map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div><label><span>Sắp xếp:</span><select defaultValue="relevance"><option value="relevance">Mức độ liên quan</option><option value="popular">Mức độ phổ biến</option><option value="newest">Năm xuất bản mới nhất</option></select><Icon name="chevron-down" size={15} /></label></div>
-          {isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Thử thay đổi truy vấn hoặc sử dụng một mô tả rộng hơn.</p><Button variant="secondary" onClick={() => { setSelectedFilters([]); setHasFetchedEmpty(false); }}>Xóa bộ lọc</Button></div> : <>
-            <div className="semantic-results-list">{results.map((result) => <ContentSearchResultCard key={result.id} result={result} saved={saved.includes(result.id)} onSave={() => toggleSave(result)} />)}</div>
+          {status === "loading" ? <div className="catalog-empty"><span className="spinner content-search-spinner" /><h2>Đang tìm trong nội dung tài liệu…</h2><p>Hệ thống đang so khớp truy vấn với toàn văn các tài liệu số.</p></div>
+          : status === "error" ? <div className="catalog-empty"><Icon name="error" size={28} /><h2>Không tìm được lúc này</h2><p>Máy chủ tìm kiếm đang bận hoặc mất kết nối. Vui lòng thử lại sau ít phút.</p><Button variant="secondary" onClick={() => runContentSearch(query)}>Thử lại</Button></div>
+          : !empty && status === "idle" ? <div className="catalog-empty"><Icon name="sparkle" size={28} /><h2>Tìm theo nội dung bên trong tài liệu</h2><p>Nhập một câu hỏi, đoạn trích hoặc mô tả chủ đề để tìm các trang sách có nội dung phù hợp.</p></div>
+          : isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Thử thay đổi truy vấn hoặc sử dụng một mô tả rộng hơn.</p><Button variant="secondary" onClick={() => { setSelectedFilters([]); setHasFetchedEmpty(false); }}>Xóa bộ lọc</Button></div> : <>
+            <div className="semantic-results-list">{results.map((result) => <ContentSearchResultCard key={result.id} result={result} query={searchedQuery} saved={saved.includes(result.id)} onSave={() => toggleSave(result)} />)}</div>
             <div className="results-load-more"><p>Đang hiển thị {results.length} kết quả phù hợp nhất</p><Button variant="secondary" onClick={() => runContentSearch(query)}>Xem thêm kết quả</Button></div>
           </>}
         </section>
