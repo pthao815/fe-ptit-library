@@ -22,6 +22,7 @@ export const staffNavigation: Array<{ label: string; icon: NavIcon }> = [
 
 export const adminNavigation: Array<{ label: string; icon: NavIcon }> = [
   { label: "Tổng quan", icon: "dashboard" },
+  { label: "Bạn đọc", icon: "users" },
   { label: "Quản lý tài liệu", icon: "book" },
   { label: "Chính sách mượn trả", icon: "settings" },
   { label: "Loại hình phạt", icon: "settings" },

@@ -35,20 +35,20 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
     { path: "policies", element: <SettingsWorkspace key={`${role}-policies`} kind="policies" portal={role} /> },
     { path: "penalty-types", element: <SettingsWorkspace key={`${role}-penalty-types`} kind="penalty-types" portal={role} /> },
     { path: "search-configs", element: <SettingsWorkspace key={`${role}-search-configs`} kind="search-configs" portal={role} /> },
+    { path: "readers", element: <ReaderManagementPage /> },
     { path: "profile", element: <WorkProfilePage role={role} /> },
     ...(isStaff ? [
       { index: true, element: <StaffDashboard /> },
       { path: "circulation", element: <CirculationScreen /> },
       { path: "digital-processing", element: <DigitalProcessingPage /> },
       { path: "reservations", element: <ReservationManagementPage /> },
-      { path: "readers", element: <ReaderManagementPage /> },
       { path: "reports", element: <ReportsScreen /> },
     ] : []),
     ...(!isStaff ? [
       { index: true, element: <section className="materials-page">
         <h1>Không gian quản trị</h1>
         <nav className="detail-primary-actions" aria-label="Chức năng quản trị">
-          {["Chính sách mượn trả", "Loại hình phạt", "Cấu hình tra cứu", "Quản lý tài liệu"].map((label) =>
+          {["Chính sách mượn trả", "Loại hình phạt", "Cấu hình tra cứu", "Quản lý tài liệu", "Bạn đọc"].map((label) =>
             <Link className="btn btn-secondary" key={label} to={"/admin/" + workspacePaths[label]}>{label}</Link>)}
         </nav>
       </section> },

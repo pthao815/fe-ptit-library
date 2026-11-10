@@ -1,16 +1,37 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Icon, Rating } from "../../../design-system";
 import Brand from "../../../components/common/Brand";
 import HomeSection from "../../../components/common/HomeSection";
 import BookCard from "../../../components/books/BookCard";
 import BookCover from "../../../components/books/BookCover";
-import { fieldBooks, recommendationBooks, newBooks } from "../../../data/books";
+import { recommendationBooks } from "../../../data/books";
 import { catalogService } from "../../../services/catalog.service";
 import { searchService } from "../../../services/search.service";
-import { getAccessToken } from "../../../services/session";
+import { getAccessToken, getStoredUser } from "../../../services/session";
 import type { Book } from "../../../types/library";
 import { mapDocumentSummaryToBook, mapRecommendationToBook } from "../../../utils/mappers";
+
+function useHomeCatalog(departmentId?: number, latest = false) {
+  const [state, setState] = useState<{ books?: Book[]; error?: string }>({});
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setState({});
+    catalogService.searchDocuments({
+      departmentId, page: 0, size: 4, sortBy: latest ? "createdAt" : "title",
+      sortDir: latest ? "desc" : "asc",
+    }).then(({ items }) => {
+      if (active) setState({ books: items.map(mapDocumentSummaryToBook) });
+    }).catch((error: unknown) => {
+      if (active) setState({ error: error instanceof Error ? error.message : "Không tải được danh mục." });
+    });
+    return () => { active = false; };
+  }, [departmentId, latest, revision]);
+
+  return { ...state, retry: () => setRevision((value) => value + 1) };
+}
 
 export default function ReaderHome() {
   const navigate = useNavigate();
@@ -18,28 +39,16 @@ export default function ReaderHome() {
   const [searchInput, setSearchInput] = useState("");
   const [saved, setSaved] = useState<number[]>([2]);
   const [hiddenRecommendations, setHiddenRecommendations] = useState<number[]>([]);
-  const [majorBooks, setMajorBooks] = useState<Book[]>(fieldBooks);
-  const [latestBooks, setLatestBooks] = useState<Book[]>(newBooks);
+  const [catalogSaved, setCatalogSaved] = useState<Record<string, boolean>>({});
+  const [catalogActionError, setCatalogActionError] = useState("");
+  const pendingFavorites = useRef(new Set<string>());
+  const departmentId = getStoredUser()?.departmentId;
+  const majorBooks = useHomeCatalog(departmentId);
+  const latestBooks = useHomeCatalog(undefined, true);
   const [recommendations, setRecommendations] = useState(recommendationBooks);
 
   useEffect(() => {
     let active = true;
-
-    catalogService
-      .searchDocuments({ page: 0, size: 8 })
-      .then((pageData) => {
-        if (!active || !pageData.items?.length) return;
-        const mapped = pageData.items.map((dto, index) => mapDocumentSummaryToBook(dto, index));
-        setMajorBooks(mapped.slice(0, 4));
-        if (mapped.length > 4) {
-          setLatestBooks(mapped.slice(4, 8));
-        } else {
-          setLatestBooks(mapped);
-        }
-      })
-      .catch(() => {
-        // Keep mock books when backend is offline
-      });
 
     if (getAccessToken()) {
       searchService
@@ -68,6 +77,36 @@ export default function ReaderHome() {
         // Ignore error on optimistic toggle
       });
     }
+  };
+
+  async function toggleCatalogFavorite(documentId: string) {
+    if (!getAccessToken()) {
+      setCatalogActionError("Vui lòng đăng nhập để lưu tài liệu.");
+      return;
+    }
+    if (pendingFavorites.current.has(documentId)) return;
+    pendingFavorites.current.add(documentId);
+    setCatalogActionError("");
+    try {
+      const result = await catalogService.toggleFavorite(documentId);
+      setCatalogSaved((current) => ({ ...current, [documentId]: result.isFavorite }));
+    } catch (error) {
+      setCatalogActionError(error instanceof Error ? error.message : "Không cập nhật được tài liệu đã lưu.");
+    } finally {
+      pendingFavorites.current.delete(documentId);
+    }
+  }
+
+  const renderCatalog = (catalog: ReturnType<typeof useHomeCatalog>) => {
+    if (catalog.error) return <p role="alert">{catalog.error} <Button size="sm" onClick={catalog.retry}>Thử lại</Button></p>;
+    if (!catalog.books) return <p role="status">Đang tải tài liệu…</p>;
+    if (!catalog.books.length) return <p>Chưa có tài liệu.</p>;
+    return <div className="book-grid">
+      {catalog.books.map((book) => <BookCard key={book.documentId ?? book.id} book={book}
+        detailPath={book.documentId ? "/reader/book-detail?id=" + encodeURIComponent(book.documentId) : undefined}
+        saved={Boolean(book.documentId && catalogSaved[book.documentId])}
+        onSave={() => { if (book.documentId) void toggleCatalogFavorite(book.documentId); }} />)}
+    </div>;
   };
 
   const handleHeroSearch = () => {
@@ -106,15 +145,13 @@ export default function ReaderHome() {
       </section>
 
       <main className="reader-home-content">
+        {catalogActionError && <p role="alert">{catalogActionError}</p>}
         <HomeSection
-          eyebrow="DÀNH RIÊNG CHO BẠN"
-          title="Tài liệu dành cho ngành của bạn"
-          subtitle="Được chọn dựa trên ngành đào tạo trong hồ sơ của bạn."
+          title={departmentId ? "Tài liệu theo khoa/ngành" : "Khám phá danh mục"}
           action="Xem tất cả"
+          onAction={() => navigate(departmentId ? "/reader/search?departmentId=" + departmentId : "/reader/search")}
         >
-          <div className="book-grid">
-            {majorBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book)} />)}
-          </div>
+          {renderCatalog(majorBooks)}
         </HomeSection>
 
         <HomeSection
@@ -142,10 +179,8 @@ export default function ReaderHome() {
           </div>
         </HomeSection>
 
-        <HomeSection title="Tài liệu mới bổ sung" subtitle="Những tài liệu vừa được cập nhật vào bộ sưu tập thư viện." action="Khám phá tài liệu mới">
-          <div className="book-grid">
-            {latestBooks.map((book) => <BookCard key={book.id} book={book} saved={saved.includes(book.id)} onSave={() => toggleSave(book)} />)}
-          </div>
+        <HomeSection title="Tài liệu mới bổ sung" subtitle="Những tài liệu vừa được cập nhật vào bộ sưu tập thư viện." action="Khám phá tài liệu mới" onAction={() => navigate("/reader/search")}>
+          {renderCatalog(latestBooks)}
         </HomeSection>
 
         <HomeSection title="Thông báo thư viện" action="Xem tất cả thông báo">

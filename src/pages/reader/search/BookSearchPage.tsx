@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, Field, Icon, IconButton, Status } from "../../../design-system";
+import AuthorFilter from "./AuthorFilter";
 import BookCover from "../../../components/books/BookCover";
 import type { SearchResult } from "../../../data/search-results";
 import { userService } from "../../../services/user.service";
@@ -141,7 +142,7 @@ function BookSearch({ empty }: { empty: boolean }) {
         docType: applied.docType.trim() || undefined,
         publicationYear: Number(applied.publicationYear) || undefined,
         departmentId: Number(applied.departmentId) || undefined,
-        authorId: Number(applied.authorId) || undefined,
+        authorId: /^[1-9][0-9]*$/.test(applied.authorId) && Number.isSafeInteger(Number(applied.authorId)) ? Number(applied.authorId) : undefined,
         page: page - 1,
         size: 10,
         sortBy,
@@ -233,11 +234,12 @@ function BookSearch({ empty }: { empty: boolean }) {
           <form className="filter-group" onSubmit={(event) => {
             event.preventDefault();
             setFilterOpen(false);
-            updateSearch({ ...filters, page: "" });
+            const authorId = /^[1-9][0-9]*$/.test(filters.authorId) && Number.isSafeInteger(Number(filters.authorId)) ? filters.authorId : "";
+            updateSearch({ ...filters, authorId, page: "" });
           }}>
             <Field label="Mã loại tài liệu" value={filters.docType} onChange={(event) => setFilters({ ...filters, docType: event.target.value })} />
             <Field label="Năm xuất bản" type="number" min={1000} max={9999} value={filters.publicationYear} onChange={(event) => setFilters({ ...filters, publicationYear: event.target.value })} />
-            <Field label="ID tác giả" type="number" min={1} value={filters.authorId} onChange={(event) => setFilters({ ...filters, authorId: event.target.value })} />
+            <AuthorFilter value={filters.authorId} onChange={(authorId) => setFilters((current) => ({ ...current, authorId }))} />
             <label>Khoa/ngành <select value={filters.departmentId} onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}>
               <option value="">Tất cả</option>
               {departments.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}

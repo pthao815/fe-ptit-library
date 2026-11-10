@@ -91,6 +91,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   const token = !skipAuth ? getAccessToken() : null;
+  let sentToken = token;
   const { identityVersion } = authSession.getSnapshot();
   const assertIdentity = () => {
     if (token && identityVersion !== authSession.getSnapshot().identityVersion) {
@@ -126,6 +127,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       const refreshedToken = await tryRefreshAccessToken();
       assertIdentity();
       if (refreshedToken && (!rest.method || rest.method === "GET")) {
+        sentToken = refreshedToken;
         headers.set("Authorization", `Bearer ${refreshedToken}`);
         response = await fetch(url, {
           ...rest,
@@ -137,11 +139,20 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
 
     assertIdentity();
-    if (response.status === 401 && token && token === getAccessToken() && !skipAuth) clearAuthSession("expired");
+    const clearExpiredSession = () => {
+      if (response.status === 401 && sentToken && sentToken === getAccessToken() && !skipAuth) {
+        clearAuthSession("expired");
+      }
+    };
 
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
-      const json = (await response.json()) as ApiResponse<T>;
+      const json = (await response.json().catch(() => null)) as ApiResponse<T> | null;
+      assertIdentity();
+      clearExpiredSession();
+      if (response.ok && typeof json?.success !== "boolean") {
+        throw new ApiError("Backend không trả về dữ liệu xác nhận hợp lệ.", 0);
+      }
       if (!response.ok || json?.success !== true) {
         throw new ApiError(
           json?.message || `Yêu cầu thất bại (${response.status})`,
@@ -153,6 +164,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       return json.data;
     }
 
+    clearExpiredSession();
     if (!response.ok) {
       throw new ApiError(`Lỗi kết nối máy chủ (${response.status})`, response.status);
     }

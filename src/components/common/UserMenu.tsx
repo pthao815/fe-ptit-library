@@ -37,9 +37,7 @@ export default function UserMenu({
 
   const roleName =
     role === "reader" ? "Bạn đọc" : role === "staff" ? "Nhân viên thư viện" : "Quản trị viên";
-  const fallbackName =
-    role === "reader" ? "Nguyễn Minh Anh" : role === "staff" ? "Nguyễn Thu Hà" : "Trần Minh Đức";
-  const userName = storedUser?.fullName || fallbackName;
+  const userName = storedUser?.fullName || roleName;
 
   return (
     <div className="user-menu-wrap">

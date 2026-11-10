@@ -63,7 +63,7 @@ export function saveAuthSession(tokenData: TokenResponse, remember = true): Role
 }
 
 export function updateStoredUser(user: UserDto): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || authSession.getSnapshot().session?.userId !== user.id) return;
   const inLocal = window.localStorage.getItem(SESSION_KEY) !== null;
   const storage = inLocal ? window.localStorage : window.sessionStorage;
   storage.setItem(USER_KEY, JSON.stringify(user));

@@ -1,189 +1,216 @@
-import { useEffect, useState } from "react";
-import { Avatar, Badge, Breadcrumb, Button, Icon, Modal, Pagination, SearchInput, SelectField, Status } from "../../../design-system";
-import type { ManagedReader } from "../../../data/readers";
-import { getAccessToken } from "../../../services/session";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Avatar, Breadcrumb, Button, Modal, SearchInput, SelectField, Status } from "../../../design-system";
 import { userService } from "../../../services/user.service";
-import { mapUserDtoToManagedReader } from "../../../utils/mappers";
+import type { DepartmentDto, PageResponse, UserDto } from "../../../types/api";
+import { formatDateVi } from "../../../utils/mappers";
 
-type ReaderWithUuid = ManagedReader & { userId?: string };
+const types = { STUDENT: "Sinh viên", LECTURER: "Giảng viên", RESEARCHER: "Nghiên cứu sinh", STAFF: "Nhân viên" };
+const statuses = { ACTIVE: "Hoạt động", LOCKED: "Bị khóa", EXPIRED: "Hết hạn", INACTIVE: "Ngừng hoạt động" };
+const reasons = {
+  violation: "Vi phạm quy định thư viện",
+  debt: "Công nợ chưa xử lý",
+  lost: "Báo mất thẻ",
+};
+const labelFor = (labels: Record<string, string>, value: string) =>
+  Object.prototype.hasOwnProperty.call(labels, value) ? labels[value] : value || "—";
 
 export default function ReaderManagementPage() {
-  const [readers, setReaders] = useState<ReaderWithUuid[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loadError, setLoadError] = useState("");
+  const [params, setParams] = useSearchParams();
+  const [revision, setRevision] = useState(0);
+  const keyword = params.get("q") ?? "";
+  const status = params.get("status") ?? "";
+  const userType = params.get("userType") ?? "";
+  const departmentId = params.get("departmentId") ?? "";
+  const requestedPage = Number(params.get("page"));
+  const page = Number.isInteger(requestedPage) && requestedPage >= 0 && requestedPage <= 2147483647 ? requestedPage : 0;
+  const [draftKeyword, setDraftKeyword] = useState(keyword);
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [departmentError, setDepartmentError] = useState(false);
+  const [departmentRevision, setDepartmentRevision] = useState(0);
+  const requestKey = params.toString() + ":" + revision;
+  const [load, setLoad] = useState<{ key: string; result?: PageResponse<UserDto>; error?: string }>();
+  const result = load?.key === requestKey ? load.result : undefined;
+  const loadError = load?.key === requestKey ? load.error : undefined;
+  const [selectedReader, setSelectedReader] = useState<UserDto>();
+  const [cardAction, setCardAction] = useState<{ reader: UserDto; lock: boolean }>();
+  const [reason, setReason] = useState<keyof typeof reasons>("violation");
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [keyword, setKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedReaderId, setSelectedReaderId] = useState<number | null>(null);
-  const [detailTab, setDetailTab] = useState("Tổng quan");
-  const [cardAction, setCardAction] = useState<{ id: number; lock: boolean } | null>(null);
-  const [lockReasonCode, setLockReasonCode] = useState("violation");
-  const selectedReader = readers.find((reader) => reader.id === selectedReaderId) || null;
-  const actionReader = readers.find((reader) => reader.id === cardAction?.id);
+  const submitting = useRef(false);
 
-  const loadReaders = (searchKeyword?: string, statusValue?: string) => {
-    if (!getAccessToken()) return;
-    setLoadError("");
-    const backendStatus =
-      statusValue === "Hoạt động"
-        ? "ACTIVE"
-        : statusValue === "Bị khóa"
-          ? "LOCKED"
-          : undefined;
-
-    userService
-      .searchAdminUsers({
-        keyword: searchKeyword?.trim() || undefined,
-        status: backendStatus,
-        page: 0,
-        size: 20,
-      })
-      .then((pageData) => {
-        if (pageData.items) {
-          setReaders(pageData.items.map((dto, index) => mapUserDtoToManagedReader(dto, index)));
-          setTotalCount(pageData.totalElements || pageData.items.length);
-        }
-      })
-      .catch(() => {
-        setLoadError("Không tải được danh sách bạn đọc.");
-      });
-  };
+  useEffect(() => setDraftKeyword(keyword), [keyword]);
 
   useEffect(() => {
-    loadReaders();
-  }, []);
+    let active = true;
+    setDepartmentError(false);
+    userService.getDepartments().then((data) => {
+      if (active) setDepartments(data);
+    }).catch(() => { if (active) setDepartmentError(true); });
+    return () => { active = false; };
+  }, [departmentRevision]);
 
-  const executeCardAction = async () => {
-    if (!cardAction || saving) return;
-    setActionError("");
-    const target = readers.find((r) => r.id === cardAction.id);
-    const reasonText =
-      lockReasonCode === "debt"
-        ? "Công nợ chưa xử lý"
-        : lockReasonCode === "lost"
-          ? "Báo mất thẻ"
-          : "Khóa thủ công bởi nhân viên thư viện để kiểm tra vi phạm.";
-
-    if (!target?.userId || !getAccessToken()) return setActionError("Thiếu phiên hoặc mã bạn đọc.");
-    setSaving(true);
-    {
-      try {
-        await userService.updateUserStatus(target.userId, {
-          status: cardAction.lock ? "LOCKED" : "ACTIVE",
-          reason: cardAction.lock ? reasonText : undefined,
-        });
-      } catch {
-        setActionError("Máy chủ chưa xác nhận cập nhật trạng thái thẻ.");
+  useEffect(() => {
+    let active = true;
+    const department = Number(departmentId);
+    userService.searchAdminUsers({
+      role: "READER",
+      keyword: keyword.trim() || undefined,
+      status: status || undefined,
+      userType: userType || undefined,
+      departmentId: Number.isSafeInteger(department) && department > 0 ? department : undefined,
+      page,
+      size: 20,
+    }).then((data) => {
+      if (!active) return;
+      if (page > 0 && page >= data.totalPages) {
+        setParams((previous) => {
+          const next = new URLSearchParams(previous);
+          next.set("page", String(Math.max(0, data.totalPages - 1)));
+          return next;
+        }, { replace: true });
         return;
-      } finally {
-        setSaving(false);
       }
+      setLoad({ key: requestKey, result: data });
+    }).catch((error: unknown) => {
+      if (active) setLoad({ key: requestKey, error: error instanceof Error ? error.message : "Không tải được danh sách bạn đọc." });
+    });
+    return () => { active = false; };
+  }, [departmentId, keyword, page, requestKey, setParams, status, userType]);
+
+  function changeFilter(key: string, value: string) {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    next.delete("page");
+    if (next.toString() === params.toString()) setRevision((value) => value + 1);
+    else setParams(next);
+  }
+
+  function changePage(nextPage: number) {
+    const next = new URLSearchParams(params);
+    next.set("page", String(nextPage));
+    setParams(next);
+  }
+
+  function askCardAction(reader: UserDto) {
+    setReason("violation");
+    setActionError("");
+    setCardAction({ reader, lock: reader.status === "ACTIVE" });
+  }
+
+  async function executeCardAction() {
+    if (!cardAction || submitting.current) return;
+    submitting.current = true;
+    setSaving(true);
+    setActionError("");
+    try {
+      const { reader, lock } = cardAction;
+      const nextStatus = lock ? "LOCKED" : "ACTIVE";
+      const lockReason = lock ? reasons[reason] : undefined;
+      await userService.updateUserStatus(reader.id, { status: nextStatus, reason: lockReason });
+      setSelectedReader((selected) => selected?.id === reader.id
+        ? { ...selected, status: nextStatus, lockReason }
+        : selected);
+      setCardAction(undefined);
+      setRevision((value) => value + 1);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Máy chủ chưa xác nhận cập nhật trạng thái thẻ.");
+    } finally {
+      submitting.current = false;
+      setSaving(false);
     }
+  }
 
-    setReaders((items) => items.map((reader) => reader.id === cardAction.id ? {
-      ...reader,
-      cardStatus: cardAction.lock ? "Bị khóa" : "Hoạt động",
-      lockReason: cardAction.lock ? reasonText : undefined,
-      lockUntil: cardAction.lock ? "Đến khi được nhân viên mở khóa" : undefined,
-    } : reader));
-    setCardAction(null);
-  };
-
-  const lockedCount = readers.filter((r) => r.cardStatus === "Bị khóa").length;
+  const cardActionButton = (reader: UserDto) => (reader.status === "ACTIVE" || reader.status === "LOCKED") && (
+    <Button variant={reader.status === "LOCKED" ? "secondary" : "ghost"} size="sm" onClick={() => askCardAction(reader)}>
+      {reader.status === "LOCKED" ? "Mở khóa thẻ" : "Khóa thẻ"}
+    </Button>
+  );
 
   return (
     <div className="reader-management-page">
-      {loadError && <p role="alert">{loadError} <Button onClick={() => loadReaders(keyword, statusFilter)}>Thử lại</Button></p>}
       <div className="reader-management-heading">
-        <div><Breadcrumb items={["Không gian nghiệp vụ", "Bạn đọc"]} /><p className="eyebrow">QUẢN LÝ BẠN ĐỌC</p><h1>Quản lý bạn đọc</h1><p>Tra cứu hồ sơ, kiểm soát trạng thái thẻ và lịch sử sử dụng thư viện.</p></div>
-        <div><Button variant="secondary" icon="document">Xuất danh sách</Button><Button icon="plus">Thêm bạn đọc</Button></div>
+        <div><Breadcrumb items={["Không gian nghiệp vụ", "Bạn đọc"]} /><h1>Quản lý bạn đọc</h1><p>Tra cứu hồ sơ và kiểm soát trạng thái thẻ thư viện.</p></div>
       </div>
-
       <section className="reader-search-filters">
-        <div className="reader-management-search">
-          <SearchInput
-            placeholder="Tìm theo mã bạn đọc, họ tên, email..."
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-          />
-          <Button icon="search" onClick={() => loadReaders(keyword, statusFilter)}>Tìm kiếm</Button>
-        </div>
+        <form className="reader-management-search" onSubmit={(event) => {
+          event.preventDefault();
+          changeFilter("q", draftKeyword.trim());
+        }}>
+          <SearchInput aria-label="Tìm bạn đọc" placeholder="Mã bạn đọc, họ tên hoặc email" value={draftKeyword} onChange={(event) => setDraftKeyword(event.target.value)} />
+          <Button type="submit" icon="search">Tìm kiếm</Button>
+        </form>
         <div className="reader-filter-row">
-          <label><span>Loại bạn đọc</span><select defaultValue="all"><option value="all">Tất cả loại bạn đọc</option><option>Sinh viên chính quy</option><option>Cán bộ, giảng viên</option><option>Học viên cao học</option><option>Nghiên cứu sinh</option></select><Icon name="chevron-down" size={14} /></label>
-          <label><span>Ngành</span><select defaultValue="all"><option value="all">Tất cả ngành</option><option>Công nghệ thông tin</option><option>Khoa học máy tính</option><option>An toàn thông tin</option><option>Điện tử viễn thông</option></select><Icon name="chevron-down" size={14} /></label>
-          <label>
-            <span>Trạng thái thẻ</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value);
-                loadReaders(keyword, event.target.value);
-              }}
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="Hoạt động">Hoạt động</option>
-              <option value="Bị khóa">Bị khóa</option>
-              <option value="Sắp hết hạn">Sắp hết hạn</option>
-            </select>
-            <Icon name="chevron-down" size={14} />
-          </label>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setKeyword("");
-              setStatusFilter("all");
-              loadReaders("", "all");
-            }}
-          >
-            Xóa bộ lọc
-          </Button>
+          <SelectField label="Loại bạn đọc" value={userType} onChange={(event) => changeFilter("userType", event.target.value)}>
+            <option value="">Tất cả loại bạn đọc</option>
+            {Object.entries(types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </SelectField>
+          <SelectField label="Khoa/ngành" value={departmentId} onChange={(event) => changeFilter("departmentId", event.target.value)}>
+            <option value="">Tất cả khoa/ngành</option>
+            {departmentId && !departments.some((item) => String(item.id) === departmentId) && <option value={departmentId}>Khoa/ngành #{departmentId}</option>}
+            {departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </SelectField>
+          <SelectField label="Trạng thái thẻ" value={status} onChange={(event) => changeFilter("status", event.target.value)}>
+            <option value="">Tất cả trạng thái</option>
+            {Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </SelectField>
+          <Button variant="ghost" size="sm" onClick={() => { setDraftKeyword(""); setParams({}); }}>Xóa bộ lọc</Button>
         </div>
+        {departmentError && <p role="alert">Không tải được khoa/ngành. <Button size="sm" onClick={() => setDepartmentRevision((value) => value + 1)}>Thử lại</Button></p>}
       </section>
 
       <section className="reader-table-panel">
-        <div className="reader-table-heading"><div><h2>Danh sách bạn đọc</h2><p>{totalCount.toLocaleString("vi-VN")} bạn đọc trong hệ thống</p></div><Badge tone="error">{String(lockedCount).padStart(2, "0")} THẺ BỊ KHÓA</Badge></div>
-        <div className="reader-management-table-wrap"><table className="reader-management-table"><thead><tr><th>Mã bạn đọc</th><th>Họ tên</th><th>Loại bạn đọc</th><th>Ngành đào tạo</th><th>Trạng thái thẻ</th><th>Đang mượn</th><th>Công nợ</th><th>Actions</th></tr></thead><tbody>
-          {readers.map((reader) => <tr key={reader.id}>
-            <td><code>{reader.code}</code></td>
-            <td><div className="managed-reader-cell"><Avatar name={reader.name} size="sm" /><div><strong>{reader.name}</strong><small>{reader.email}</small></div></div></td>
-            <td><Badge>{reader.type}</Badge></td>
-            <td>{reader.program}</td>
-            <td><Status tone={reader.cardStatus === "Hoạt động" ? "success" : reader.cardStatus === "Bị khóa" ? "error" : "warning"}>{reader.cardStatus}</Status></td>
-            <td><strong>{reader.loans}</strong><small> tài liệu</small></td>
-            <td><strong className={reader.debt > 0 ? "reader-debt" : ""}>{reader.debt.toLocaleString("vi-VN")}đ</strong></td>
-            <td><div className="managed-reader-actions"><Button variant="ghost" size="sm" onClick={() => { setSelectedReaderId(reader.id); setDetailTab("Tổng quan"); }}>Xem hồ sơ</Button><Button variant={reader.cardStatus === "Bị khóa" ? "secondary" : "ghost"} size="sm" onClick={() => setCardAction({ id: reader.id, lock: reader.cardStatus !== "Bị khóa" })}>{reader.cardStatus === "Bị khóa" ? "Mở khóa" : "Khóa thẻ"}</Button><Button variant="ghost" size="sm" onClick={() => { setSelectedReaderId(reader.id); setDetailTab("Lịch sử mượn"); }}>Lịch sử mượn</Button></div></td>
-          </tr>)}
-        </tbody></table></div>
-        <div className="reader-table-pagination"><span>Hiển thị 1–{readers.length} trong tổng số {totalCount.toLocaleString("vi-VN")} bạn đọc</span><Pagination /></div>
+        <div className="reader-table-heading"><h2>Danh sách bạn đọc</h2>{result && <p>{result.totalElements.toLocaleString("vi-VN")} kết quả</p>}</div>
+        {loadError ? <p role="alert">{loadError} <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></p>
+          : !result ? <p role="status">Đang tải danh sách…</p>
+          : !result.items.length ? <p>Không tìm thấy bạn đọc phù hợp.</p>
+          : <>
+            <div className="reader-management-table-wrap">
+              <table className="reader-management-table">
+                <thead><tr><th>Mã bạn đọc</th><th>Họ tên</th><th>Loại bạn đọc</th><th>Khoa/ngành</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                <tbody>{result.items.map((reader) => <tr key={reader.id}>
+                  <td><code>{reader.userCode}</code></td>
+                  <td><div className="managed-reader-cell"><Avatar name={reader.fullName} /><div><strong>{reader.fullName}</strong><small>{reader.email}</small></div></div></td>
+                  <td>{labelFor(types, reader.userType)}</td><td>{reader.departmentName || "—"}</td>
+                  <td><Status tone={reader.status === "ACTIVE" ? "success" : reader.status === "LOCKED" ? "error" : "warning"}>{labelFor(statuses, reader.status)}</Status></td>
+                  <td><div className="managed-reader-actions"><Button variant="ghost" size="sm" onClick={() => setSelectedReader(reader)}>Xem hồ sơ</Button>{cardActionButton(reader)}</div></td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+            <nav className="reader-table-pagination" aria-label="Phân trang bạn đọc">
+              <Button disabled={!result.hasPrevious} onClick={() => changePage(result.page - 1)}>Trang trước</Button>
+              <span>Trang {result.page + 1}/{result.totalPages}</span>
+              <Button disabled={!result.hasNext} onClick={() => changePage(result.page + 1)}>Trang sau</Button>
+            </nav>
+          </>}
       </section>
 
-      <Modal open={selectedReader !== null} onClose={() => setSelectedReaderId(null)} title="Hồ sơ bạn đọc" eyebrow="THÔNG TIN BẠN ĐỌC" className="reader-detail-modal">
+      <Modal open={Boolean(selectedReader)} onClose={() => setSelectedReader(undefined)} title="Hồ sơ bạn đọc" className="reader-detail-modal">
         {selectedReader && <div className="reader-profile">
-          <div className="reader-profile-header">
-            <Avatar name={selectedReader.name} size="lg" />
-            <div><div><h2>{selectedReader.name}</h2><Badge tone={selectedReader.cardStatus === "Hoạt động" ? "success" : selectedReader.cardStatus === "Bị khóa" ? "error" : "warning"}>{selectedReader.cardStatus}</Badge></div><p>{selectedReader.code} · {selectedReader.type}</p></div>
-            <Button variant={selectedReader.cardStatus === "Bị khóa" ? "secondary" : "danger"} size="sm" onClick={() => setCardAction({ id: selectedReader.id, lock: selectedReader.cardStatus !== "Bị khóa" })}>{selectedReader.cardStatus === "Bị khóa" ? "Mở khóa thẻ" : "Khóa thẻ"}</Button>
-          </div>
-          {selectedReader.cardStatus === "Bị khóa" && <div className="reader-lock-alert"><Icon name="error" /><div><strong>Thẻ bạn đọc đang bị khóa</strong><p>{selectedReader.lockReason}</p><span>Thời hạn khóa: {selectedReader.lockUntil}</span></div></div>}
-          <div className="reader-profile-tabs">{["Tổng quan", "Đang mượn", "Lịch sử mượn", "Đặt trước", "Vi phạm & công nợ"].map((tab) => <button key={tab} className={detailTab === tab ? "active" : ""} onClick={() => setDetailTab(tab)}>{tab}</button>)}</div>
-          {detailTab === "Tổng quan" && <div className="reader-profile-overview">
-            <dl className="reader-personal-info"><div><dt>Họ và tên</dt><dd>{selectedReader.name}</dd></div><div><dt>Mã bạn đọc</dt><dd>{selectedReader.code}</dd></div><div><dt>Loại bạn đọc</dt><dd>{selectedReader.type}</dd></div><div><dt>Ngành đào tạo</dt><dd>{selectedReader.program}</dd></div><div><dt>Email</dt><dd>{selectedReader.email}</dd></div><div><dt>Số điện thoại</dt><dd>{selectedReader.phone}</dd></div><div><dt>Ngày sinh</dt><dd>{selectedReader.birthDate}</dd></div><div><dt>Hạn thẻ</dt><dd>{selectedReader.cardExpiry}</dd></div></dl>
-            <div className="reader-profile-stats"><article><span>Đang mượn</span><strong>{selectedReader.loans}</strong><small>/ 08 tài liệu</small></article><article><span>Đặt trước</span><strong>02</strong><small>1 lượt chờ nhận</small></article><article><span>Công nợ</span><strong className={selectedReader.debt ? "negative" : ""}>{selectedReader.debt.toLocaleString("vi-VN")}đ</strong><small>{selectedReader.debt ? "Chưa thanh toán" : "Không có công nợ"}</small></article><article><span>Vi phạm</span><strong>{selectedReader.cardStatus === "Bị khóa" ? "02" : "00"}</strong><small>Trong 12 tháng</small></article></div>
-          </div>}
-          {detailTab === "Đang mượn" && <div className="profile-data-table"><table><thead><tr><th>Tài liệu</th><th>Ngày mượn</th><th>Hạn trả</th><th>Trạng thái</th></tr></thead><tbody><tr><td><strong>Mạng máy tính và hệ thống phân tán</strong><small>PTIT-24-02016</small></td><td>28/05/2025</td><td>25/06/2025</td><td><Badge tone="error">Quá hạn 3 ngày</Badge></td></tr><tr><td><strong>Nhập môn Khoa học dữ liệu</strong><small>PTIT-23-01564</small></td><td>08/06/2025</td><td>06/07/2025</td><td><Badge tone="success">Trong hạn</Badge></td></tr></tbody></table></div>}
-          {detailTab === "Lịch sử mượn" && <div className="profile-data-table"><table><thead><tr><th>Tài liệu</th><th>Ngày mượn</th><th>Ngày trả</th><th>Kết quả</th></tr></thead><tbody><tr><td><strong>Học máy: Từ lý thuyết đến thực hành</strong></td><td>03/04/2025</td><td>28/04/2025</td><td><Status tone="success">Đúng hạn</Status></td></tr><tr><td><strong>An toàn thông tin trong kỷ nguyên số</strong></td><td>14/01/2025</td><td>08/02/2025</td><td><Status tone="warning">Muộn 2 ngày</Status></td></tr></tbody></table></div>}
-          {detailTab === "Đặt trước" && <div className="profile-reservations"><article><span><Icon name="bookmark" /></span><div><strong>Machine Learning cơ bản</strong><p>Đăng ký 02/10/2026 · Vị trí hàng đợi: 01</p></div><Badge tone="warning">Đang chờ</Badge></article><article><span><Icon name="bookmark" /></span><div><strong>Cấu trúc dữ liệu và giải thuật</strong><p>Giữ đến 10/10/2026 · 17:00</p></div><Badge tone="success">Đã sẵn sàng</Badge></article></div>}
-          {detailTab === "Vi phạm & công nợ" && <div className="profile-violations"><div className="profile-debt-total"><span><Icon name="error" /></span><div><small>TỔNG CÔNG NỢ</small><strong>{selectedReader.debt.toLocaleString("vi-VN")}đ</strong></div><Button variant="secondary" size="sm">Ghi nhận thanh toán</Button></div><article><Badge tone="error">CHƯA XỬ LÝ</Badge><div><strong>Trả tài liệu quá hạn trên 30 ngày</strong><p>Ghi nhận ngày 20/06/2025 · Tài liệu PTIT-24-02016</p></div><span>60.000đ</span></article><article><Badge tone="warning">NHẮC NHỞ</Badge><div><strong>Trả tài liệu muộn 2 ngày</strong><p>Ghi nhận ngày 10/04/2025 · Đã hoàn trả</p></div><span>4.000đ</span></article></div>}
+          <dl className="reader-personal-info">
+            <div><dt>Họ tên</dt><dd>{selectedReader.fullName}</dd></div>
+            <div><dt>Mã bạn đọc</dt><dd>{selectedReader.userCode}</dd></div>
+            <div><dt>Email</dt><dd>{selectedReader.email}</dd></div>
+            <div><dt>Khoa/ngành</dt><dd>{selectedReader.departmentName || "—"}</dd></div>
+            <div><dt>Điện thoại</dt><dd>{selectedReader.phone || "—"}</dd></div>
+            <div><dt>Hạn thẻ</dt><dd>{formatDateVi(selectedReader.cardExpiry)}</dd></div>
+            <div><dt>Trạng thái</dt><dd>{labelFor(statuses, selectedReader.status)}</dd></div>
+            {selectedReader.lockReason && <div><dt>Lý do khóa</dt><dd>{selectedReader.lockReason}</dd></div>}
+          </dl>
+          {cardActionButton(selectedReader)}
         </div>}
       </Modal>
-
-      <Modal open={cardAction !== null} onClose={() => setCardAction(null)} title={cardAction?.lock ? "Khóa thẻ bạn đọc" : "Mở khóa thẻ bạn đọc"}>
+      <Modal open={Boolean(cardAction)} onClose={() => { if (!submitting.current) setCardAction(undefined); }} title={cardAction?.lock ? "Khóa thẻ bạn đọc" : "Mở khóa thẻ bạn đọc"}>
+        <p>{cardAction?.reader.fullName} · {cardAction?.reader.userCode}</p>
         {actionError && <p role="alert">{actionError}</p>}
-        <div className={`card-action-confirmation ${cardAction?.lock ? "lock" : "unlock"}`}><span><Icon name={cardAction?.lock ? "error" : "success"} size={24} /></span><div><strong>{actionReader?.name}</strong><p>{actionReader?.code}</p></div></div>
-        {cardAction?.lock ? <><SelectField label="Lý do khóa thẻ" value={lockReasonCode} onChange={(event) => setLockReasonCode(event.target.value)}><option value="violation">Vi phạm quy định thư viện</option><option value="debt">Công nợ chưa xử lý</option><option value="lost">Báo mất thẻ</option><option value="other">Lý do khác</option></SelectField><SelectField label="Thời hạn khóa" defaultValue="manual"><option value="manual">Đến khi nhân viên mở khóa</option><option value="7">07 ngày</option><option value="30">30 ngày</option><option value="permanent">Không thời hạn</option></SelectField></> : <p className="unlock-note">Bạn đọc sẽ được khôi phục quyền mượn, gia hạn và đặt trước sau khi mở khóa.</p>}
-        <div className="modal-actions"><Button variant="ghost" onClick={() => setCardAction(null)}>Hủy</Button><Button variant={cardAction?.lock ? "danger" : "primary"} disabled={saving} onClick={executeCardAction}>{cardAction?.lock ? "Khóa thẻ" : "Mở khóa"}</Button></div>
+        {cardAction?.lock && <SelectField disabled={saving} label="Lý do khóa thẻ" value={reason} onChange={(event) => setReason(event.target.value as keyof typeof reasons)}>
+          {Object.entries(reasons).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </SelectField>}
+        <div className="modal-actions">
+          <Button variant="ghost" disabled={saving} onClick={() => setCardAction(undefined)}>Hủy</Button>
+          <Button variant={cardAction?.lock ? "danger" : "primary"} loading={saving} onClick={executeCardAction}>Xác nhận</Button>
+        </div>
       </Modal>
     </div>
   );

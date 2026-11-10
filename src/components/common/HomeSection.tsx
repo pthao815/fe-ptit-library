@@ -6,12 +6,14 @@ export default function HomeSection({
   title,
   subtitle,
   action,
+  onAction,
   children,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
   action?: string;
+  onAction?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -22,7 +24,7 @@ export default function HomeSection({
           <h2>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
-        {action && <Button variant="ghost" size="sm">{action}<Icon name="chevron-right" size={16} /></Button>}
+        {action && <Button variant="ghost" size="sm" onClick={onAction}>{action}<Icon name="chevron-right" size={16} /></Button>}
       </div>
       {children}
     </section>

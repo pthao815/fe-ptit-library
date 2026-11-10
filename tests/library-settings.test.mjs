@@ -335,7 +335,7 @@ test("compatibility adapter stays the same singleton and refuses invalid tokens"
 })
 
 test("login, restoration, token rotation and logout reach the settings session", async () => {
-  const { saveAuthSession, restoreAuthSession, clearAuthSession, remembersSession } =
+  const { saveAuthSession, restoreAuthSession, clearAuthSession, remembersSession, getStoredUser, updateStoredUser } =
     await import("../src/services/session.ts")
   function storage() {
     const entries = new Map()
@@ -347,11 +347,15 @@ test("login, restoration, token rotation and logout reach the settings session",
   }
   globalThis.window = { sessionStorage: storage(), localStorage: storage() }
   try {
-    const user = { role: "LIBRARIAN" }
+    const user = { id: "test-user", role: "LIBRARIAN", fullName: "Current user" }
     authSession.setSession(null)
     saveAuthSession({ accessToken: token("LIBRARIAN"), user }, false)
     assert.equal(authSession.getSnapshot().session?.role, "LIBRARIAN")
     assert.equal(remembersSession(), false)
+    updateStoredUser({ id: "previous-user", role: "ADMIN", fullName: "Previous user" })
+    assert.deepEqual(getStoredUser(), user)
+    updateStoredUser({ ...user, fullName: "Updated current user" })
+    assert.equal(getStoredUser().fullName, "Updated current user")
     const transport = fixture()
     await transport.api.listPolicies()
     assert.match(transport.calls[0].headers.Authorization, /^Bearer /)

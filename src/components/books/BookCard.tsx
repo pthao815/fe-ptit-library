@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { IconButton, Rating, Status } from "../../design-system";
 import type { Book } from "../../types/library";
 import BookCover from "./BookCover";
@@ -6,10 +7,12 @@ export default function BookCard({
   book,
   saved,
   onSave,
+  detailPath,
 }: {
   book: Book;
   saved: boolean;
   onSave: () => void;
+  detailPath?: string;
 }) {
   return (
     <article className="book-card">
@@ -19,7 +22,7 @@ export default function BookCard({
       </div>
       <div className="book-card-body">
         <div className="book-meta"><span>{book.type}</span><i /><span>{book.year}</span></div>
-        <h3>{book.title}</h3>
+        <h3>{detailPath ? <Link to={detailPath}>{book.title}</Link> : book.title}</h3>
         <p>{book.author}</p>
         <div className="book-card-footer">
           <Rating value={book.rating} />

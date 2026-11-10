@@ -12,7 +12,7 @@ export function routeAccess(pathname: string, role?: AuthRole): "public" | "allo
   const match = workspace.exec(path);
   if (!match) return "missing";
   const [, portal, section] = match;
-  if (portal === "admin" && ["circulation", "digital-processing", "reservations", "readers", "reports"].includes(section)) return "missing";
+  if (portal === "admin" && ["circulation", "digital-processing", "reservations", "reports"].includes(section)) return "missing";
   if (portal === "staff" && section === "workspace") return "missing";
   if (!role) return "login";
   if (portal === "admin") return role === "ADMIN" ? "allowed" : "forbidden";

@@ -100,7 +100,7 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
       if (!getAccessToken()) throw new Error("Phiên đăng nhập đã hết hạn.");
       const updated = await userService.updateProfile({
           phone: draft.phone.trim(),
-          address: draft.address.trim(),
+          address: isAdmin ? undefined : draft.address.trim(),
         });
       setProfile(updated);
       setContact({ phone: updated.phone ?? "", address: updated.address ?? "" });
@@ -153,7 +153,7 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
                 <Field label="Email công việc" value={displayEmail} readOnly />
                 <Field label="Số điện thoại" value={editing ? draft.phone : contact.phone} readOnly={!editing} onChange={(event) => { setDraft((current) => ({ ...current, phone: event.target.value })); setErrors((current) => ({ ...current, phone: undefined })); }} error={errors.phone} />
                 {!isAdmin && <Field label="Địa chỉ" value={editing ? draft.address : contact.address} readOnly={!editing} onChange={(event) => { setDraft((current) => ({ ...current, address: event.target.value })); setErrors((current) => ({ ...current, address: undefined })); }} error={errors.address} />}
-                <Field label="Ngày bắt đầu công tác" value={data.startDate} readOnly />
+                <Field label="Ngày bắt đầu công tác" value="—" readOnly />
               </div>
               <p className="profile-permission-note"><Icon name="info" size={14} />Vai trò, mã nhân viên và đơn vị công tác do hệ thống quản lý. Bạn không thể tự thay đổi quyền truy cập tại đây.</p>
               {editing && <div className="profile-form-actions"><Button variant="ghost" type="button" onClick={cancelEditing}>Hủy</Button><Button type="submit" loading={saving}>Lưu thay đổi</Button></div>}
