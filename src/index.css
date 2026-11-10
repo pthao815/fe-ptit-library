@@ -995,6 +995,22 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .pdf-figure i::after { content: ""; position: absolute; right: 0; top: -2px; border-left: 4px solid #999; border-top: 2px solid transparent; border-bottom: 2px solid transparent; }
 .pdf-figure figcaption { margin-top: 12px; color: #666; font-size: 8px; text-align: center; }
 .pdf-page-number { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); color: #777; font-size: 9px; }
+/* Trình đọc PDF thật (PDF.js): một trang canvas, lớp tô sáng đặt chồng theo tỉ lệ toạ độ trang */
+.pdf-sheet { margin: 0 auto; position: relative; min-height: 400px; background: var(--white); box-shadow: 0 5px 24px rgba(0, 0, 0, .35); }
+.pdf-sheet canvas { display: block; }
+.pdf-highlight { position: absolute; border-radius: 2px; background: rgba(244, 211, 138, .45); mix-blend-mode: multiply; pointer-events: none; }
+.pdf-highlight.active { background: rgba(240, 170, 40, .6); box-shadow: 0 0 0 2px rgba(196, 123, 23, .35); }
+.pdf-sheet-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--gray-500); background: var(--white); font-size: 12px; }
+.pdf-sheet-loading .spinner { border-color: var(--gray-200); border-top-color: var(--red-500); }
+.reader-state { max-width: 440px; margin: 60px auto; padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 10px; border-radius: var(--radius-md); color: var(--gray-700); background: var(--white); text-align: center; box-shadow: var(--shadow-lg); }
+.reader-state > svg { color: var(--red-500); }
+.reader-state h2 { margin: 4px 0 0; color: var(--gray-900); font-size: 17px; }
+.reader-state p { margin: 0; font-size: 13px; line-height: 1.6; }
+.reader-state > div { margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.content-search-spinner { width: 28px; height: 28px; border-color: var(--gray-200); border-top-color: var(--red-500); }
+.match-retry { padding: 0 16px 12px; }
+.reader-panel-empty { margin: 0; padding: 16px; color: var(--gray-500); font-size: 11px; line-height: 1.6; }
+.toc-panel nav button:disabled { cursor: default; opacity: .6; }
 .match-query { margin: 12px 13px 7px; padding: 9px; display: flex; align-items: flex-start; gap: 7px; border-radius: var(--radius-sm); color: var(--red-600); background: var(--red-50); font-size: 9px; line-height: 1.45; }
 .match-count { padding: 0 14px 9px; color: var(--gray-500); font-size: 8px; }
 .document-match-list { min-height: 0; flex: 1; overflow-y: auto; }
@@ -1002,7 +1018,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .document-match-list > button:hover { background: var(--gray-25); }
 .document-match-list > button.active { background: var(--red-50); box-shadow: inset 3px 0 var(--red-500); }
 .match-index { color: var(--red-500); font-size: 8px; font-weight: 700; }
-.document-match-list blockquote { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 10px; line-height: 1.65; }
+.document-match-list blockquote { margin: 0; font-family: "Times New Roman", Georgia, serif; font-size: 10px; line-height: 1.65; }
 .document-match-list mark { padding: 1px 2px; color: var(--red-800); background: #f4cfd1; font-weight: 700; }
 .document-match-list dl { grid-column: 2; margin: 10px 0 0; display: flex; flex-direction: column; gap: 5px; }
 .document-match-list dl div { display: grid; grid-template-columns: 48px 1fr; gap: 5px; }

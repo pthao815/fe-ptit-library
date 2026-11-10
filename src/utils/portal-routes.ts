@@ -1,12 +1,15 @@
 import type { AuthRole } from "../shared/auth/auth-session.ts";
 
 const publicReader = /^\/reader(?:\/(?:search(?:-empty)?|book-detail|guidelines))?$/i;
-const privateReader = /^\/reader\/(?:profile(?:\/restricted)?|my-library(?:\/(?:history|reservations))?|notifications(?:\/[^/]+)?|book-detail\/review(?:\/(?:edit|login-required|error))?|content-search(?:-empty)?|document(?:\/\d+)?)$/i;
+const privateReader = /^\/reader\/(?:profile(?:\/restricted)?|my-library(?:\/(?:history|reservations))?|notifications(?:\/[^/]+)?|book-detail\/review(?:\/(?:edit|login-required|error))?|content-search(?:-empty)?)$/i;
+// Trình đọc bản số: API /api/documents/{id}/read cho READER, LIBRARIAN và ADMIN nên mọi tài khoản đã đăng nhập đều vào được
+const documentReader = /^\/reader\/document\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const workspace = /^\/(staff|admin)(?:\/(profile|policies|penalty-types|search-configs|materials(?:\/new|\/edit\/[^/]+)?|circulation|digital-processing|reservations|readers|reports|workspace))?$/i;
 
 export function routeAccess(pathname: string, role?: AuthRole): "public" | "allowed" | "login" | "forbidden" | "missing" {
   const path = pathname.replace(/\/+$/, "").toLowerCase();
   if (publicReader.test(path)) return "public";
+  if (documentReader.test(path)) return role ? "allowed" : "login";
   if (privateReader.test(path)) return !role ? "login" : role === "READER" ? "allowed" : "forbidden";
 
   const match = workspace.exec(path);
