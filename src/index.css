@@ -880,8 +880,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .review-meta strong { font-size: 10px; }
 .review-meta .rating { margin: 0; font-size: 9px; }
 .review-meta > span { margin-left: auto; color: var(--gray-500); font-size: 8px; }
-.review-list p { margin-top: 7px; color: var(--gray-600); font-size: 10px; line-height: 1.65; }
-.detail-side-column { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 14px; }
+.review-list p { margin-top: 7px; color: var(--gray-600); font-size: 10px; line-height: 1.65; }.detail-side-column { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 14px; }
 .catalog-note { padding: 15px; display: flex; align-items: flex-start; gap: 9px; border: 1px solid var(--red-100); border-radius: var(--radius-md); color: var(--red-500); background: var(--red-50); }
 .catalog-note strong { display: block; color: var(--gray-900); font-size: 10px; }
 .catalog-note p { margin-top: 3px; color: var(--gray-600); font-size: 9px; line-height: 1.5; }
@@ -1632,7 +1631,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .record-form-main { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .record-form-section { scroll-margin-top: 95px; overflow: hidden; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); background: var(--white); box-shadow: var(--shadow-sm); }
 .record-form-section > header { min-height: 65px; padding: 13px 17px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid var(--gray-200); }
-.record-form-section > header > span { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: var(--red-500); background: var(--red-50); font-size: 8px; font-weight: 700; }
+.record-form-section > header > span:not(.badge) { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: var(--red-500); background: var(--red-50); font-size: 8px; font-weight: 700; }
 .record-form-section > header > div { flex: 1; }
 .record-form-section > header h2 { font-size: 13px; }
 .record-form-section > header p { color: var(--gray-500); font-size: 8px; }
@@ -1700,6 +1699,69 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .record-form-actions { min-height: 72px; margin: 22px -28px 0; padding: 12px 28px; position: sticky; z-index: 20; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; border-top: 1px solid var(--gray-200); background: rgba(255, 255, 255, .96); backdrop-filter: blur(12px); box-shadow: 0 -7px 20px rgba(31, 31, 31, .05); }
 .record-form-actions > div { margin-right: auto; color: var(--gray-500); font-size: 8px; }
 .record-form-actions > div > span { display: flex; align-items: center; gap: 5px; }
+
+/* Form biên mục: một thang cỡ chữ và khoảng cách thống nhất (14 thân · 12 nhãn/phụ · 11 chú thích) */
+.record-form-page { padding-top: 28px; }
+.record-form-page .record-form-heading > div > p:last-child { margin-top: 4px; font-size: 13px; }
+.record-form-page .badge { white-space: nowrap; flex: 0 0 auto; }
+.record-form-page .form-error-summary, .record-form-page .form-success-summary { margin-top: 20px; font-size: 13px; }
+.record-form-page .form-error-summary strong { font-size: 14px; }
+.record-form-page .form-error-summary p { margin-top: 2px; font-size: 13px; }
+.record-form-page .record-form-layout { margin-top: 24px; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; }
+.record-form-page .record-form-main { gap: 20px; }
+.record-form-page .record-form-section > header { min-height: 72px; padding: 16px 22px; gap: 14px; }
+.record-form-page .record-form-section > header > span:not(.badge) { width: 32px; height: 32px; font-size: 12px; }
+.record-form-page .record-form-section > header h2 { font-size: 16px; line-height: 1.35; }
+.record-form-page .record-form-section > header p { margin-top: 2px; font-size: 12px; }
+.record-form-page .bibliographic-form-grid { padding: 22px; column-gap: 18px; row-gap: 18px; }
+.record-form-page .field { gap: 6px; }
+.record-form-page .field-message { font-size: 11px; }
+.record-form-page .textarea { min-height: 150px; padding: 10px 12px; line-height: 1.6; resize: vertical; }
+.record-form-empty { margin: 0; padding: 18px 22px; display: flex; align-items: center; gap: 8px; color: var(--gray-500); font-size: 13px; }
+.record-form-page .section-error { margin: 0; padding: 0 22px 18px; font-size: 12px; }
+
+.cover-field { display: flex; flex-direction: column; gap: 6px; }
+.cover-field-body { padding: 16px; display: flex; align-items: center; gap: 20px; border: 1px dashed var(--gray-300); border-radius: var(--radius-md); background: var(--gray-25); }
+.cover-field-body > img, .cover-field-body > .cover-placeholder { width: 80px; height: 114px; flex: 0 0 auto; border-radius: 4px; object-fit: cover; box-shadow: var(--shadow-sm); }
+.cover-field-body > .field { flex: 1; min-width: 0; }
+
+.record-form-page .program-selector { padding: 22px; }
+.record-form-page .selected-programs { min-height: 48px; padding: 8px 10px; gap: 8px; }
+.record-form-page .selected-programs > span { font-size: 13px; }
+.record-form-page .selected-programs button, .record-form-page .program-options button { min-height: 32px; padding: 0 12px; gap: 6px; font-size: 12px; }
+.record-form-page .program-options { margin-top: 14px; gap: 8px; }
+
+.record-form-page .copy-editor { width: 100%; min-width: 680px; table-layout: fixed; }
+.record-form-page .copy-editor th { padding: 10px 8px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.record-form-page .copy-editor td { padding: 10px 8px; font-size: 13px; white-space: nowrap; }
+.record-form-page .copy-editor th:first-child, .record-form-page .copy-editor td:first-child { padding-left: 22px; }
+.record-form-page .copy-editor th:last-child, .record-form-page .copy-editor td:last-child { padding-right: 16px; text-align: center; }
+.record-form-page .copy-editor select:disabled { color: var(--gray-500); background: var(--gray-50); cursor: not-allowed; }
+.record-form-page .copy-editor input, .record-form-page .copy-editor select { height: 38px; font-size: 13px; }
+
+.record-form-page .digital-upload-zone { margin: 22px; min-height: 170px; gap: 2px; }
+.record-form-page .digital-upload-zone > strong { margin-top: 10px; font-size: 14px; }
+.record-form-page .digital-upload-zone > small { margin: 2px 0 12px; font-size: 12px; }
+.record-form-page .digital-file-editor { margin: 22px 22px 0; }
+.record-form-page .digital-file-editor + .digital-upload-zone { margin-top: 16px; }
+.record-form-page .digital-file-editor article { min-height: 72px; padding: 12px 14px; }
+.record-form-page .digital-file-editor article > div > strong { font-size: 13px; }
+.record-form-page .digital-file-editor article > div > small { margin-top: 2px; font-size: 12px; }
+.record-form-page .file-icon { font-size: 10px; }
+
+.record-form-page .record-form-aside { top: 96px; gap: 16px; }
+.record-form-page .record-form-aside > div { padding: 18px; }
+.record-form-page .record-form-aside p { margin-bottom: 12px; font-size: 11px; }
+.record-form-page .record-form-aside .status { font-size: 13px; }
+.record-form-page .record-form-aside dl { margin-top: 14px; }
+.record-form-page .record-form-aside dl div { padding: 10px 0; }
+.record-form-page .record-form-aside dt { font-size: 11px; }
+.record-form-page .record-form-aside dd { margin-top: 3px; font-size: 13px; }
+.record-form-page .form-checklist span { min-height: 34px; gap: 8px; font-size: 13px; }
+
+/* Thanh lưu nằm cuối form như một thẻ, rộng bằng nội dung phía trên (không sticky, không tràn lề) */
+.record-form-page .record-form-actions { position: static; margin: 24px 0 40px; padding: 14px 22px; gap: 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); background: var(--white); backdrop-filter: none; box-shadow: var(--shadow-sm); }
+.record-form-page .record-form-actions > div { font-size: 12px; }
 
 @media (max-width: 1040px) {
   .record-form-layout { grid-template-columns: 1fr; }

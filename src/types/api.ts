@@ -136,6 +136,8 @@ export interface DocumentDetailDto {
   classificationNumber?: string;
   abstractText?: string;
   coverUrl?: string;
+  origin?: string;
+  physicalDescription?: string;
   metadata?: Record<string, unknown>;
   departmentIds?: number[];
   departmentNames?: string[];
@@ -143,6 +145,7 @@ export interface DocumentDetailDto {
   availablePhysicalCopies: number;
   hasDigitalCopy: boolean;
   digitalCopyId?: string;
+  digitalFileName?: string;
   digitalProcessingStatus?: string;
   pageCount?: number;
   averageRating?: number;
@@ -169,6 +172,8 @@ export interface DocumentRequestDto {
   classificationNumber?: string;
   language?: string;
   coverUrl?: string;
+  origin?: string;
+  physicalDescription?: string;
   departmentIds?: number[];
 }
 
@@ -179,6 +184,7 @@ export interface PhysicalCopyDto {
   callNumber?: string;
   shelfLocation?: string;
   status?: string;
+  condition?: string;
   accessionDate?: string;
   lastInventoryDate?: string;
 }
@@ -189,6 +195,7 @@ export interface PhysicalCopyRequestDto {
   callNumber?: string;
   shelfLocation?: string;
   status?: string;
+  condition?: string;
 }
 
 export interface AuthorDto {
@@ -223,6 +230,33 @@ export interface DigitalCopyDto {
   pageCount?: number;
   extractionQuality?: number;
   createdAt?: string;
+}
+
+export interface DigitalCopyUploadResponse {
+  digitalCopyId: string;
+  documentId: string;
+  version?: string;
+  fileName?: string;
+  fileSize?: number;
+  fileStatus?: string;
+  processingStatus?: string;
+  jobId: number;
+  jobStatus?: string;
+}
+
+export interface ProcessingStatusResponse {
+  jobId: number;
+  digitalCopyId?: string;
+  status?: string;
+  statusLabel?: string;
+  digitalCopyStatus?: string;
+  pageCount?: number;
+  extractionQuality?: number;
+  errorMessage?: string;
+  attempts?: number;
+  createdAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
 }
 
 // --- Module 3: Circulation, Fines & Holds ---

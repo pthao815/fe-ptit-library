@@ -3,6 +3,7 @@ import type {
   AuthorDto,
   AuthorRequestDto,
   DigitalCopyDto,
+  DigitalCopyUploadResponse,
   DocumentDetailDto,
   DocumentFilterParams,
   DocumentRequestDto,
@@ -11,6 +12,7 @@ import type {
   PaginationParams,
   PhysicalCopyDto,
   PhysicalCopyRequestDto,
+  ProcessingStatusResponse,
   ReviewDto,
   ReviewRequestDto,
 } from "../types/api";
@@ -81,18 +83,21 @@ export const catalogService = {
   },
 
   // Digital Copy Upload & Download
-  uploadPdf(documentId: string, file: File, version = "1.0"): Promise<{ digitalCopyId: string; jobId: number }> {
+  uploadPdf(documentId: string, file: File, version = "1.0"): Promise<DigitalCopyUploadResponse> {
     const formData = new FormData();
-    formData.append("documentId", documentId);
     formData.append("file", file);
     formData.append("version", version);
-    return http.post<{ digitalCopyId: string; jobId: number }>(`/api/admin/documents/${documentId}/digital-copies`, formData).then((result) => {
+    return http.post<DigitalCopyUploadResponse>(`/api/admin/documents/${documentId}/digital-copies`, formData).then((result) => {
       confirmedId(result?.digitalCopyId);
       if (!Number.isSafeInteger(result.jobId) || result.jobId < 1) {
         throw new ApiError("Backend chưa xác nhận mã tiến trình xử lý PDF.", 0);
       }
       return result;
     });
+  },
+
+  getProcessingStatus(jobId: number): Promise<ProcessingStatusResponse> {
+    return http.get<ProcessingStatusResponse>("/api/admin/digital-copies/processing-status", { jobId });
   },
 
   getDigitalDownloadUrl(digitalCopyId: string): string {
@@ -125,6 +130,10 @@ export const catalogService = {
 
   updatePhysicalCopy(id: string, payload: PhysicalCopyRequestDto): Promise<PhysicalCopyDto> {
     return http.put<PhysicalCopyDto>(`/api/catalog-admin/physical-copies/${id}`, payload);
+  },
+
+  deletePhysicalCopy(id: string): Promise<void> {
+    return http.delete<void>(`/api/catalog-admin/physical-copies/${id}`);
   },
 
   createAuthor(payload: AuthorRequestDto): Promise<AuthorDto> {
