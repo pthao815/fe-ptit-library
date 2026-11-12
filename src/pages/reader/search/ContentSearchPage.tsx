@@ -10,6 +10,13 @@ import { searchService } from "../../../services/search.service";
 import { getAccessToken } from "../../../services/session";
 import { mapContentSearchDtoToViewModel } from "../../../utils/mappers";
 
+type RankMode = "hybrid" | "tfidf";
+const RANK_MODES: { value: RankMode; label: string; hint: string }[] = [
+  { value: "hybrid", label: "Hybrid", hint: "Kết hợp TF-IDF và tìm theo nghĩa (embedding)" },
+  { value: "tfidf", label: "TF-IDF", hint: "Chỉ xếp hạng theo từ khóa (TF-IDF + cosine)" },
+];
+const parseRankMode = (value: string | null): RankMode => (value === "tfidf" ? "tfidf" : "hybrid");
+
 function ContentSearchResultCard({ result, query, saved, onSave }: { result: ContentSearchResult; query: string; saved: boolean; onSave: () => void }) {
   const navigate = useNavigate();
   const [holdPlaced, setHoldPlaced] = useState(false);
@@ -46,7 +53,7 @@ function ContentSearchResultCard({ result, query, saved, onSave }: { result: Con
         </div>
         <button className="semantic-match" disabled={!readerUrl} onClick={openReader}>
           <span className="semantic-match-title"><Icon name="sparkle" size={16} /><strong>Đoạn nội dung phù hợp</strong><Badge tone="brand">TÌM THEO NỘI DUNG</Badge></span>
-          <span className="semantic-quote">“…{result.snippetBefore}<mark>{result.snippetMatch}</mark>{result.snippetAfter}…”</span>
+          <span className="semantic-quote">“…{result.snippetBefore}{result.snippetMatch && <mark>{result.snippetMatch}</mark>}{result.snippetAfter}…”</span>
           <span className="semantic-location"><Icon name="document" size={15} />{result.location}</span>
         </button>
         <div className="semantic-signals">
@@ -67,7 +74,9 @@ function ContentSearchResultCard({ result, query, saved, onSave }: { result: Con
 
 export default function ContentSearchResultsPage({ empty = false }: { empty?: boolean }) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Thuật toán xếp hạng: hybrid (TF-IDF + vector) hoặc tfidf; giữ trên URL (?mode=) để chia sẻ/so sánh
+  const [rankMode, setRankMode] = useState<RankMode>(parseRankMode(searchParams.get("mode")));
   const initialQuery = searchParams.get("q") || "";
   const [query, setQuery] = useState(initialQuery);
   const [searchedQuery, setSearchedQuery] = useState(initialQuery);
@@ -78,7 +87,17 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
   const [selectedFilters, setSelectedFilters] = useState<string[]>(["Công nghệ thông tin", "Tiếng Việt"]);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const runContentSearch = (searchQuery: string) => {
+  const changeRankMode = (mode: RankMode) => {
+    if (mode === rankMode) return;
+    setRankMode(mode);
+    const next = new URLSearchParams(searchParams);
+    next.set("mode", mode);
+    if (query.trim()) next.set("q", query.trim());
+    setSearchParams(next, { replace: true });
+    runContentSearch(query, mode);
+  };
+
+  const runContentSearch = (searchQuery: string, mode: RankMode = rankMode) => {
     if (empty || !searchQuery.trim()) return;
     const cleaned = searchQuery.trim();
     setStatus("loading");
@@ -86,7 +105,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
       .searchContent({
         query: cleaned,
         limit: 10,
-        searchMode: "hybrid",
+        searchMode: mode,
       })
       .then((items) => {
         const list = items ?? [];
@@ -142,7 +161,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
             />
             <Button icon="search" onClick={() => runContentSearch(query)}>Tìm kiếm</Button>
           </div>
-          <div className="semantic-query-meta"><p>{status === "done" || empty ? <><strong>{isEmptyState ? "0 kết quả" : `${results.length} kết quả`}</strong> cho truy vấn của bạn</> : status === "loading" ? "Đang tìm…" : " "}</p><span><Icon name="info" size={14} />Kết quả được phân tích theo ý nghĩa và nội dung bên trong tài liệu</span></div>
+          <div className="semantic-query-meta"><p>{status === "done" || empty ? <><strong>{isEmptyState ? "0 kết quả" : `${results.length} kết quả`}</strong> cho truy vấn của bạn</> : status === "loading" ? "Đang tìm…" : " "}</p><div className="semantic-rank-mode" role="radiogroup" aria-label="Thuật toán xếp hạng"><em>Thuật toán:</em>{RANK_MODES.map((m) => <button key={m.value} type="button" role="radio" aria-checked={rankMode === m.value} className={rankMode === m.value ? "active" : ""} title={m.hint} disabled={status === "loading"} onClick={() => changeRankMode(m.value)}>{m.label}</button>)}</div><span><Icon name="info" size={14} />Kết quả được phân tích theo ý nghĩa và nội dung bên trong tài liệu</span></div>
         </div>
       </section>
       <main className="semantic-layout">

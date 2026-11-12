@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif:ital,wght@0,400;0,600;1,400&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -479,7 +479,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .content-match { margin-top: 15px; padding: 14px 16px 12px; border: 1px solid var(--red-100); border-left: 3px solid var(--red-500); border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--red-50), #fffafa 72%); }
 .content-match-label { display: flex; align-items: center; gap: 7px; color: var(--red-600); font-size: 10px; }
 .content-match-label .badge { margin-left: auto; font-size: 8px; }
-.content-match blockquote { margin: 9px 0 10px; color: var(--gray-700); font-family: Georgia, "Times New Roman", serif; font-size: 13px; line-height: 1.7; }
+.content-match blockquote { margin: 9px 0 10px; color: var(--gray-700); font-family: "Noto Serif", "Times New Roman", serif; font-size: 13px; line-height: 1.7; }
 .content-match mark { padding: 2px 3px; color: var(--red-800); background: #f4cfd1; border-radius: 2px; font-weight: 700; }
 .match-location { display: flex; align-items: center; gap: 6px; color: var(--gray-500); font-size: 9px; font-family: "Inter", system-ui, sans-serif; }
 .result-signals { margin-top: 13px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -721,6 +721,11 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .semantic-search-box .btn { min-height: 44px; padding-inline: 22px; }
 .semantic-query-meta { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 20px; color: var(--gray-500); font-size: 11px; }
 .semantic-query-meta strong { color: var(--gray-900); }
+.semantic-rank-mode { display: flex; align-items: center; gap: 4px; margin-left: auto; padding: 3px; border: 1px solid var(--gray-200); border-radius: 999px; background: #fff; }
+.semantic-rank-mode em { padding: 0 6px 0 8px; font-style: normal; color: var(--gray-500); }
+.semantic-rank-mode button { padding: 4px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--gray-700); font-size: 11px; font-weight: 600; cursor: pointer; }
+.semantic-rank-mode button.active { background: var(--red-700); color: #fff; }
+.semantic-rank-mode button:disabled { cursor: wait; }
 .semantic-query-meta > span { padding: 5px 9px; display: flex; align-items: center; gap: 6px; border-radius: 999px; color: var(--red-700); background: var(--red-50); }
 .semantic-layout { max-width: 1360px; margin: 0 auto; padding: 28px 32px 70px; display: grid; grid-template-columns: 238px minmax(0, 1fr); align-items: start; gap: 28px; }
 .semantic-filter-sidebar { position: sticky; top: 96px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); background: var(--white); box-shadow: var(--shadow-sm); }
@@ -756,7 +761,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .semantic-match { width: 100%; margin-top: 15px; padding: 14px 16px 12px; display: block; border: 1px solid var(--red-100); border-left: 3px solid var(--red-500); border-radius: var(--radius-sm); color: inherit; background: linear-gradient(90deg, var(--red-50), #fffafa 72%); text-align: left; }
 .semantic-match-title { display: flex; align-items: center; gap: 7px; color: var(--red-600); font-size: 10px; }
 .semantic-match-title .badge { margin-left: auto; font-size: 8px; }
-.semantic-quote { margin: 9px 0 10px; display: block; color: var(--gray-700); font-family: Georgia, "Times New Roman", serif; font-size: 13px; line-height: 1.7; }
+.semantic-quote { margin: 9px 0 10px; display: block; color: var(--gray-700); font-family: "Noto Serif", "Times New Roman", serif; font-size: 13px; line-height: 1.7; }
 .semantic-quote mark { padding: 2px 3px; color: var(--red-800); background: #f4cfd1; border-radius: 2px; font-weight: 700; }
 .semantic-location { display: flex; align-items: center; gap: 6px; color: var(--gray-500); font-size: 9px; font-family: "Inter", system-ui, sans-serif; }
 .semantic-signals { margin-top: 13px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -976,7 +981,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .online-only small { margin-top: 2px; color: var(--gray-500); font-size: 8px; }
 .document-stage { min-width: 0; min-height: 0; padding: 34px; overflow: auto; background: #4d5154; }
 .mobile-reader-controls { display: none; }
-.document-page { min-height: 875px; margin: 0 auto; padding: 60px 64px 48px; position: relative; color: #222; background: #fffefb; box-shadow: 0 5px 24px rgba(0, 0, 0, .35); font-family: Georgia, "Times New Roman", serif; transition: width .18s ease; }
+.document-page { min-height: 875px; margin: 0 auto; padding: 60px 64px 48px; position: relative; color: #222; background: #fffefb; box-shadow: 0 5px 24px rgba(0, 0, 0, .35); font-family: "Noto Serif", "Times New Roman", serif; transition: width .18s ease; }
 .document-page.zoom-75 { width: 465px; min-height: 656px; padding: 45px 48px 36px; }
 .document-page.zoom-100 { width: 620px; }
 .document-page.zoom-125 { width: 775px; min-height: 1094px; padding: 75px 80px 60px; }
@@ -1018,7 +1023,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .document-match-list > button:hover { background: var(--gray-25); }
 .document-match-list > button.active { background: var(--red-50); box-shadow: inset 3px 0 var(--red-500); }
 .match-index { color: var(--red-500); font-size: 8px; font-weight: 700; }
-.document-match-list blockquote { margin: 0; font-family: "Times New Roman", Georgia, serif; font-size: 10px; line-height: 1.65; }
+.document-match-list blockquote { margin: 0; font-family: "Noto Serif", "Times New Roman", serif; font-size: 10px; line-height: 1.65; }
 .document-match-list mark { padding: 1px 2px; color: var(--red-800); background: #f4cfd1; font-weight: 700; }
 .document-match-list dl { grid-column: 2; margin: 10px 0 0; display: flex; flex-direction: column; gap: 5px; }
 .document-match-list dl div { display: grid; grid-template-columns: 48px 1fr; gap: 5px; }

@@ -137,23 +137,15 @@ export function mapContentSearchDtoToViewModel(
   query: string,
   index = 0,
 ): ContentSearchResult {
-  const text = dto.chunkText || "";
-  const cleanQuery = query.trim();
-  const matchIdx = cleanQuery ? text.toLowerCase().indexOf(cleanQuery.toLowerCase()) : -1;
+  // Bỏ "…" backend đã thêm ở hai đầu, thẻ kết quả tự thêm "…" rồi
+  const text = (dto.chunkText || "").replace(/\s+/g, " ").trim().replace(/^(…|\.{3})\s*/, "").replace(/\s*(…|\.{3})$/, "");
 
-  let snippetBefore = "";
-  let snippetMatch = cleanQuery || text.slice(0, 48);
-  let snippetAfter = text;
-
-  if (matchIdx >= 0 && cleanQuery.length > 0) {
-    snippetBefore = text.slice(Math.max(0, matchIdx - 60), matchIdx);
-    snippetMatch = text.slice(matchIdx, matchIdx + cleanQuery.length);
-    snippetAfter = text.slice(matchIdx + cleanQuery.length, matchIdx + cleanQuery.length + 160);
-  } else if (text.length > 48) {
-    snippetBefore = "";
-    snippetMatch = text.slice(0, 48);
-    snippetAfter = text.slice(48, 220);
-  }
+  // Tạm thời không tô sáng trong đoạn trích: so khớp nguyên văn câu truy vấn hay tô lệch chỗ.
+  // Vị trí khớp chính xác vẫn được tô trên trình đọc (getDocumentMatches).
+  const SNIPPET_MAX = 260;
+  const snippetBefore = text.slice(0, SNIPPET_MAX);
+  const snippetMatch = "";
+  const snippetAfter = "";
 
   const locationParts = [
     dto.pageNumber ? `Trang ${dto.pageNumber}` : null,
@@ -161,11 +153,9 @@ export function mapContentSearchDtoToViewModel(
     dto.section || null,
   ].filter(Boolean);
 
-  const rawScore = dto.relevanceScore ?? 0.9;
-  const relevance = Math.min(
-    99,
-    Math.max(60, Math.round(rawScore <= 1 ? rawScore * 100 : rawScore)),
-  );
+  // Hiển thị đúng điểm backend trả về (TF-IDF: cosine; hybrid: RRF chuẩn hoá), không ép vào khoảng cố định
+  const rawScore = dto.relevanceScore ?? 0;
+  const relevance = Math.round((rawScore <= 1 ? rawScore * 100 : rawScore) * 10) / 10;
 
   return {
     id: index + 4000,
