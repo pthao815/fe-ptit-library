@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Icon, IconButton, Toast } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Icon, IconButton, Toast } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import type { ContentSearchResult } from "../../../data/search-results";
 import { contentSearchResults } from "../../../data/search-results";
@@ -200,7 +200,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
           <div className="semantic-filter-actions"><Button onClick={() => setFilterOpen(false)}>Áp dụng</Button><Button variant="ghost" onClick={() => setSelectedFilters([])}>Xóa bộ lọc</Button></div>
         </aside>
         <section className="semantic-results-main">
-          <div className="semantic-toolbar"><div>{selectedFilters.slice(0, 3).map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div><label><span>Sắp xếp:</span><select defaultValue="relevance"><option value="relevance">Mức độ liên quan</option><option value="popular">Mức độ phổ biến</option><option value="newest">Năm xuất bản mới nhất</option></select><Icon name="chevron-down" size={15} /></label></div>
+          <div className="semantic-toolbar"><div>{selectedFilters.slice(0, 3).map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div><label><span>Sắp xếp:</span><CustomSelect defaultValue="relevance"><option value="relevance">Mức độ liên quan</option><option value="popular">Mức độ phổ biến</option><option value="newest">Năm xuất bản mới nhất</option></CustomSelect></label></div>
           {isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Thử thay đổi truy vấn hoặc sử dụng một mô tả rộng hơn.</p><Button variant="secondary" onClick={() => { setSelectedFilters([]); setHasFetchedEmpty(false); }}>Xóa bộ lọc</Button></div> : <>
             <div className="semantic-results-list">
               {results.map((result) => (

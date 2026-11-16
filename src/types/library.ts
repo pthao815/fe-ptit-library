@@ -2,10 +2,14 @@ export type Role = "reader" | "staff" | "admin";
 
 export type NavIcon =
   | "dashboard"
+  | "circulation"
   | "book"
   | "bookmark"
   | "document"
   | "users"
+  | "user"
+  | "chart"
+  | "shield"
   | "settings"
   | "search"
   | "sparkle";

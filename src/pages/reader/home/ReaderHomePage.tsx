@@ -5,13 +5,8 @@ import Brand from "../../../components/common/Brand";
 import HomeSection from "../../../components/common/HomeSection";
 import BookCard from "../../../components/books/BookCard";
 import BookCover from "../../../components/books/BookCover";
-<<<<<<< HEAD
 import { recommendationBooks } from "../../../data/books";
-import { catalogService } from "../../../services/catalog.service";
-=======
-import { fieldBooks, recommendationBooks, newBooks } from "../../../data/books";
 import { catalogService, getTrackedFavorites, syncFavoriteBook } from "../../../services/catalog.service";
->>>>>>> origin/main
 import { searchService } from "../../../services/search.service";
 import { getAccessToken, getStoredUser } from "../../../services/session";
 import type { Book } from "../../../types/library";

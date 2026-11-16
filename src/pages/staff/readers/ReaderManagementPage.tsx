@@ -169,7 +169,14 @@ export default function ReaderManagementPage() {
             <div className="reader-management-table-wrap">
               <table className="reader-management-table">
                 <thead><tr><th>Mã bạn đọc</th><th>Họ tên</th><th>Loại bạn đọc</th><th>Khoa/ngành</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                <tbody>{result.items.map((reader) => <tr key={reader.id}>
+                <tbody>{result.items.map((reader) => <tr
+                  key={reader.id}
+                  className="clickable-row"
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("button, a, input, select, .managed-reader-actions")) return;
+                    setSelectedReader(reader);
+                  }}
+                >
                   <td><code>{reader.userCode}</code></td>
                   <td><div className="managed-reader-cell"><Avatar name={reader.fullName} /><div><strong>{reader.fullName}</strong><small>{reader.email}</small></div></div></td>
                   <td>{labelFor(types, reader.userType)}</td><td>{reader.departmentName || "—"}</td>
