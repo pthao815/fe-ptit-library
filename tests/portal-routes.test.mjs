@@ -10,6 +10,9 @@ test("catalog remains public and private portals require their matching role", (
   assert.equal(routeAccess("/staff/materials/edit/uuid", "LIBRARIAN"), "allowed");
   assert.equal(routeAccess("/admin/materials/edit/uuid", "ADMIN"), "allowed");
   assert.equal(routeAccess("/admin/policies", "LIBRARIAN"), "forbidden");
+  assert.equal(routeAccess("/admin/readers", "ADMIN"), "allowed");
+  assert.equal(routeAccess("/admin/readers", "LIBRARIAN"), "forbidden");
+  assert.equal(routeAccess("/staff/readers", "LIBRARIAN"), "allowed");
   assert.equal(routeAccess("/staff/search-configs", "LIBRARIAN"), "forbidden");
   assert.equal(routeAccess("/staff/materials/unexpected", "LIBRARIAN"), "missing");
   assert.equal(routeAccess("/unknown"), "missing");

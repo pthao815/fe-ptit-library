@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Icon } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Icon } from "../../../design-system";
 import { analyticsService } from "../../../services/analytics.service";
 import { getAccessToken } from "../../../services/session";
 import type { AcquisitionSuggestionDto, LibraryOverviewStatsDto } from "../../../types/api";
@@ -51,9 +51,9 @@ export default function ReportsScreen() {
       </div>
 
       <section className="report-filter-bar">
-        <label><span>Khoảng thời gian</span><select defaultValue="30"><option value="7">7 ngày gần đây</option><option value="30">30 ngày gần đây</option><option value="90">3 tháng gần đây</option><option value="365">12 tháng gần đây</option></select><Icon name="chevron-down" size={14} /></label>
-        <label><span>Ngành đào tạo</span><select defaultValue="all"><option value="all">Tất cả ngành đào tạo</option><option>Công nghệ thông tin</option><option>Điện tử viễn thông</option><option>Quản trị kinh doanh</option></select><Icon name="chevron-down" size={14} /></label>
-        <label><span>Dạng tài liệu</span><select defaultValue="all"><option value="all">Tất cả dạng tài liệu</option><option>Giáo trình</option><option>Sách chuyên khảo</option><option>Luận án, luận văn</option></select><Icon name="chevron-down" size={14} /></label>
+        <label><span>Khoảng thời gian</span><CustomSelect defaultValue="30"><option value="7">7 ngày gần đây</option><option value="30">30 ngày gần đây</option><option value="90">3 tháng gần đây</option><option value="365">12 tháng gần đây</option></CustomSelect></label>
+        <label><span>Ngành đào tạo</span><CustomSelect defaultValue="all"><option value="all">Tất cả ngành đào tạo</option><option>Công nghệ thông tin</option><option>Điện tử viễn thông</option><option>Quản trị kinh doanh</option></CustomSelect></label>
+        <label><span>Dạng tài liệu</span><CustomSelect defaultValue="all"><option value="all">Tất cả dạng tài liệu</option><option>Giáo trình</option><option>Sách chuyên khảo</option><option>Luận án, luận văn</option></CustomSelect></label>
         <Button variant="secondary">Áp dụng</Button>
         <button className="report-reset">Đặt lại</button>
       </section>

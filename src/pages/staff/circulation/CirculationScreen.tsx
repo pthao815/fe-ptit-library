@@ -4,30 +4,29 @@ import { circulationTabs } from "../../../constants/library-options";
 import { circulationService } from "../../../services/circulation.service";
 import { getAccessToken } from "../../../services/session";
 import { userService } from "../../../services/user.service";
-import type { BookReturnCondition, UserDto } from "../../../types/api";
+import type { BookReturnCondition, FineItemDto, UserDto } from "../../../types/api";
 
 function ReaderInformationCard({ reader }: { reader: UserDto | null }) {
-  const fullName = reader?.fullName || "Trần Minh Quân";
-  const userCode = reader?.userCode || "CT050145";
-  const department = reader?.departmentName || "Công nghệ thông tin";
+  const fullName = reader?.fullName || "—";
+  const userCode = reader?.userCode || "—";
+  const department = reader?.departmentName || "—";
   const userTypeLabel =
     reader?.userType === "LECTURER"
       ? "Cán bộ, giảng viên"
       : reader?.userType === "RESEARCHER"
         ? "Nghiên cứu sinh"
         : "Sinh viên chính quy";
-  const isLocked =
-    reader?.status !== undefined &&
-    ["LOCKED", "SUSPENDED", "INACTIVE"].includes(reader.status.toUpperCase());
-  const debtAmount = reader?.debt ?? 20000;
+  const status = reader?.status || "—";
+  const isActive = status === "ACTIVE";
+  const debtAmount = reader?.debt;
 
   return (
     <section className="circulation-reader-card">
       <div className="reader-card-identity">
         <Avatar name={fullName} size="lg" />
         <div>
-          <Badge tone={isLocked ? "error" : "success"}>
-            {isLocked ? "THẺ ĐANG BỊ KHÓA" : "THẺ ĐANG HOẠT ĐỘNG"}
+          <Badge tone={isActive ? "success" : "warning"}>
+            {isActive ? "THẺ ĐANG HOẠT ĐỘNG" : status}
           </Badge>
           <h2>{fullName}</h2>
           <p>{`${userCode} · ${userTypeLabel}`}</p>
@@ -37,30 +36,18 @@ function ReaderInformationCard({ reader }: { reader: UserDto | null }) {
         <div><dt>Mã bạn đọc</dt><dd>{userCode}</dd></div>
         <div><dt>Loại bạn đọc</dt><dd>{userTypeLabel}</dd></div>
         <div><dt>Ngành</dt><dd>{department}</dd></div>
-        <div><dt>Trạng thái thẻ</dt><dd><Status tone={isLocked ? "error" : "success"}>{isLocked ? "Bị khóa" : "Hoạt động"}</Status></dd></div>
-        <div><dt>Đang mượn</dt><dd><strong>06 cuốn</strong></dd></div>
-        <div><dt>Hạn mức</dt><dd>08 cuốn</dd></div>
-        <div><dt>Công nợ</dt><dd><strong className="debt-value">{`${debtAmount.toLocaleString("vi-VN")}đ`}</strong></dd></div>
+        <div><dt>Trạng thái thẻ</dt><dd><Status tone={isActive ? "success" : "warning"}>{isActive ? "Hoạt động" : status}</Status></dd></div>
+        <div><dt>Công nợ</dt><dd><strong className="debt-value">{`${debtAmount == null ? "—" : debtAmount.toLocaleString("vi-VN") + "đ"}`}</strong></dd></div>
       </dl>
-      <Button variant="ghost" size="sm">Xem hồ sơ bạn đọc</Button>
     </section>
   );
 }
 
 function ValidationPanel() {
-  return (
-    <section className="validation-panel">
-      <div className="validation-heading"><div><p className="eyebrow">KIỂM TRA TỰ ĐỘNG</p><h2>Điều kiện lưu thông</h2></div><Badge tone="warning">2 CẢNH BÁO</Badge></div>
-      <div className="validation-list">
-        <div className="passed"><Icon name="success" /><span><strong>Trạng thái thẻ</strong><small>Thẻ đang hoạt động, không bị khóa</small></span><Badge tone="success">HỢP LỆ</Badge></div>
-        <div className="warning"><Icon name="error" /><span><strong>Công nợ bạn đọc</strong><small>Còn công nợ quá hạn cần xử lý</small></span><Badge tone="warning">20.000đ</Badge></div>
-        <div className="passed"><Icon name="success" /><span><strong>Hạn mức mượn</strong><small>Sau giao dịch: 08 / 08 cuốn</small></span><Badge tone="success">TRONG HẠN MỨC</Badge></div>
-        <div className="passed"><Icon name="success" /><span><strong>Quyền mượn về</strong><small>Các tài liệu đã quét được phép mượn về</small></span><Badge tone="success">HỢP LỆ</Badge></div>
-        <div className="warning"><Icon name="bookmark" /><span><strong>Trạng thái đặt trước</strong><small>01 tài liệu đang được giữ cho bạn đọc khác</small></span><Badge tone="error">CẦN KIỂM TRA</Badge></div>
-      </div>
-      <div className="validation-blocked-example"><Icon name="info" size={15} /><span>Hệ thống sẽ chặn xác nhận nếu thẻ bị khóa, vượt hạn mức hoặc tài liệu không được phép mượn về.</span></div>
-    </section>
-  );
+  return <section className="validation-panel">
+    <h2>Điều kiện lưu thông</h2>
+    <p>Máy chủ sẽ kiểm tra trạng thái thẻ, hạn mức và mã vạch khi lập phiếu.</p>
+  </section>;
 }
 
 type ScannedBookRow = {
@@ -135,12 +122,12 @@ function LoanTransaction({
                 <td><code>{item.barcode}</code></td>
                 <td>{item.borrowDate}</td>
                 <td><strong>{item.dueDate}</strong><small>150 ngày</small></td>
-                <td><Status tone={item.warning ? "warning" : "success"}>{item.warning ? "Có lượt đặt trước" : "Được phép mượn"}</Status></td>
+                <td><Status tone={item.warning ? "warning" : "neutral"}>{item.warning ? "Có lượt đặt trước" : "Chờ kiểm tra"}</Status></td>
                 <td><IconButton label="Xóa" icon="close" onClick={() => onRemoveBarcode(item.barcode)} /></td>
               </tr>
             ))}
           </tbody></table></div>
-          <div className="transaction-footer"><div><span>Tổng tài liệu</span><strong>{String(items.length).padStart(2, "0")} cuốn</strong><small>Sau giao dịch: 08 / 08 cuốn</small></div><Button icon="success" disabled={items.length === 0} onClick={onConfirm}>Xác nhận cho mượn</Button></div>
+          <div className="transaction-footer"><div><span>Tổng tài liệu</span><strong>{String(items.length).padStart(2, "0")} cuốn</strong></div><Button icon="success" disabled={items.length === 0} onClick={onConfirm}>Xác nhận cho mượn</Button></div>
         </section>
       </div>
       <ValidationPanel />
@@ -154,12 +141,22 @@ function ReturnTransaction({
   condition,
   onConditionChange,
   onConfirm,
+  payImmediately,
+  onPayImmediatelyChange,
+  recentFines,
+  onPayFine,
+  payingFineId,
 }: {
   barcode: string;
   onBarcodeChange: (val: string) => void;
   condition: string;
   onConditionChange: (val: string) => void;
   onConfirm: () => void;
+  payImmediately: boolean;
+  onPayImmediatelyChange: (val: boolean) => void;
+  recentFines: FineItemDto[];
+  onPayFine: (fineId: number) => void;
+  payingFineId: number | null;
 }) {
   return (
     <div className="return-transaction">
@@ -185,7 +182,35 @@ function ReturnTransaction({
           <SelectField label="Hư hỏng / mất" defaultValue="none"><option value="none">Không phát sinh</option><option value="damage">Lập biên bản hư hỏng</option><option value="lost">Lập biên bản mất tài liệu</option></SelectField>
         </div>
         <div className="return-debt-summary"><div><Icon name="error" /><span><strong>Công nợ phát sinh</strong><small>Phí trả muộn: 2.000đ/cuốn/ngày · Phí tồn trước đó: 14.000đ</small></span></div><strong>20.000đ</strong></div>
-        <label className="staff-checkbox"><input type="checkbox" /><span>Bạn đọc thanh toán công nợ ngay tại quầy</span></label>
+        <label className="staff-checkbox"><input type="checkbox" checked={payImmediately} onChange={(event) => onPayImmediatelyChange(event.target.checked)} /><span>Bạn đọc thanh toán công nợ ngay tại quầy</span></label>
+        {recentFines.length > 0 && (
+          <div className="debt-section">
+            <p><strong>Các khoản phạt vừa phát sinh:</strong></p>
+            {recentFines.map((fine) => (
+              <div key={fine.fineId} className="debt-row">
+                <div>
+                  <Badge tone={fine.status === "PAID" ? "success" : "error"}>
+                    {fine.status === "PAID" ? "ĐÃ THU" : "CHƯA THU"}
+                  </Badge>
+                  <strong>{fine.reason}</strong>
+                  <small>{fine.barcode ? `Mã vạch: ${fine.barcode}` : ""}</small>
+                </div>
+                <div>
+                  <span>{`${fine.fineAmount.toLocaleString("vi-VN")}đ`}</span>
+                  {fine.status !== "PAID" && (
+                    <Button
+                      size="sm"
+                      loading={payingFineId === fine.fineId}
+                      onClick={() => onPayFine(fine.fineId)}
+                    >
+                      Thu tiền ngay
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="return-actions"><Button variant="ghost">Hủy giao dịch</Button><Button icon="success" onClick={onConfirm}>Nhận trả</Button></div>
       </section>
     </div>
@@ -213,35 +238,67 @@ export default function CirculationScreen() {
   const [searchType, setSearchType] = useState("Mã bạn đọc");
   const readerLookup = useRef(0);
   const [readerQuery, setReaderQuery] = useState("");
+  const [readerResults, setReaderResults] = useState<UserDto[]>([]);
+  const [findingReader, setFindingReader] = useState(false);
+  const [hasMoreReaders, setHasMoreReaders] = useState(false);
   const [currentReader, setCurrentReader] = useState<UserDto | null>(null);
   const [loanItems, setLoanItems] = useState<ScannedBookRow[]>([]);
   const [returnBarcode, setReturnBarcode] = useState("");
   const [renewBarcode, setRenewBarcode] = useState("");
   const [processing, setProcessing] = useState(false);
   const [returnCondition, setReturnCondition] = useState("good");
+  const [payImmediately, setPayImmediately] = useState(true);
+  const [recentFines, setRecentFines] = useState<FineItemDto[]>([]);
+  const [payingFineId, setPayingFineId] = useState<number | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const actionLabel = confirmation === "loan" ? "Xác nhận cho mượn" : confirmation === "return" ? "Xác nhận nhận trả" : "Xác nhận gia hạn";
 
-  const handleFindReader = () => {
-    if (!readerQuery.trim() || !getAccessToken()) return;
-    const request = ++readerLookup.current;
+  const handlePayFine = async (fineId: number) => {
+    if (payingFineId !== null) return;
+    setPayingFineId(fineId);
+    try {
+      const res = await circulationService.payFine(fineId, "Thu tiền trực tiếp tại quầy lưu thông");
+      setToastMsg(`Đã thu ${res.fineAmount.toLocaleString("vi-VN")}đ. Trạng thái: ${res.status}.`);
+      setRecentFines((prev) =>
+        prev.map((f) => (f.fineId === fineId ? { ...f, status: "PAID" as const } : f)),
+      );
+    } catch (err) {
+      setToastMsg(err instanceof Error ? err.message : "Không thể ghi nhận thanh toán khoản phạt.");
+    } finally {
+      setPayingFineId(null);
+    }
+  };
+
+  const resetReaderLookup = () => {
+    readerLookup.current++;
     setCurrentReader(null);
-    userService
-      .searchAdminUsers({ keyword: readerQuery.trim(), page: 0, size: 1 })
-      .then((pageData) => {
-        if (request !== readerLookup.current) return;
-        if (pageData.items?.length) {
-          setCurrentReader(pageData.items[0]);
-          setToastMsg(`Đã tải hồ sơ bạn đọc: ${pageData.items[0].fullName}`);
-        } else {
-          setToastMsg("Không tìm thấy bạn đọc khớp với thông tin vừa nhập.");
-        }
-      })
-      .catch(() => {
-        if (request === readerLookup.current) setToastMsg("Không tải được hồ sơ bạn đọc.");
-      });
+    setReaderResults([]);
+    setFindingReader(false);
+    setHasMoreReaders(false);
+    setToastMsg(null);
+  };
+
+  const handleFindReader = async () => {
+    const keyword = readerQuery.trim();
+    if (!keyword || !getAccessToken()) return;
+    resetReaderLookup();
+    const request = readerLookup.current;
+    setFindingReader(true);
+    try {
+      const data = await userService.searchAdminUsers({ keyword, role: "READER", page: 0, size: 10 });
+      if (request !== readerLookup.current) return;
+      setReaderResults(data.items);
+      setHasMoreReaders(data.hasNext);
+      if (!data.items.length) setToastMsg("Không tìm thấy bạn đọc phù hợp.");
+    } catch (error) {
+      if (request === readerLookup.current) {
+        setToastMsg(error instanceof Error ? error.message : "Không tải được hồ sơ bạn đọc.");
+      }
+    } finally {
+      if (request === readerLookup.current) setFindingReader(false);
+    }
   };
 
   const handleAddLoanBarcode = (barcode: string) => {
@@ -285,7 +342,25 @@ export default function CirculationScreen() {
         const condition: BookReturnCondition = returnCondition === "lost" ? "LOST"
           : returnCondition === "light" || returnCondition === "heavy" ? "DAMAGED" : "NORMAL";
         const result = await circulationService.returnBook({ barcode: returnBarcode.trim(), condition });
-        setToastMsg("Đã nhận trả " + result.documentTitle + ". Phí phát sinh: " + result.totalFineAmount.toLocaleString("vi-VN") + "đ.");
+        let msg = `Đã nhận trả ${result.documentTitle}. Phí phát sinh: ${result.totalFineAmount.toLocaleString("vi-VN")}đ.`;
+        const generatedFines = result.generatedFines ?? [];
+        if (generatedFines.length) {
+          setRecentFines((prev) => [...generatedFines, ...prev]);
+          if (payImmediately) {
+            for (const fine of generatedFines) {
+              try {
+                await circulationService.payFine(fine.fineId, "Thu tiền ngay khi nhận trả sách tại quầy");
+                setRecentFines((prev) =>
+                  prev.map((f) => (f.fineId === fine.fineId ? { ...f, status: "PAID" as const } : f)),
+                );
+              } catch {
+                // Keep fine unpaid if error occurs
+              }
+            }
+            msg += " Đã tự động thu tiền công nợ tại quầy.";
+          }
+        }
+        setToastMsg(msg);
         setReturnBarcode("");
       } else if (mode === "renew") {
         const result = await circulationService.renewLoan({ barcode: renewBarcode.trim() });
@@ -305,15 +380,24 @@ export default function CirculationScreen() {
       <div className="circulation-page-heading"><div><Breadcrumb items={["Không gian nghiệp vụ", "Lưu thông"]} /><p className="eyebrow">NGHIỆP VỤ LƯU THÔNG</p><h1>Lưu thông tài liệu</h1><p>Cho mượn, nhận trả và gia hạn tài liệu tại quầy.</p></div><Badge tone="success"><Status tone="success">Quầy 01 đang hoạt động</Status></Badge></div>
       <div className="circulation-tabs" role="tablist">{circulationTabs.map((tab) => <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)} role="tab" aria-selected={activeTab === tab}>{tab === "Cho mượn" ? <Icon name="book" /> : tab === "Nhận trả" ? <Icon name="arrow-left" /> : <Icon name="sparkle" />}{tab}</button>)}</div>
       <section className="circulation-search-area">
-        <div className="search-type-tabs">{["Mã bạn đọc", "Mã cá biệt", "Tên bạn đọc"].map((type) => <button key={type} className={searchType === type ? "active" : ""} onClick={() => setSearchType(type)}>{type}</button>)}</div>
+        <div className="search-type-tabs">{["Mã bạn đọc", "Tên bạn đọc"].map((type) => <button key={type} className={searchType === type ? "active" : ""} onClick={() => { setSearchType(type); resetReaderLookup(); }}>{type}</button>)}</div>
         <div className="staff-reader-search">
           <SearchInput
             value={readerQuery}
-            onChange={(event) => { readerLookup.current++; setReaderQuery(event.target.value); setCurrentReader(null); }}
-            placeholder={searchType === "Mã bạn đọc" ? "Nhập hoặc quét mã bạn đọc..." : searchType === "Mã cá biệt" ? "Nhập mã cá biệt..." : "Nhập họ tên bạn đọc..."}
+            onChange={(event) => { setReaderQuery(event.target.value); resetReaderLookup(); }}
+            placeholder={searchType === "Mã bạn đọc" ? "Nhập hoặc quét mã bạn đọc..." : "Nhập họ tên bạn đọc..."}
           />
-          <Button icon="search" onClick={handleFindReader}>Tìm bạn đọc</Button>
+          <Button icon="search" loading={findingReader} disabled={!readerQuery.trim()} onClick={handleFindReader}>Tìm bạn đọc</Button>
         </div>
+        {readerResults.length > 0 && <fieldset>
+          <legend>Chọn đúng bạn đọc trước khi lập phiếu</legend>
+          {readerResults.map((reader) => <label key={reader.id} style={{ display: "block" }}>
+            <input type="radio" name="circulation-reader" checked={currentReader?.id === reader.id}
+              onChange={() => setCurrentReader(reader)} />{" "}
+            {reader.fullName} · {reader.userCode} {reader.departmentName ? "· " + reader.departmentName : ""}
+          </label>)}
+          {hasMoreReaders && <p>Chỉ hiển thị 10 kết quả đầu. Nhập mã bạn đọc để thu hẹp tìm kiếm.</p>}
+        </fieldset>}
         <span><Icon name="info" size={14} />Có thể sử dụng máy quét mã vạch tại quầy</span>
       </section>
       {currentReader && <ReaderInformationCard reader={currentReader} />}
@@ -336,6 +420,11 @@ export default function CirculationScreen() {
             condition={returnCondition}
             onConditionChange={setReturnCondition}
             onConfirm={() => setConfirmation("return")}
+            payImmediately={payImmediately}
+            onPayImmediatelyChange={setPayImmediately}
+            recentFines={recentFines}
+            onPayFine={handlePayFine}
+            payingFineId={payingFineId}
           />
         )}
         {activeTab === "Gia hạn" && <section className="circulation-search-area">

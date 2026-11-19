@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Badge, Breadcrumb, Button, Dropdown, Icon, IconButton, Modal, SearchInput } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Dropdown, Icon, IconButton, Modal, SearchInput } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
 import { userService } from "../../../services/user.service";
 import { authSession } from "../../../shared/auth/auth-session";
@@ -165,27 +165,24 @@ export default function MaterialsManagementPage() {
         <div className="catalog-filter-grid">
           <label>
             <span>Dạng tài liệu</span>
-            <select value={docType} onChange={(event) => updateParams({ type: event.target.value || undefined })}>
+            <CustomSelect value={docType} onChange={(event) => updateParams({ type: event.target.value || undefined })}>
               <option value="">Tất cả dạng tài liệu</option>
               {docTypeOptions.map((code) => <option key={code} value={code}>{docTypeLabel(code)}</option>)}
-            </select>
-            <Icon name="chevron-down" size={14} />
+            </CustomSelect>
           </label>
           {departments.length > 0 && <label>
             <span>Khoa/ngành</span>
-            <select value={departmentId ?? ""} onChange={(event) => updateParams({ dept: event.target.value || undefined })}>
+            <CustomSelect value={departmentId ?? ""} onChange={(event) => updateParams({ dept: event.target.value || undefined })}>
               <option value="">Tất cả khoa/ngành</option>
               {departments.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-            </select>
-            <Icon name="chevron-down" size={14} />
+            </CustomSelect>
           </label>}
           <label>
             <span>Năm xuất bản</span>
-            <select value={year ?? ""} onChange={(event) => updateParams({ year: event.target.value || undefined })}>
+            <CustomSelect value={year ?? ""} onChange={(event) => updateParams({ year: event.target.value || undefined })}>
               <option value="">Tất cả các năm</option>
               {Array.from({ length: 30 }, (_, index) => new Date().getFullYear() - index).map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
-            <Icon name="chevron-down" size={14} />
+            </CustomSelect>
           </label>
         </div>
       </form>
@@ -220,7 +217,14 @@ export default function MaterialsManagementPage() {
             <table className="catalog-table">
               <thead><tr><th>Bìa</th><th>Nhan đề</th><th>Tác giả</th><th>Năm XB</th><th>Dạng tài liệu</th><th>Bản giấy</th><th>Tài liệu số</th><th>Thao tác</th></tr></thead>
               <tbody>{result.items.map((document) => (
-                <tr key={document.id}>
+                <tr
+                  key={document.id}
+                  className="clickable-row"
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("button, a, input, select, .catalog-row-actions, .dropdown")) return;
+                    navigate("/reader/book-detail?id=" + encodeURIComponent(document.id), { state: { returnTo: base + search } });
+                  }}
+                >
                   <td>
                     <div className="catalog-cover">
                       {document.coverUrl
@@ -246,7 +250,7 @@ export default function MaterialsManagementPage() {
                       <Button variant="ghost" size="sm" onClick={() => navigate("/reader/book-detail?id=" + encodeURIComponent(document.id), { state: { returnTo: base + search } })}>Xem</Button>
                       <Button variant="ghost" size="sm" onClick={() => navigate(base + "/edit/" + document.id + search)}>Sửa</Button>
                       {isAdmin && <div className="catalog-more-wrap">
-                        <IconButton label="Thêm thao tác" icon="more" onClick={() => setActionMenu(actionMenu === document.id ? undefined : document.id)} />
+                        <IconButton label="Thêm thao tác" icon="more" size={16} onClick={() => setActionMenu(actionMenu === document.id ? undefined : document.id)} />
                         <Dropdown open={actionMenu === document.id}>
                           <button type="button" className="danger" onClick={() => { setTarget(document); setDeleteError(""); setActionMenu(undefined); }}>
                             <Icon name="error" />Xóa biểu ghi

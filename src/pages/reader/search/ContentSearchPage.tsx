@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Icon, IconButton } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Icon, IconButton, Toast } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import type { ContentSearchResult } from "../../../data/search-results";
 import { contentFilterGroups } from "../../../constants/library-options";
@@ -17,9 +17,22 @@ const RANK_MODES: { value: RankMode; label: string; hint: string }[] = [
 ];
 const parseRankMode = (value: string | null): RankMode => (value === "tfidf" ? "tfidf" : "hybrid");
 
-function ContentSearchResultCard({ result, query, saved, onSave }: { result: ContentSearchResult; query: string; saved: boolean; onSave: () => void }) {
+function ContentSearchResultCard({
+  result,
+  query,
+  saved,
+  onSave,
+  onNotify,
+}: {
+  result: ContentSearchResult;
+  query: string;
+  saved: boolean;
+  onSave: () => void;
+  onNotify: (msg: string) => void;
+}) {
   const navigate = useNavigate();
   const [holdPlaced, setHoldPlaced] = useState(false);
+  const [holding, setHolding] = useState(false);
   // Mở trình đọc đúng tài liệu, đúng trang, kèm truy vấn để tô sáng đoạn khớp
   const readerUrl = result.documentId
     ? `/reader/document/${encodeURIComponent(result.documentId)}?${new URLSearchParams({ page: String(result.pageNumber ?? 1), q: query })}`
@@ -30,13 +43,27 @@ function ContentSearchResultCard({ result, query, saved, onSave }: { result: Con
     : "/reader/book-detail";
 
   const handlePlaceHold = () => {
-    if (result.documentId && getAccessToken()) {
+    if (!getAccessToken()) {
+      onNotify("Vui lòng đăng nhập để đặt trước tài liệu.");
+      return;
+    }
+    if (result.documentId) {
+      setHolding(true);
       circulationService
         .placeHold({ documentId: result.documentId })
-        .then(() => setHoldPlaced(true))
-        .catch(() => setHoldPlaced(true));
+        .then((res) => {
+          setHoldPlaced(true);
+          onNotify(`Đặt trước thành công! Vị trí hàng chờ: #${res.queuePosition}.`);
+        })
+        .catch((err) => {
+          setHoldPlaced(false);
+          onNotify(err instanceof Error ? err.message : "Không thể đặt trước tài liệu này.");
+        })
+        .finally(() => {
+          setHolding(false);
+        });
     } else {
-      setHoldPlaced(true);
+      onNotify("Tài liệu chưa có mã biểu ghi trên hệ thống.");
     }
   };
 
@@ -64,7 +91,18 @@ function ContentSearchResultCard({ result, query, saved, onSave }: { result: Con
         <div className="semantic-actions">
           <Button size="sm" onClick={() => { navigate(detailUrl); }}>Xem chi tiết</Button>
           <Button variant="secondary" size="sm" icon="document" disabled={!readerUrl} onClick={openReader}>Đọc trực tuyến</Button>
-          {!result.available && <Button variant="ghost" size="sm" icon="bookmark" disabled={holdPlaced} onClick={handlePlaceHold}>{holdPlaced ? "Đã đặt trước" : "Đặt trước"}</Button>}
+          {!result.available && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="bookmark"
+              loading={holding}
+              disabled={holdPlaced || holding}
+              onClick={handlePlaceHold}
+            >
+              {holdPlaced ? "Đã đặt trước" : "Đặt trước"}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" icon="bookmark" onClick={onSave}>{saved ? "Đã lưu" : "Lưu"}</Button>
         </div>
       </div>
@@ -86,6 +124,7 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
   const [saved, setSaved] = useState<number[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<string[]>(["Công nghệ thông tin", "Tiếng Việt"]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const changeRankMode = (mode: RankMode) => {
     if (mode === rankMode) return;
@@ -128,15 +167,32 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
 
   const toggleFilter = (value: string) => setSelectedFilters((items) => items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
   const toggleSave = (result: ContentSearchResult) => {
+    const isSaved = saved.includes(result.id);
     setSaved((items) =>
-      items.includes(result.id)
+      isSaved
         ? items.filter((item) => item !== result.id)
         : [...items, result.id],
     );
     if (result.documentId && getAccessToken()) {
-      catalogService.toggleFavorite(result.documentId).catch(() => {
-        // Ignore error on optimistic favorite toggle
-      });
+      catalogService
+        .toggleFavorite(result.documentId)
+        .then((res) => {
+          if (res.isFavorite !== !isSaved) {
+            setSaved((items) =>
+              res.isFavorite ? [...new Set([...items, result.id])] : items.filter((item) => item !== result.id),
+            );
+          }
+          setToastMsg(res.isFavorite ? "Đã lưu vào tủ sách." : "Đã bỏ lưu tài liệu.");
+        })
+        .catch((err) => {
+          // Rollback on error
+          setSaved((items) =>
+            isSaved ? [...items, result.id] : items.filter((item) => item !== result.id),
+          );
+          setToastMsg(err instanceof Error ? err.message : "Lỗi khi cập nhật yêu thích.");
+        });
+    } else if (!getAccessToken()) {
+      setToastMsg("Vui lòng đăng nhập để lưu tài liệu vào tủ sách.");
     }
   };
 
@@ -173,16 +229,34 @@ export default function ContentSearchResultsPage({ empty = false }: { empty?: bo
           <div className="semantic-filter-actions"><Button onClick={() => setFilterOpen(false)}>Áp dụng</Button><Button variant="ghost" onClick={() => setSelectedFilters([])}>Xóa bộ lọc</Button></div>
         </aside>
         <section className="semantic-results-main">
-          <div className="semantic-toolbar"><div>{selectedFilters.slice(0, 3).map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div><label><span>Sắp xếp:</span><select defaultValue="relevance"><option value="relevance">Mức độ liên quan</option><option value="popular">Mức độ phổ biến</option><option value="newest">Năm xuất bản mới nhất</option></select><Icon name="chevron-down" size={15} /></label></div>
+          <div className="semantic-toolbar"><div>{selectedFilters.slice(0, 3).map((filter) => <button key={filter} onClick={() => toggleFilter(filter)}>{filter}<Icon name="close" size={13} /></button>)}</div><label><span>Sắp xếp:</span><CustomSelect defaultValue="relevance"><option value="relevance">Mức độ liên quan</option><option value="popular">Mức độ phổ biến</option><option value="newest">Năm xuất bản mới nhất</option></CustomSelect></label></div>
           {status === "loading" ? <div className="catalog-empty"><span className="spinner content-search-spinner" /><h2>Đang tìm trong nội dung tài liệu…</h2><p>Hệ thống đang so khớp truy vấn với toàn văn các tài liệu số.</p></div>
           : status === "error" ? <div className="catalog-empty"><Icon name="error" size={28} /><h2>Không tìm được lúc này</h2><p>Máy chủ tìm kiếm đang bận hoặc mất kết nối. Vui lòng thử lại sau ít phút.</p><Button variant="secondary" onClick={() => runContentSearch(query)}>Thử lại</Button></div>
           : !empty && status === "idle" ? <div className="catalog-empty"><Icon name="sparkle" size={28} /><h2>Tìm theo nội dung bên trong tài liệu</h2><p>Nhập một câu hỏi, đoạn trích hoặc mô tả chủ đề để tìm các trang sách có nội dung phù hợp.</p></div>
           : isEmptyState ? <div className="catalog-empty"><Icon name="search" size={28} /><h2>Không tìm thấy tài liệu phù hợp</h2><p>Thử thay đổi truy vấn hoặc sử dụng một mô tả rộng hơn.</p><Button variant="secondary" onClick={() => { setSelectedFilters([]); setHasFetchedEmpty(false); }}>Xóa bộ lọc</Button></div> : <>
-            <div className="semantic-results-list">{results.map((result) => <ContentSearchResultCard key={result.id} result={result} query={searchedQuery} saved={saved.includes(result.id)} onSave={() => toggleSave(result)} />)}</div>
+            <div className="semantic-results-list">
+              {results.map((result) => (
+                <ContentSearchResultCard
+                  key={result.id}
+                  result={result}
+                  query={searchedQuery}
+                  saved={saved.includes(result.id)}
+                  onSave={() => toggleSave(result)}
+                  onNotify={(msg) => setToastMsg(msg)}
+                />
+              ))}
+            </div>
             <div className="results-load-more"><p>Đang hiển thị {results.length} kết quả phù hợp nhất</p><Button variant="secondary" onClick={() => runContentSearch(query)}>Xem thêm kết quả</Button></div>
           </>}
         </section>
       </main>
+      {toastMsg && (
+        <div className="toast-position">
+          <Toast tone="info" title="Tìm kiếm nội dung" onClose={() => setToastMsg(null)}>
+            {toastMsg}
+          </Toast>
+        </div>
+      )}
     </div>
   );
 }

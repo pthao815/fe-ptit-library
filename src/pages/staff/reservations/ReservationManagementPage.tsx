@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Avatar, Badge, Breadcrumb, Button, Icon, Modal, SearchInput, Status } from "../../../design-system";
+import { Avatar, Badge, Breadcrumb, Button, CustomSelect, Icon, Modal, SearchInput, Status } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import { initialReservationGroups } from "../../../data/reservations";
 import { detailBook } from "../../../data/books";
@@ -44,7 +44,7 @@ export default function ReservationManagementPage() {
         <Badge tone="info">FIFO</Badge>
       </div>
 
-      <div className="reservation-queue-toolbar"><div><h2>Hàng đợi theo tài liệu</h2><p>{groups.length} tài liệu · {groups.reduce((total, group) => total + group.queue.length, 0)} lượt đang được quản lý</p></div><label><span>Hiển thị</span><select defaultValue="all"><option value="all">Tất cả hàng đợi</option><option>Có bản sẵn sàng</option><option>Đang giữ</option><option>Chưa có bản</option></select><Icon name="chevron-down" size={14} /></label></div>
+      <div className="reservation-queue-toolbar"><div><h2>Hàng đợi theo tài liệu</h2><p>{groups.length} tài liệu · {groups.reduce((total, group) => total + group.queue.length, 0)} lượt đang được quản lý</p></div><label><span>Hiển thị</span><CustomSelect defaultValue="all"><option value="all">Tất cả hàng đợi</option><option>Có bản sẵn sàng</option><option>Đang giữ</option><option>Chưa có bản</option></CustomSelect></label></div>
 
       <div className="reservation-group-list">
         {groups.map((group) => (

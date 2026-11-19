@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Field, Icon, IconButton, Status } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Field, Icon, IconButton, Status } from "../../../design-system";
+import AuthorFilter from "./AuthorFilter";
 import BookCover from "../../../components/books/BookCover";
 import type { SearchResult } from "../../../data/search-results";
 import { userService } from "../../../services/user.service";
@@ -141,7 +142,7 @@ function BookSearch({ empty }: { empty: boolean }) {
         docType: applied.docType.trim() || undefined,
         publicationYear: Number(applied.publicationYear) || undefined,
         departmentId: Number(applied.departmentId) || undefined,
-        authorId: Number(applied.authorId) || undefined,
+        authorId: /^[1-9][0-9]*$/.test(applied.authorId) && Number.isSafeInteger(Number(applied.authorId)) ? Number(applied.authorId) : undefined,
         page: page - 1,
         size: 10,
         sortBy,
@@ -233,15 +234,16 @@ function BookSearch({ empty }: { empty: boolean }) {
           <form className="filter-group" onSubmit={(event) => {
             event.preventDefault();
             setFilterOpen(false);
-            updateSearch({ ...filters, page: "" });
+            const authorId = /^[1-9][0-9]*$/.test(filters.authorId) && Number.isSafeInteger(Number(filters.authorId)) ? filters.authorId : "";
+            updateSearch({ ...filters, authorId, page: "" });
           }}>
             <Field label="Mã loại tài liệu" value={filters.docType} onChange={(event) => setFilters({ ...filters, docType: event.target.value })} />
             <Field label="Năm xuất bản" type="number" min={1000} max={9999} value={filters.publicationYear} onChange={(event) => setFilters({ ...filters, publicationYear: event.target.value })} />
-            <Field label="ID tác giả" type="number" min={1} value={filters.authorId} onChange={(event) => setFilters({ ...filters, authorId: event.target.value })} />
-            <label>Khoa/ngành <select value={filters.departmentId} onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}>
+            <AuthorFilter value={filters.authorId} onChange={(authorId) => setFilters((current) => ({ ...current, authorId }))} />
+            <label>Khoa/ngành <CustomSelect value={filters.departmentId} onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}>
               <option value="">Tất cả</option>
               {departments.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-            </select></label>
+            </CustomSelect></label>
             <Button type="submit">Áp dụng bộ lọc</Button>
           </form>
         </aside>
@@ -250,7 +252,7 @@ function BookSearch({ empty }: { empty: boolean }) {
           <div className="results-toolbar">
             <div className="results-count"><strong>{displayTotal} kết quả</strong></div>
             <div className="toolbar-controls">
-              <label className="sort-control"><span>Sắp xếp:</span><select value={sort} onChange={(event) => updateSearch({ sort: event.target.value, page: "" })}><option value="relevance">Ngày thêm gần đây</option><option value="title">Tên tài liệu A–Z</option><option value="newest">Năm xuất bản mới nhất</option></select><Icon name="chevron-down" size={15} /></label>
+              <label className="sort-control"><span>Sắp xếp:</span><CustomSelect value={sort} onChange={(event) => updateSearch({ sort: event.target.value, page: "" })}><option value="relevance">Ngày thêm gần đây</option><option value="title">Tên tài liệu A–Z</option><option value="newest">Năm xuất bản mới nhất</option></CustomSelect></label>
               <div className="view-switch" aria-label="Kiểu hiển thị">
                 <IconButton label="Hiển thị danh sách" icon="document" className={view === "list" ? "active" : ""} onClick={() => setView("list")} />
                 <IconButton label="Hiển thị lưới" icon="dashboard" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} />

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Badge, Breadcrumb, Button, Field, Icon, IconButton, Modal, SelectField, Status, TextAreaField } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Field, Icon, IconButton, Modal, SelectField, Status, TextAreaField } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
 import { userService } from "../../../services/user.service";
 import { ApiError } from "../../../services/http";
@@ -378,17 +378,17 @@ function RecordEditor({ edit, id }: { edit: boolean; id?: string }) {
                   <td><input aria-label="Mã vạch" value={copy.barcode} onChange={(event) => updateCopy(copy.key, "barcode", event.target.value)} placeholder="PTIT-YY-XXXXX" /></td>
                   <td><input aria-label="Mã xếp giá" value={copy.callNumber} onChange={(event) => updateCopy(copy.key, "callNumber", event.target.value)} /></td>
                   <td><input aria-label="Vị trí kệ" value={copy.shelfLocation} onChange={(event) => updateCopy(copy.key, "shelfLocation", event.target.value)} placeholder="A2-03" /></td>
-                  <td><select aria-label="Tình trạng vật lý" value={copy.condition} onChange={(event) => updateCopy(copy.key, "condition", event.target.value)}>
+                  <td><CustomSelect aria-label="Tình trạng vật lý" value={copy.condition} onChange={(event) => updateCopy(copy.key, "condition", event.target.value)}>
                     <option value="">Chưa đánh giá</option>
                     {[...new Set([...conditions, copy.condition].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}
-                  </select></td>
+                  </CustomSelect></td>
                   <td>{circulationLocked.has(savedCopies.current.get(copy.key)?.status ?? "")
-                    ? <select aria-label="Trạng thái lưu thông" value={copy.status} disabled title="Trạng thái này do nghiệp vụ mượn trả quản lý">
+                    ? <CustomSelect aria-label="Trạng thái lưu thông" value={copy.status} disabled title="Trạng thái này do nghiệp vụ mượn trả quản lý">
                         <option value={copy.status}>{copyStatuses[copy.status] ?? copy.status}</option>
-                      </select>
-                    : <select aria-label="Trạng thái lưu thông" value={copy.status} onChange={(event) => updateCopy(copy.key, "status", event.target.value)}>
+                      </CustomSelect>
+                    : <CustomSelect aria-label="Trạng thái lưu thông" value={copy.status} onChange={(event) => updateCopy(copy.key, "status", event.target.value)}>
                         {optionsWith(editableStatuses, copy.status).map(([code, label]) => <option key={code} value={code}>{copyStatuses[code] ?? label}</option>)}
-                      </select>}</td>
+                      </CustomSelect>}</td>
                   <td>{formatDate(copy.accessionDate)}</td>
                   <td>{copy.id
                     ? <IconButton label={`Xóa bản giấy ${copy.barcode}`} icon="close" type="button"

@@ -213,6 +213,12 @@ export interface ReviewDto {
   comment?: string;
   createdAt?: string;
   updatedAt?: string;
+  userFullName?: string;
+  user?: {
+    id?: string;
+    fullName?: string;
+    userCode?: string;
+  };
 }
 
 export interface ReviewRequestDto {
@@ -390,8 +396,10 @@ export interface HoldResponseDto {
 export interface HoldCancelResponseDto {
   holdId: number;
   documentId: string;
+  documentTitle?: string;
   status: string;
   cancelReason?: string;
+  cancelledAt?: string;
 }
 
 // --- Module 4 & 5: Search & Recommendations ---
@@ -400,8 +408,8 @@ export type SearchMode = "tfidf" | "vector" | "hybrid";
 export interface ContentSearchRequest {
   query: string;
   limit?: number;
-  // Bỏ trống thì backend dùng SEARCH_MODE mặc định của worker
-  searchMode?: SearchMode;
+  searchMode?: SearchMode | string;
+  searchType?: "VECTOR" | "BM25" | "HYBRID";
 }
 
 export interface ContentSearchResultDto {
@@ -493,8 +501,11 @@ export interface MessageQueueDto {
   content: string;
   scheduledAt?: string;
   sentAt?: string;
+  retryCount?: number;
+  errorMessage?: string;
   status?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PolicyResponse {
