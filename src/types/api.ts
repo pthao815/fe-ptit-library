@@ -209,6 +209,7 @@ export interface AuthorRequestDto {
 
 export interface ReviewDto {
   id: number;
+  documentId?: string;
   rating: number;
   comment?: string;
   createdAt?: string;
@@ -219,6 +220,28 @@ export interface ReviewDto {
     fullName?: string;
     userCode?: string;
   };
+}
+
+export interface DocumentReviewsResponseDto extends PageResponse<ReviewDto> {
+  averageRating?: number | null;
+  totalReviews?: number;
+  ratingDistribution?: Record<string, number>;
+}
+
+export interface FavoriteDocumentDto {
+  id: string;
+  documentId: string;
+  title: string;
+  authors?: string[];
+  coverUrl?: string;
+  abstractText?: string;
+  docType?: string;
+  publicationYear?: number;
+  totalPhysicalCopies: number;
+  availablePhysicalCopies: number;
+  hasDigitalCopy: boolean;
+  averageRating?: number | null;
+  favoritedAt?: string;
 }
 
 export interface ReviewRequestDto {
@@ -434,6 +457,77 @@ export interface RecommendationItemDto {
 }
 
 // --- Module 6, 7 & 8: Analytics, Notifications & Admin Config ---
+export type AnalyticsPeriod =
+  | "TODAY"
+  | "LAST_7_DAYS"
+  | "LAST_30_DAYS"
+  | "LAST_90_DAYS"
+  | "THIS_MONTH"
+  | "THIS_YEAR"
+  | "ALL";
+
+export interface InventoryBreakdownDto {
+  available: number;
+  borrowed: number;
+  reserved: number;
+  maintenance: number;
+  damaged: number;
+  lost: number;
+}
+
+export interface CirculationTrendPointDto {
+  label: string;
+  date: string;
+  borrowCount: number;
+  returnCount: number;
+  overdueCount: number;
+}
+
+export interface CategoryStatDto {
+  key: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface LowCirculationDocumentDto {
+  documentId: string;
+  title: string;
+  docType?: string;
+  borrowCount: number;
+  lastBorrowedAt?: string | null;
+}
+
+export interface PopularDocumentDto {
+  rank: number;
+  documentId: string;
+  title: string;
+  authors?: string[];
+  docType?: string;
+  publicationYear?: number;
+  coverUrl?: string;
+  totalPhysicalCopies: number;
+  availablePhysicalCopies: number;
+  borrowCount: number;
+  favoriteCount: number;
+  reviewCount: number;
+  averageRating?: number | null;
+  interactionCount: number;
+}
+
+export interface AnalyticsOverviewQuery {
+  period?: AnalyticsPeriod | string;
+  fromDate?: string;
+  toDate?: string;
+  departmentId?: number;
+  docType?: string;
+}
+
+export interface PopularDocumentsQuery extends AnalyticsOverviewQuery {
+  limit?: number;
+  sortBy?: "BORROWS" | "INTERACTIONS";
+}
+
 export interface LibraryOverviewStatsDto {
   totalDocuments: number;
   totalPhysicalCopies: number;
@@ -443,10 +537,28 @@ export interface LibraryOverviewStatsDto {
   totalUsers: number;
   activeLoans: number;
   pendingAcquisitionSuggestions: number;
+  period?: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  activeUsers?: number;
+  overdueLoans?: number;
+  severeOverdueLoans?: number;
+  pendingHolds?: number;
+  failedDigitalJobs?: number;
+  totalBorrowsInPeriod?: number;
+  totalReturnsInPeriod?: number;
+  overdueInPeriod?: number;
+  inventoryBreakdown?: InventoryBreakdownDto;
+  circulationTrend?: CirculationTrendPointDto[];
+  borrowsByDepartment?: CategoryStatDto[];
+  borrowsByDocType?: CategoryStatDto[];
+  lowCirculationDocuments?: LowCirculationDocumentDto[];
 }
 
 export interface AcquisitionSuggestionDto {
   id: number;
+  departmentId?: number;
+  departmentName?: string;
   topic: string;
   sourceQueryCluster?: Record<string, unknown>;
   queryCount: number;

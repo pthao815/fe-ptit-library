@@ -1,11 +1,14 @@
 import type {
   AcquisitionSuggestionDto,
+  AnalyticsOverviewQuery,
   LibraryOverviewStatsDto,
   MessageQueueDto,
   PageResponse,
   PaginationParams,
   PenaltyTypeResponse,
   PolicyResponse,
+  PopularDocumentDto,
+  PopularDocumentsQuery,
   SearchConfigResponse,
 } from "../types/api";
 import { ApiError, http } from "./http";
@@ -21,22 +24,37 @@ function cacheNotifications(items: MessageQueueDto[]): void {
 }
 
 export const analyticsService = {
-  getOverviewStatistics(): Promise<LibraryOverviewStatsDto> {
-    return http.get<LibraryOverviewStatsDto>("/api/analytics/overview").then((stats) => {
-      if (!stats || typeof stats.totalDocuments !== "number") {
-        throw new ApiError("Backend không trả về dữ liệu thống kê tổng quan hợp lệ.", 0);
-      }
-      return stats;
-    });
+  getOverviewStatistics(params?: AnalyticsOverviewQuery): Promise<LibraryOverviewStatsDto> {
+    return http
+      .get<LibraryOverviewStatsDto>("/api/analytics/overview", { ...params })
+      .then((stats) => {
+        if (!stats || typeof stats.totalDocuments !== "number") {
+          throw new ApiError("Backend không trả về dữ liệu thống kê tổng quan hợp lệ.", 0);
+        }
+        return stats;
+      });
+  },
+
+  getPopularDocuments(params?: PopularDocumentsQuery): Promise<PopularDocumentDto[]> {
+    return http
+      .get<PopularDocumentDto[]>("/api/analytics/popular-documents", { ...params })
+      .then((items) => {
+        if (!Array.isArray(items)) {
+          throw new ApiError("Backend không trả về danh sách tài liệu phổ biến hợp lệ.", 0);
+        }
+        return items;
+      });
   },
 
   getAcquisitionSuggestions(
     status?: string,
     params?: PaginationParams,
+    departmentId?: number,
   ): Promise<PageResponse<AcquisitionSuggestionDto>> {
     return http
       .get<PageResponse<AcquisitionSuggestionDto>>("/api/analytics/acquisitions", {
         status,
+        departmentId,
         ...params,
       })
       .then((page) => {

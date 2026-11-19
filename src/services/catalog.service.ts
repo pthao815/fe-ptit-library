@@ -7,7 +7,9 @@ import type {
   DocumentDetailDto,
   DocumentFilterParams,
   DocumentRequestDto,
+  DocumentReviewsResponseDto,
   DocumentSummaryDto,
+  FavoriteDocumentDto,
   PageResponse,
   PaginationParams,
   PhysicalCopyDto,
@@ -170,6 +172,19 @@ export const catalogService = {
       });
   },
 
+  getMyFavorites(params?: PaginationParams): Promise<PageResponse<FavoriteDocumentDto>> {
+    return http
+      .get<PageResponse<FavoriteDocumentDto>>("/api/users/me/favorites", {
+        ...params,
+      })
+      .then((page) => {
+        if (!page || !Array.isArray(page.items)) {
+          throw new ApiError("Backend không trả về danh sách tủ sách yêu thích hợp lệ.", 0);
+        }
+        return page;
+      });
+  },
+
   submitReview(documentId: string, payload: ReviewRequestDto): Promise<ReviewDto> {
     return http
       .post<unknown>(`/api/catalog/interactions/reviews/${documentId}`, payload)
@@ -179,9 +194,9 @@ export const catalogService = {
   getDocumentReviews(
     documentId: string,
     params?: PaginationParams,
-  ): Promise<PageResponse<ReviewDto>> {
+  ): Promise<DocumentReviewsResponseDto> {
     return http
-      .get<PageResponse<unknown>>(`/api/catalog/interactions/reviews/${documentId}`, {
+      .get<DocumentReviewsResponseDto>(`/api/catalog/interactions/reviews/${documentId}`, {
         ...params,
       })
       .then((page) => {

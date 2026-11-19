@@ -7,6 +7,7 @@ import type {
   ContentSearchResultDto,
   DocumentDetailDto,
   DocumentSummaryDto,
+  FavoriteDocumentDto,
   MessageQueueDto,
   RecommendationItemDto,
   UserDto,
@@ -70,6 +71,22 @@ export function mapDocumentSummaryToBook(dto: DocumentSummaryDto, index = 0): Bo
     rating: 5,
     available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
     code: dto.id.slice(0, 6).toUpperCase(),
+    cover: pickCoverByIndex(index, dto.coverUrl),
+  };
+}
+
+export function mapFavoriteDocumentToBook(dto: FavoriteDocumentDto, index = 0): Book {
+  const docId = dto.documentId || dto.id;
+  return {
+    id: index + 3000,
+    documentId: docId,
+    title: dto.title,
+    author: dto.authors?.length ? dto.authors.join(", ") : "Chưa cập nhật tác giả",
+    year: dto.publicationYear?.toString() ?? "—",
+    type: dto.hasDigitalCopy && dto.totalPhysicalCopies === 0 ? "Tài liệu số" : formatDocTypeLabel(dto.docType),
+    rating: dto.averageRating ? Math.round(dto.averageRating) : 0,
+    available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
+    code: docId.slice(0, 6).toUpperCase(),
     cover: pickCoverByIndex(index, dto.coverUrl),
   };
 }

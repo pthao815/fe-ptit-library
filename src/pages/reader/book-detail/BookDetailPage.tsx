@@ -48,6 +48,8 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
   const [loadError, setLoadError] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [reviewCount, setReviewCount] = useState(0);
+  const [reviewAverage, setReviewAverage] = useState<number | null>(null);
+  const [ratingDistribution, setRatingDistribution] = useState<Record<string, number> | null>(null);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -74,7 +76,12 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
       if (active) setLoadError(error instanceof Error ? error.message : "Không tải được chi tiết tài liệu.");
     }).finally(() => { if (active) setLoading(false); });
     catalogService.getDocumentReviews(requestedDocId, { page: 0, size: REVIEW_SAMPLE }).then((data) => {
-      if (active) { setReviews(data.items); setReviewCount(data.totalElements); }
+      if (active) {
+        setReviews(data.items);
+        setReviewCount(data.totalReviews ?? data.totalElements);
+        setReviewAverage(typeof data.averageRating === "number" ? data.averageRating : null);
+        setRatingDistribution(data.ratingDistribution ?? null);
+      }
     }).catch(() => { if (active) setReviewError("Không tải được đánh giá."); });
     if (requestedDocId) {
       const trackedHold = getTrackedHoldByDocumentId(requestedDocId);
@@ -114,11 +121,15 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
   const totalCopies = detail.totalPhysicalCopies;
   const availableCopies = detail.availablePhysicalCopies;
   const isAvailable = availableCopies > 0;
-  const average = detail.averageRating ?? 0;
-  const ratingAverage = detail.averageRating ? detail.averageRating.toFixed(1) : "—";
+  const average = reviewAverage ?? detail.averageRating ?? 0;
+  const ratingAverage = average > 0 ? average.toFixed(1) : "—";
   const coverImage = detail.coverUrl && /^https?:\/\//i.test(detail.coverUrl) ? detail.coverUrl : undefined;
   const processing = detail.hasDigitalCopy ? describeProcessing(undefined, detail.digitalProcessingStatus) : undefined;
   const ratingShares = [5, 4, 3, 2, 1].map((star) => {
+    if (ratingDistribution) {
+      const count = Number(ratingDistribution[String(star)] ?? 0);
+      return { star, share: reviewCount > 0 ? Math.round((count / reviewCount) * 100) : 0 };
+    }
     const count = reviews.filter((review) => Math.round(review.rating) === star).length;
     return { star, share: reviews.length ? Math.round((count / reviews.length) * 100) : 0 };
   });
