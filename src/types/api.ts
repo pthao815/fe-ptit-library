@@ -433,6 +433,29 @@ export interface RecommendationItemDto {
   recModelVersion?: string;
 }
 
+export interface SimilarDocumentDto {
+  documentId: string;
+  title: string;
+  authors?: string[];
+  coverUrl?: string;
+  abstractText?: string;
+  docType?: string;
+  classificationNumber?: string;
+  publicationYear?: number;
+  totalPhysicalCopies: number;
+  availablePhysicalCopies: number;
+  hasDigitalCopy: boolean;
+  similarityScore: number;
+  modelVersion?: string;
+  source?: string;
+}
+
+export interface SimilarRebuildResponse {
+  status?: string;
+  processedDocuments?: number;
+  message?: string;
+}
+
 // --- Module 6, 7 & 8: Analytics, Notifications & Admin Config ---
 export interface LibraryOverviewStatsDto {
   totalDocuments: number;

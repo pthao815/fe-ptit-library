@@ -9,6 +9,7 @@ import type {
   DocumentSummaryDto,
   MessageQueueDto,
   RecommendationItemDto,
+  SimilarDocumentDto,
   UserDto,
 } from "../types/api";
 import type { Book } from "../types/library";
@@ -110,6 +111,24 @@ export function mapRecommendationToBook(
     cover: pickCoverByIndex(index),
     reason: dto.reason || "Gợi ý cá nhân hóa dựa trên hồ sơ học tập của bạn",
     relevance,
+  };
+}
+
+export function mapSimilarDocumentToBook(
+  dto: SimilarDocumentDto,
+  index = 0,
+): Book {
+  return {
+    id: index + 4000,
+    documentId: dto.documentId,
+    title: dto.title,
+    author: dto.authors?.length ? dto.authors.join(", ") : "Chưa cập nhật tác giả",
+    year: dto.publicationYear ? String(dto.publicationYear) : "—",
+    type: formatDocTypeLabel(dto.docType),
+    rating: 5,
+    available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
+    code: dto.classificationNumber || dto.documentId.slice(0, 6).toUpperCase(),
+    cover: pickCoverByIndex(index, dto.coverUrl),
   };
 }
 

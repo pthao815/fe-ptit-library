@@ -2,14 +2,16 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Avatar, Badge, Breadcrumb, Button, Icon, Rating, Status, Toast } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
+import BookCard from "../../../components/books/BookCard";
 import { catalogService, syncFavoriteBook } from "../../../services/catalog.service";
 import { circulationService, getTrackedHoldByDocumentId } from "../../../services/circulation.service";
+import { recommendationService } from "../../../services/recommendation.service";
 import { authSession } from "../../../shared/auth/auth-session";
 import { getAccessToken } from "../../../services/session";
 import type { DocumentDetailDto, PhysicalCopyDto, ReviewDto } from "../../../types/api";
 import { safeReturnPath } from "../../../utils/portal-routes";
 import type { Book } from "../../../types/library";
-import { formatDateVi, mapDocumentDetailToBook } from "../../../utils/mappers";
+import { formatDateVi, mapDocumentDetailToBook, mapSimilarDocumentToBook } from "../../../utils/mappers";
 import { describeProcessing } from "../../staff/materials/digital-copy";
 
 const REVIEW_SAMPLE = 50;
@@ -27,6 +29,7 @@ const sections = [
   { id: "detail-copies", label: "Bản giấy" },
   { id: "detail-digital", label: "Tài liệu số" },
   { id: "detail-reviews", label: "Đánh giá" },
+  { id: "detail-similar", label: "Sách tương tự" },
 ];
 
 export default function BookDetailPage() {
@@ -54,6 +57,10 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
   const [detail, setDetail] = useState<DocumentDetailDto | null>(null);
   const [reviews, setReviews] = useState<ReviewDto[]>([]);
   const [copies, setCopies] = useState<PhysicalCopyDto[]>();
+  const [similarBooks, setSimilarBooks] = useState<Book[]>([]);
+  const [similarLoading, setSimilarLoading] = useState(true);
+  const [similarError, setSimilarError] = useState("");
+  const [similarSaved, setSimilarSaved] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
   const [holdStatus, setHoldStatus] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -76,6 +83,15 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     catalogService.getDocumentReviews(requestedDocId, { page: 0, size: REVIEW_SAMPLE }).then((data) => {
       if (active) { setReviews(data.items); setReviewCount(data.totalElements); }
     }).catch(() => { if (active) setReviewError("Không tải được đánh giá."); });
+    setSimilarLoading(true);
+    setSimilarError("");
+    recommendationService.getSimilarDocuments(requestedDocId, 6).then((items) => {
+      if (active) setSimilarBooks(items.map((item, index) => mapSimilarDocumentToBook(item, index)));
+    }).catch(() => {
+      if (active) setSimilarError("Không tải được danh sách sách tương tự.");
+    }).finally(() => {
+      if (active) setSimilarLoading(false);
+    });
     if (requestedDocId) {
       const trackedHold = getTrackedHoldByDocumentId(requestedDocId);
       if (trackedHold) {
@@ -302,6 +318,44 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
                   );
                 })}
               </div>}
+            </section>
+
+            <section className="detail-section related-section" id="detail-similar">
+              <div className="detail-section-heading">
+                <span>05</span><div><h2>Sách tương tự</h2><p>Gợi ý các tài liệu có nội dung liên quan</p></div>
+              </div>
+              {similarLoading ? (
+                <div className="summary-content"><p role="status">Đang tải sách tương tự…</p></div>
+              ) : similarError ? (
+                <div className="summary-content"><p role="alert">{similarError}</p></div>
+              ) : !similarBooks.length ? (
+                <div className="summary-content"><p>Chưa có tài liệu tương tự.</p></div>
+              ) : (
+                <div className="related-book-grid">
+                  {similarBooks.map((book) => (
+                    <BookCard
+                      key={book.documentId ?? book.id}
+                      book={book}
+                      detailPath={book.documentId ? `/reader/book-detail?id=${encodeURIComponent(book.documentId)}` : undefined}
+                      saved={Boolean(book.documentId && similarSaved[book.documentId])}
+                      onSave={async () => {
+                        if (!book.documentId) return;
+                        if (!getAccessToken()) {
+                          setToastMessage("Vui lòng đăng nhập để lưu tài liệu.");
+                          return;
+                        }
+                        try {
+                          const res = await catalogService.toggleFavorite(book.documentId);
+                          setSimilarSaved((prev) => ({ ...prev, [book.documentId!]: res.isFavorite }));
+                          syncFavoriteBook(book, res.isFavorite);
+                        } catch (error) {
+                          setToastMessage(error instanceof Error ? error.message : "Không lưu được tài liệu.");
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
           </article>
 
