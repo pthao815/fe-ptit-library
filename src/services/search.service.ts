@@ -16,7 +16,7 @@ export const searchService = {
         payload.searchMode ??
         (payload.searchType ? payload.searchType.toLowerCase() : "hybrid"),
     };
-    return http.post<ContentSearchResultDto[]>("/api/search/content", body).then((items) => {
+    return http.post<ContentSearchResultDto[]>("/api/search/content", body, { dedupe: true }).then((items) => {
       if (!Array.isArray(items)) {
         throw new ApiError("Backend không trả về danh sách kết quả tìm kiếm nội dung hợp lệ.", 0);
       }
@@ -35,7 +35,7 @@ export const searchService = {
       ...(payload.publicationYear ? { publicationYear: payload.publicationYear } : {}),
       ...(payload.searchMode ? { searchMode: payload.searchMode } : {}),
     };
-    return http.post<SmartSearchResponse>("/api/search/smart", body).then((data) => {
+    return http.post<SmartSearchResponse>("/api/search/smart", body, { dedupe: true }).then((data) => {
       if (!data || !Array.isArray(data.results)) {
         throw new ApiError("Backend không trả về kết quả tìm kiếm thông minh hợp lệ.", 0);
       }

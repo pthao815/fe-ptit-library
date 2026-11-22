@@ -21,6 +21,8 @@ export interface RequestOptions extends Omit<RequestInit, "body"> {
   params?: Record<string, string | number | boolean | undefined | null>;
   body?: unknown;
   skipAuth?: boolean;
+  /** Gộp các request trùng nhau đang chạy song song (mặc định bật cho GET, tắt cho POST/PUT/DELETE). */
+  dedupe?: boolean;
 }
 
 function buildUrlWithParams(
@@ -41,6 +43,7 @@ function buildUrlWithParams(
 }
 
 let refreshFlight: { refreshToken: string; promise: Promise<string | null> } | undefined;
+const inFlightRequests = new Map<string, Promise<unknown>>();
 
 export async function tryRefreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
@@ -76,9 +79,10 @@ export async function tryRefreshAccessToken(): Promise<string | null> {
   return promise;
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { params, body, skipAuth = false, headers: customHeaders, ...rest } = options;
+export function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { params, body, skipAuth = false, dedupe, headers: customHeaders, ...rest } = options;
   const url = buildUrlWithParams(path, params);
+  const method = (rest.method ?? "GET").toUpperCase();
 
   const headers = new Headers(customHeaders);
   if (!headers.has("Accept")) {
@@ -90,9 +94,29 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers.set("Content-Type", "application/json");
   }
 
+  const serializedBody =
+    body === undefined
+      ? undefined
+      : isFormData
+        ? body
+        : typeof body === "string"
+          ? body
+          : JSON.stringify(body);
+
   const token = !skipAuth ? getAccessToken() : null;
   let sentToken = token;
   const { identityVersion } = authSession.getSnapshot();
+
+  const shouldDedupe = (dedupe ?? method === "GET") && !rest.signal && !isFormData;
+  const dedupeKey = shouldDedupe
+    ? `${method}|${url}|${skipAuth ? "anon" : token ?? "anon"}|${identityVersion}|${typeof serializedBody === "string" ? serializedBody : ""}`
+    : null;
+
+  if (dedupeKey) {
+    const existing = inFlightRequests.get(dedupeKey);
+    if (existing) return existing as Promise<T>;
+  }
+
   const assertIdentity = () => {
     if (token && identityVersion !== authSession.getSnapshot().identityVersion) {
       throw new ApiError("Tài khoản đã thay đổi trong khi xử lý yêu cầu.", 401);
@@ -105,83 +129,90 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  try {
-    const serializedBody =
-      body === undefined
-        ? undefined
-        : isFormData
-          ? body
-          : typeof body === "string"
-            ? body
-            : JSON.stringify(body);
+  const requestPromise = (async (): Promise<T> => {
+    try {
+      let response = await fetch(url, {
+        ...rest,
+        method,
+        headers,
+        body: serializedBody,
+        signal: rest.signal ?? controller.signal,
+      });
 
-    let response = await fetch(url, {
-      ...rest,
-      headers,
-      body: serializedBody,
-      signal: controller.signal,
-    });
-
-    assertIdentity();
-    if (response.status === 401 && token === getAccessToken() && !skipAuth && !path.startsWith("/api/auth/")) {
-      const refreshedToken = await tryRefreshAccessToken();
       assertIdentity();
-      if (refreshedToken && (!rest.method || rest.method === "GET")) {
-        sentToken = refreshedToken;
-        headers.set("Authorization", `Bearer ${refreshedToken}`);
-        response = await fetch(url, {
-          ...rest,
-          headers,
-          body: serializedBody,
-          signal: controller.signal,
-        });
+      if (response.status === 401 && token === getAccessToken() && !skipAuth && !path.startsWith("/api/auth/")) {
+        const refreshedToken = await tryRefreshAccessToken();
+        assertIdentity();
+        if (refreshedToken && method === "GET") {
+          sentToken = refreshedToken;
+          headers.set("Authorization", `Bearer ${refreshedToken}`);
+          response = await fetch(url, {
+            ...rest,
+            method,
+            headers,
+            body: serializedBody,
+            signal: rest.signal ?? controller.signal,
+          });
+        }
       }
-    }
 
-    assertIdentity();
-    const clearExpiredSession = () => {
-      if (response.status === 401 && sentToken && sentToken === getAccessToken() && !skipAuth) {
-        clearAuthSession("expired");
+      assertIdentity();
+      const clearExpiredSession = () => {
+        if (response.status === 401 && sentToken && sentToken === getAccessToken() && !skipAuth) {
+          clearAuthSession("expired");
+        }
+      };
+
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const json = (await response.json().catch(() => null)) as ApiResponse<T> | null;
+        assertIdentity();
+        clearExpiredSession();
+        if (response.ok && typeof json?.success !== "boolean") {
+          throw new ApiError("Backend không trả về dữ liệu xác nhận hợp lệ.", 0);
+        }
+        if (!response.ok || json?.success !== true) {
+          throw new ApiError(
+            json?.message || `Yêu cầu thất bại (${response.status})`,
+            response.status,
+            json?.code || response.status,
+            json?.data,
+          );
+        }
+        return json.data;
+      }
+
+      clearExpiredSession();
+      if (!response.ok) {
+        throw new ApiError(`Lỗi kết nối máy chủ (${response.status})`, response.status);
+      }
+
+      throw new ApiError("Backend không trả về JSON hợp lệ.", 0);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new ApiError("Yêu cầu quá thời gian phản hồi từ máy chủ.", 408);
+      }
+      throw new ApiError(
+        error instanceof Error ? error.message : "Không thể kết nối tới máy chủ Backend.",
+        0,
+      );
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  })();
+
+  if (dedupeKey) {
+    inFlightRequests.set(dedupeKey, requestPromise);
+    const cleanup = () => {
+      if (inFlightRequests.get(dedupeKey) === requestPromise) {
+        inFlightRequests.delete(dedupeKey);
       }
     };
-
-    const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const json = (await response.json().catch(() => null)) as ApiResponse<T> | null;
-      assertIdentity();
-      clearExpiredSession();
-      if (response.ok && typeof json?.success !== "boolean") {
-        throw new ApiError("Backend không trả về dữ liệu xác nhận hợp lệ.", 0);
-      }
-      if (!response.ok || json?.success !== true) {
-        throw new ApiError(
-          json?.message || `Yêu cầu thất bại (${response.status})`,
-          response.status,
-          json?.code || response.status,
-          json?.data,
-        );
-      }
-      return json.data;
-    }
-
-    clearExpiredSession();
-    if (!response.ok) {
-      throw new ApiError(`Lỗi kết nối máy chủ (${response.status})`, response.status);
-    }
-
-    throw new ApiError("Backend không trả về JSON hợp lệ.", 0);
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError("Yêu cầu quá thời gian phản hồi từ máy chủ.", 408);
-    }
-    throw new ApiError(
-      error instanceof Error ? error.message : "Không thể kết nối tới máy chủ Backend.",
-      0,
-    );
-  } finally {
-    window.clearTimeout(timeoutId);
+    void requestPromise.then(cleanup, cleanup);
   }
+
+  return requestPromise;
 }
 
 export const http = {
