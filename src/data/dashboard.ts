@@ -1,6 +1,6 @@
 export const staffSummary = [
   { label: "Tổng số tài liệu", value: "48.632", change: "+286 tháng này", icon: "book" as const, tone: "brand" },
-  { label: "Đang mượn", value: "1.284", change: "2,6% tổng số bản", icon: "sparkle" as const, tone: "info" },
+  { label: "Đang mượn", value: "1.284", change: "2,6% tổng số bản", icon: "circulation" as const, tone: "info" },
   { label: "Quá hạn", value: "86", change: "12 quá hạn trên 30 ngày", icon: "error" as const, tone: "error" },
   { label: "Đặt trước", value: "142", change: "38 lượt chờ xử lý", icon: "bookmark" as const, tone: "warning" },
   { label: "Bạn đọc hoạt động", value: "8.947", change: "+4,8% so với kỳ trước", icon: "users" as const, tone: "success" },

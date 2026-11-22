@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type * as React from "react";
-import { Avatar, Badge, Breadcrumb, Button, Field, Icon, Status, Toast } from "../../design-system";
+import { Avatar, Badge, Breadcrumb, Button, EmptyState, Field, Icon, LoadingState, Status, Toast } from "../../design-system";
 import { workProfileData } from "../../data/profiles";
 import { getAccessToken, getStoredUser } from "../../services/session";
 import { userService } from "../../services/user.service";
@@ -114,11 +114,27 @@ export default function WorkProfilePage({ role }: { role: "staff" | "admin" }) {
     }
   };
 
-  if (loadingProfile) return <p className="reader-main" role="status">Đang tải hồ sơ…</p>;
-  if (loadError || !profile) return <div className="reader-main" role="alert">
-    <p>{loadError || "Không tìm thấy hồ sơ."}</p>
-    <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
-  </div>;
+  if (loadingProfile) {
+    return (
+      <div className="work-profile-page">
+        <LoadingState variant="detail" surface="card" title="Đang tải hồ sơ làm việc…" />
+      </div>
+    );
+  }
+  if (loadError || !profile) {
+    return (
+      <div className="work-profile-page">
+        <EmptyState
+          surface="card"
+          size="lg"
+          tone="error"
+          title="Không tải được hồ sơ làm việc"
+          description={loadError || "Không tìm thấy thông tin hồ sơ."}
+          action={<Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="work-profile-page">

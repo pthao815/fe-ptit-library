@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type * as React from "react";
-import { Avatar, Badge, Breadcrumb, Button, Field, Icon, Status, Toast } from "../../../design-system";
+import { Avatar, Badge, Breadcrumb, Button, EmptyState, Field, Icon, LoadingState, Status, Toast } from "../../../design-system";
 import Brand from "../../../components/common/Brand";
 import { circulationService } from "../../../services/circulation.service";
 import { getAccessToken, getStoredUser } from "../../../services/session";
@@ -143,11 +143,31 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
     }
   };
 
-  if (loadingProfile) return <p className="reader-main" role="status">Đang tải hồ sơ…</p>;
-  if (loadError || !profile) return <div className="reader-main" role="alert">
-    <p>{loadError || "Không tìm thấy hồ sơ."}</p>
-    <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
-  </div>;
+  if (loadingProfile) {
+    return (
+      <div className="profile-page">
+        <main className="profile-container">
+          <LoadingState variant="detail" surface="card" title="Đang tải hồ sơ cá nhân…" />
+        </main>
+      </div>
+    );
+  }
+  if (loadError || !profile) {
+    return (
+      <div className="profile-page">
+        <main className="profile-container">
+          <EmptyState
+            surface="card"
+            size="lg"
+            tone="error"
+            title="Không tải được hồ sơ cá nhân"
+            description={loadError || "Không tìm thấy thông tin hồ sơ."}
+            action={<Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+          />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="profile-page">
@@ -224,7 +244,15 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
                       </article>
                     );
                   })
-                ) : <p>{historyError ? "Không tải được hoạt động gần đây." : "Chưa có hoạt động gần đây."}</p>}
+                ) : (
+                  <EmptyState
+                    size="sm"
+                    icon="document"
+                    tone={historyError ? "error" : "brand"}
+                    title={historyError ? "Không tải được hoạt động gần đây" : "Chưa có hoạt động gần đây"}
+                    description={historyError ? "Vui lòng thử tải lại trang sau." : "Các lượt mượn và trả tài liệu gần nhất của bạn sẽ hiển thị tại đây."}
+                  />
+                )}
               </div>
             </section>
           </div>

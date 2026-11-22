@@ -1,27 +1,38 @@
 import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
 import {
+  Children,
   createContext,
-  type ButtonHTMLAttributes,
-  type HTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-  type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,
+  Fragment,
+  isValidElement,
+  useCallback,
   useContext,
   useEffect,
   useId,
   useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ChangeEvent,
+  type CSSProperties,
+  type HTMLAttributes,
+  type InputHTMLAttributes,
+  type OptionHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from "react";
 
 type Tone = "brand" | "neutral" | "success" | "warning" | "error" | "info";
-type IconName =
+export type IconName =
   | "arrow-left"
   | "bell"
   | "book"
   | "bookmark"
+  | "chart"
   | "chevron-down"
   | "chevron-left"
   | "chevron-right"
+  | "circulation"
   | "close"
   | "dashboard"
   | "document"
@@ -31,14 +42,17 @@ type IconName =
   | "filter"
   | "info"
   | "library"
+  | "logout"
   | "maximize"
   | "menu"
   | "more"
   | "plus"
   | "search"
   | "settings"
+  | "shield"
   | "sparkle"
   | "success"
+  | "user"
   | "users"
   | "zoom-in"
   | "zoom-out";
@@ -49,9 +63,11 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
     book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>,
     bookmark: <path d="M6 3h12v18l-6-4-6 4V3Z" />,
+    chart: <><path d="M4 20h16" /><path d="M7 16v-5M12 16V7M17 16v-8" /></>,
     "chevron-down": <path d="m6 9 6 6 6-6" />,
     "chevron-left": <path d="m15 18-6-6 6-6" />,
     "chevron-right": <path d="m9 18 6-6-6-6" />,
+    circulation: <><path d="M7 16V4m0 0-3 3m3-3 3 3" /><path d="M17 8v12m0 0-3-3m3 3 3-3" /></>,
     close: <><path d="m18 6-12 12" /><path d="m6 6 12 12" /></>,
     dashboard: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
     document: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></>,
@@ -61,14 +77,17 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     filter: <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" />,
     info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
     library: <><path d="M3 21h18M5 21V9M9 21V9M15 21V9M19 21V9M3 7l9-4 9 4H3Z" /></>,
+    logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></>,
     maximize: <><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" /></>,
     menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
-    more: <><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>,
+    more: <><circle cx="6" cy="12" r="1.4" stroke="none" fill="currentColor" /><circle cx="12" cy="12" r="1.4" stroke="none" fill="currentColor" /><circle cx="18" cy="12" r="1.4" stroke="none" fill="currentColor" /></>,
     plus: <><path d="M12 5v14M5 12h14" /></>,
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.5v-.1A1.7 1.7 0 0 0 8.4 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2V9.5h.3A1.7 1.7 0 0 0 4 8.4a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.46 3.6l.06.06A1.7 1.7 0 0 0 8.4 4 1.7 1.7 0 0 0 9.5 2.3V2h4.1v.3A1.7 1.7 0 0 0 15 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8a1.7 1.7 0 0 0 1.7 1.5h.9v4.1h-.9a1.7 1.7 0 0 0-1.7 1.4Z" /></>,
+    shield: <path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3Z" />,
     sparkle: <><path d="m12 3 1.4 3.6L17 8l-3.6 1.4L12 13l-1.4-3.6L7 8l3.6-1.4L12 3Z" /><path d="m19 14 .7 1.8 1.8.7-1.8.7L19 19l-.7-1.8-1.8-.7 1.8-.7L19 14Z" /></>,
     success: <><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></>,
+    user: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
     "zoom-in": <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4M8 11h6M11 8v6" /></>,
     "zoom-out": <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4M8 11h6" /></>,
@@ -102,8 +121,8 @@ export function Button({
   );
 }
 
-export function IconButton({ label, icon, className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName }) {
-  return <button className={className ? `icon-button ${className}` : "icon-button"} aria-label={label} title={label} {...props}><Icon name={icon} /></button>;
+export function IconButton({ label, icon, size = 18, className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; icon: IconName; size?: number }) {
+  return <button className={className ? `icon-button ${className}` : "icon-button"} aria-label={label} title={label} {...props}><Icon name={icon} size={size} /></button>;
 }
 
 export function Field({
@@ -125,11 +144,201 @@ export function Field({
 }
 
 export function SearchInput({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <label className={`search-input ${className}`}><Icon name="search" /><input aria-label="Tìm kiếm" {...props} /><kbd>⌘ K</kbd></label>;
+  return <label className={`search-input ${className}`}><Icon name="search" /><input aria-label="Tìm kiếm" {...props} /><kbd>Ctrl K</kbd></label>;
 }
 
-export function SelectField({ label, children, error, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; children: ReactNode; error?: string }) {
-  return <label className={`field ${error ? "error" : ""}`}><span className="field-label">{label}</span><span className="select-wrap"><select className="input select" {...props}>{children}</select><Icon name="chevron-down" size={16} /></span>{error && <span className="field-message">{error}</span>}</label>;
+export type SelectOption = { value: string; label: string; disabled?: boolean };
+
+function extractNodeText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractNodeText).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) return extractNodeText(node.props.children);
+  return "";
+}
+
+function collectSelectOptions(children: ReactNode): SelectOption[] {
+  const result: SelectOption[] = [];
+  for (const child of Children.toArray(children)) {
+    if (!isValidElement(child)) continue;
+    if (child.type === Fragment) {
+      result.push(...collectSelectOptions((child.props as { children?: ReactNode }).children));
+    } else if (child.type === "option") {
+      const optionProps = child.props as OptionHTMLAttributes<HTMLOptionElement>;
+      const label = extractNodeText(optionProps.children).trim() || String(optionProps.value ?? "");
+      const value = optionProps.value !== undefined ? String(optionProps.value) : label;
+      result.push({ value, label, disabled: Boolean(optionProps.disabled) });
+    }
+  }
+  return result;
+}
+
+export function CustomSelect({
+  children,
+  options: optionsProp,
+  value,
+  defaultValue,
+  onChange,
+  disabled,
+  className = "",
+  name,
+  id,
+  title,
+  "aria-label": ariaLabel,
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> & {
+  children?: ReactNode;
+  options?: SelectOption[];
+}) {
+  const options = optionsProp ?? collectSelectOptions(children);
+  const controlled = value !== undefined;
+  const [internalValue, setInternalValue] = useState<string>(() =>
+    defaultValue !== undefined ? String(defaultValue) : options[0]?.value ?? ""
+  );
+  const currentValue = controlled ? String(value ?? "") : internalValue;
+  const selectedOption = options.find((opt) => opt.value === currentValue) ?? options[0];
+
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    const estimatedHeight = Math.min(Math.max(options.length, 1) * 40 + 12, 280);
+    const openUp = spaceBelow < Math.min(estimatedHeight, 180) && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(280, openUp ? spaceAbove : spaceBelow));
+    const width = Math.max(rect.width, 168);
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    setMenuStyle({
+      position: "fixed",
+      left,
+      width,
+      maxHeight,
+      top: openUp ? undefined : rect.bottom + 6,
+      bottom: openUp ? window.innerHeight - rect.top + 6 : undefined,
+      zIndex: 120,
+    });
+  }, [options.length]);
+
+  const openMenu = () => {
+    if (disabled) return;
+    updateMenuPosition();
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (wrapRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleScroll = (event: Event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      updateMenuPosition();
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", updateMenuPosition);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", updateMenuPosition);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open, updateMenuPosition]);
+
+  const commitValue = (nextValue: string) => {
+    if (!controlled) setInternalValue(nextValue);
+    setOpen(false);
+    triggerRef.current?.focus();
+    if (onChange) {
+      const syntheticTarget = { value: nextValue, name: name ?? "" } as unknown as HTMLSelectElement;
+      const syntheticEvent = { target: syntheticTarget, currentTarget: syntheticTarget } as ChangeEvent<HTMLSelectElement>;
+      onChange(syntheticEvent);
+    }
+  };
+
+  return (
+    <div className={`custom-select ${open ? "is-open" : ""} ${disabled ? "is-disabled" : ""} ${className}`} ref={wrapRef}>
+      <button
+        ref={triggerRef}
+        id={id}
+        type="button"
+        title={title}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        className="custom-select-trigger"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (open) setOpen(false);
+          else openMenu();
+        }}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            if (!open) openMenu();
+          }
+        }}
+      >
+        <span className="custom-select-value">{selectedOption?.label ?? ""}</span>
+        <Icon name="chevron-down" size={16} />
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div ref={menuRef} id={listboxId} role="listbox" className="custom-select-menu" style={menuStyle}>
+          {options.map((option) => {
+            const selected = option.value === currentValue;
+            return (
+              <button
+                key={`${option.value}-${option.label}`}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                disabled={option.disabled}
+                className={`custom-select-option ${selected ? "selected" : ""}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!option.disabled) commitValue(option.value);
+                }}
+              >
+                <span>{option.label}</span>
+                {selected && <span className="custom-select-check" aria-hidden="true">✓</span>}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+export function SelectField({ label, children, error, className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; children: ReactNode; error?: string }) {
+  return (
+    <label className={`field ${error ? "error" : ""}`}>
+      <span className="field-label">{label}</span>
+      <CustomSelect className={`select ${className}`} {...props}>{children}</CustomSelect>
+      {error && <span className="field-message">{error}</span>}
+    </label>
+  );
 }
 
 export function TextAreaField({
@@ -255,8 +464,164 @@ export function NavItem({ icon, label }: { icon: IconName; label: string }) {
   return <button className={`nav-item ${nav?.active === label ? "active" : ""}`} onClick={() => nav?.setActive(label)}><Icon name={icon} /><span>{label}</span></button>;
 }
 
-export function EmptyState({ error = false }: { error?: boolean }) {
-  return <div className={`empty-state ${error ? "error-state" : ""}`}><span className="empty-icon"><Icon name={error ? "error" : "book"} size={28} /></span><strong>{error ? "Không thể tải dữ liệu" : "Chưa có tài liệu"}</strong><p>{error ? "Đã xảy ra lỗi kết nối. Vui lòng thử lại sau." : "Các tài liệu được thêm vào sẽ xuất hiện tại đây."}</p><Button variant={error ? "secondary" : "primary"} size="sm">{error ? "Thử lại" : "Thêm tài liệu"}</Button></div>;
+export type LoadingStateVariant = "spinner" | "cards" | "list" | "table" | "detail";
+export type StateSize = "sm" | "md" | "lg";
+export type StateSurface = "card" | "plain";
+
+export function LoadingState({
+  title = "Đang tải dữ liệu…",
+  description,
+  variant = "spinner",
+  count,
+  size = "md",
+  surface = "plain",
+  className = "",
+}: {
+  title?: string;
+  description?: string;
+  variant?: LoadingStateVariant;
+  count?: number;
+  size?: StateSize;
+  surface?: StateSurface;
+  className?: string;
+}) {
+  if (variant === "cards") {
+    const items = Array.from({ length: count ?? 4 });
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-cards ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        {items.map((_, index) => (
+          <div key={index} className="ui-skeleton-card" aria-hidden="true">
+            <Skeleton className="ui-skeleton-cover" />
+            <div className="ui-skeleton-card-body">
+              <Skeleton className="ui-skeleton-line short" />
+              <Skeleton className="ui-skeleton-line" />
+              <Skeleton className="ui-skeleton-line wide" />
+              <Skeleton className="ui-skeleton-pill" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "list") {
+    const items = Array.from({ length: count ?? 3 });
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-list ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        {items.map((_, index) => (
+          <div key={index} className={`ui-skeleton-list-item ${surface === "card" ? "ui-state-card" : ""}`} aria-hidden="true">
+            <Skeleton className="ui-skeleton-thumb" />
+            <div className="ui-skeleton-list-body">
+              <Skeleton className="ui-skeleton-line short" />
+              <Skeleton className="ui-skeleton-line wide" />
+              <Skeleton className="ui-skeleton-line" />
+              <div className="ui-skeleton-chip-row">
+                <Skeleton className="ui-skeleton-pill" />
+                <Skeleton className="ui-skeleton-pill" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "table") {
+    const rows = Array.from({ length: count ?? 5 });
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-table ui-state-${size} ${surface === "card" ? "ui-state-card" : ""} ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        {rows.map((_, index) => (
+          <div key={index} className="ui-skeleton-table-row" aria-hidden="true">
+            <Skeleton className="ui-skeleton-cell-avatar" />
+            <div className="ui-skeleton-cell-main">
+              <Skeleton className="ui-skeleton-line wide" />
+              <Skeleton className="ui-skeleton-line short" />
+            </div>
+            <Skeleton className="ui-skeleton-cell-meta" />
+            <Skeleton className="ui-skeleton-pill" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "detail") {
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-detail ${surface === "card" ? "ui-state-card" : ""} ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        <div className="ui-skeleton-detail-head" aria-hidden="true">
+          <Skeleton className="ui-skeleton-detail-cover" />
+          <div className="ui-skeleton-detail-meta">
+            <Skeleton className="ui-skeleton-line short" />
+            <Skeleton className="ui-skeleton-title" />
+            <Skeleton className="ui-skeleton-line wide" />
+            <Skeleton className="ui-skeleton-line" />
+            <div className="ui-skeleton-chip-row">
+              <Skeleton className="ui-skeleton-btn" />
+              <Skeleton className="ui-skeleton-btn" />
+            </div>
+          </div>
+        </div>
+        <div className="ui-skeleton-detail-blocks" aria-hidden="true">
+          <Skeleton className="ui-skeleton-block" />
+          <Skeleton className="ui-skeleton-block" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`ui-state-box ui-loading-state ui-state-${size} ui-state-${surface} ${className}`} role="status" aria-live="polite" aria-busy="true">
+      <span className={`ui-spinner ui-spinner-${size}`} aria-hidden="true" />
+      <strong className="ui-state-title">{title}</strong>
+      {description && <p className="ui-state-desc">{description}</p>}
+    </div>
+  );
+}
+
+export function EmptyState({
+  error = false,
+  tone,
+  icon,
+  title,
+  description,
+  action,
+  size = "md",
+  surface = "plain",
+  className = "",
+}: {
+  error?: boolean;
+  tone?: "brand" | "neutral" | "info" | "error";
+  icon?: IconName;
+  title?: string;
+  description?: string;
+  action?: ReactNode;
+  size?: StateSize;
+  surface?: StateSurface;
+  className?: string;
+}) {
+  const resolvedTone = tone ?? (error ? "error" : "brand");
+  const isError = resolvedTone === "error";
+  const resolvedIcon = icon ?? (isError ? "error" : "book");
+  const resolvedTitle = title ?? (isError ? "Không thể tải dữ liệu" : "Chưa có dữ liệu");
+  const iconSize = size === "sm" ? 20 : size === "lg" ? 28 : 24;
+
+  return (
+    <div
+      className={`ui-state-box ui-empty-state ui-state-${size} ui-state-${surface} ui-tone-${resolvedTone} ${className}`}
+      role={isError ? "alert" : "status"}
+    >
+      <span className="ui-empty-icon" aria-hidden="true">
+        <Icon name={resolvedIcon} size={iconSize} />
+      </span>
+      <strong className="ui-state-title">{resolvedTitle}</strong>
+      {description && <p className="ui-state-desc">{description}</p>}
+      {action && <div className="ui-state-actions">{action}</div>}
+    </div>
+  );
 }
 
 export function Breadcrumb({ items }: { items: (string | { label: string; to: string })[] }) {

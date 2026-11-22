@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Avatar, Badge, Breadcrumb, Button, Field, Icon, IconButton, Modal, SearchInput, SelectField, Status, Toast } from "../../../design-system";
+import { Avatar, Badge, Breadcrumb, Button, EmptyState, Field, Icon, IconButton, Modal, SearchInput, SelectField, Status, Toast } from "../../../design-system";
 import { circulationTabs } from "../../../constants/library-options";
 import { circulationService } from "../../../services/circulation.service";
 import { getAccessToken } from "../../../services/session";
@@ -115,18 +115,27 @@ function LoanTransaction({
         </div>
         <section className="transaction-table-panel">
           <div className="transaction-panel-heading"><div><h2>Danh sách cho mượn</h2><p>{String(items.length).padStart(2, "0")} tài liệu trong giao dịch</p></div><button onClick={onClear}>Xóa tất cả</button></div>
-          <div className="transaction-table-wrap"><table className="transaction-table"><thead><tr><th>Tài liệu</th><th>Mã cá biệt</th><th>Ngày mượn</th><th>Hạn trả</th><th>Tình trạng</th><th /></tr></thead><tbody>
-            {items.map((item) => (
-              <tr key={item.barcode} className={item.warning ? "transaction-warning-row" : ""}>
-                <td><div className="transaction-book"><span><Icon name="book" /></span><div><strong>{item.title}</strong><small>{item.author}</small></div></div></td>
-                <td><code>{item.barcode}</code></td>
-                <td>{item.borrowDate}</td>
-                <td><strong>{item.dueDate}</strong><small>150 ngày</small></td>
-                <td><Status tone={item.warning ? "warning" : "neutral"}>{item.warning ? "Có lượt đặt trước" : "Chờ kiểm tra"}</Status></td>
-                <td><IconButton label="Xóa" icon="close" onClick={() => onRemoveBarcode(item.barcode)} /></td>
-              </tr>
-            ))}
-          </tbody></table></div>
+          {items.length === 0 ? (
+            <EmptyState
+              size="sm"
+              icon="book"
+              title="Chưa có tài liệu trong giao dịch"
+              description="Quét hoặc nhập mã cá biệt ở ô phía trên để thêm tài liệu cần cho mượn."
+            />
+          ) : (
+            <div className="transaction-table-wrap"><table className="transaction-table"><thead><tr><th>Tài liệu</th><th>Mã cá biệt</th><th>Ngày mượn</th><th>Hạn trả</th><th>Tình trạng</th><th /></tr></thead><tbody>
+              {items.map((item) => (
+                <tr key={item.barcode} className={item.warning ? "transaction-warning-row" : ""}>
+                  <td><div className="transaction-book"><span><Icon name="book" /></span><div><strong>{item.title}</strong><small>{item.author}</small></div></div></td>
+                  <td><code>{item.barcode}</code></td>
+                  <td>{item.borrowDate}</td>
+                  <td><strong>{item.dueDate}</strong><small>150 ngày</small></td>
+                  <td><Status tone={item.warning ? "warning" : "neutral"}>{item.warning ? "Có lượt đặt trước" : "Chờ kiểm tra"}</Status></td>
+                  <td><IconButton label="Xóa" icon="close" onClick={() => onRemoveBarcode(item.barcode)} /></td>
+                </tr>
+              ))}
+            </tbody></table></div>
+          )}
           <div className="transaction-footer"><div><span>Tổng tài liệu</span><strong>{String(items.length).padStart(2, "0")} cuốn</strong></div><Button icon="success" disabled={items.length === 0} onClick={onConfirm}>Xác nhận cho mượn</Button></div>
         </section>
       </div>

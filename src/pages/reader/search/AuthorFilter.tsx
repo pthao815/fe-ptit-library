@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Field } from "../../../design-system";
+import { Button, EmptyState, Field, LoadingState } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
 import type { AuthorDto, PageResponse } from "../../../types/api";
 
@@ -63,8 +63,8 @@ export default function AuthorFilter({ value, onChange }: { value: string; onCha
       if (event.key === "Enter") { event.preventDefault(); findAuthors(); }
     }} />
     <Button type="button" variant="secondary" size="sm" onClick={findAuthors}>Tìm tác giả</Button>
-    {loading && <p role="status">Đang tìm tác giả…</p>}
-    {error && <p role="alert">{error} <Button type="button" onClick={() => search && setSearch({ ...search })}>Thử lại</Button></p>}
+    {loading && <LoadingState size="sm" title="Đang tìm tác giả…" />}
+    {error && <EmptyState size="sm" tone="error" title="Không tìm được tác giả" description={error} action={<Button type="button" size="sm" onClick={() => search && setSearch({ ...search })}>Thử lại</Button>} />}
     {results && (results.items.length ? <>
       <ul>{results.items.map((item) => <li key={item.id}>
         <Button type="button" variant="ghost" size="sm" aria-pressed={item.id === id} onClick={() => onChange(String(item.id))}>{item.name}</Button>
@@ -73,6 +73,6 @@ export default function AuthorFilter({ value, onChange }: { value: string; onCha
         <Button type="button" size="sm" disabled={!results.hasPrevious} onClick={() => search && setSearch({ ...search, page: results.page - 1 })}>Trang trước</Button>{" "}
         <Button type="button" size="sm" disabled={!results.hasNext} onClick={() => search && setSearch({ ...search, page: results.page + 1 })}>Trang sau</Button>
       </div>
-    </> : <p>Không tìm thấy tác giả.</p>)}
+    </> : <EmptyState size="sm" icon="users" title="Không tìm thấy tác giả" description="Thử nhập từ khóa khác ngắn gọn hơn." />)}
   </fieldset>;
 }
