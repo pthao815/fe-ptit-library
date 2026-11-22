@@ -158,7 +158,9 @@ export interface DocumentFilterParams extends PaginationParams {
   departmentId?: number;
   docType?: string;
   authorId?: number;
+  authorName?: string;
   publicationYear?: number;
+  language?: string;
 }
 
 export interface DocumentRequestDto {
@@ -444,6 +446,55 @@ export interface ContentSearchResultDto {
   relevanceScore?: number;
   availablePhysicalCopies: number;
   shelfLocation?: string;
+}
+
+export interface TextLocationDto {
+  page?: number;
+  printedPageLabel?: string;
+  paragraph?: number;
+  sentence?: number;
+  wordStart?: number;
+  wordEnd?: number;
+  text?: string;
+  rects?: number[][];
+  pageWidth?: number;
+  pageHeight?: number;
+}
+
+export interface SmartSearchRequest {
+  query: string;
+  language?: string;
+  docType?: string;
+  departmentId?: number;
+  authorName?: string;
+  publicationYear?: number;
+  searchMode?: "tfidf" | "vector" | "hybrid" | string;
+  limit?: number;
+}
+
+export interface SmartSearchItemDto {
+  documentId: string;
+  title: string;
+  docType?: string;
+  language?: string;
+  publicationYear?: number;
+  matchScore: number;
+  snippet?: string;
+  digitalCopyId?: string;
+  chunkIds?: string[];
+  pageNumber?: number;
+  pageEnd?: number;
+  chapter?: string;
+  section?: string;
+  locations?: TextLocationDto[];
+}
+
+export interface SmartSearchResponse {
+  query: string;
+  searchMode?: string;
+  booleanQuery?: boolean;
+  highlightTerms?: string[];
+  results: SmartSearchItemDto[];
 }
 
 export interface RecommendationItemDto {

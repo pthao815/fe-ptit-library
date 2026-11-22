@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Badge, Breadcrumb, Button, CustomSelect, Field, Icon, IconButton, Modal, SelectField, Status, TextAreaField } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, EmptyState, Field, Icon, IconButton, LoadingState, Modal, SelectField, Status, TextAreaField } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
 import { userService } from "../../../services/user.service";
 import { ApiError } from "../../../services/http";
@@ -303,12 +303,16 @@ function RecordEditor({ edit, id }: { edit: boolean; id?: string }) {
       <Badge tone={saved ? "success" : "warning"}>{saved ? "ĐÃ LƯU" : "BẢN GHI MỚI"}</Badge>
     </div>
 
-    {loading ? <p role="status" className="form-success-summary">Đang tải dữ liệu…</p> : loadError ? (
-      <div role="alert" className="form-error-summary">
-        <Icon name="error" />
-        <div><strong>Không tải được biểu ghi</strong><p>{loadError}</p></div>
-        <Button size="sm" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
-      </div>
+    {loading ? (
+      <LoadingState variant="detail" surface="card" title="Đang tải dữ liệu biểu ghi…" />
+    ) : loadError ? (
+      <EmptyState
+        surface="card"
+        tone="error"
+        title="Không tải được biểu ghi"
+        description={loadError}
+        action={<Button size="sm" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+      />
     ) : <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
       {error && <div role="alert" className="form-error-summary"><Icon name="error" /><div><strong>Không thể lưu tài liệu</strong><p>{error}</p></div></div>}
       {uncertain && documentId.current && <p className="form-error-summary"><Link to={base + "/edit/" + documentId.current}>Đối soát biểu ghi đã lưu</Link></p>}
@@ -370,7 +374,14 @@ function RecordEditor({ edit, id }: { edit: boolean; id?: string }) {
                 setCopies((rows) => [...rows, { key, barcode: "", callNumber: record.classificationNumber, shelfLocation: "", status: "AVAILABLE", condition: "Tốt" }]);
               }}>Thêm bản giấy</Button>
             </header>
-            {copies.length === 0 ? <p className="record-form-empty"><Icon name="info" size={16} />Chưa có bản giấy nào. Bấm "Thêm bản giấy" để nhập bản in đầu tiên.</p> : (
+            {copies.length === 0 ? (
+              <EmptyState
+                size="sm"
+                icon="book"
+                title="Chưa có bản giấy nào"
+                description="Bấm “Thêm bản giấy” ở góc phải để nhập bản in cá biệt đầu tiên."
+              />
+            ) : (
               <div className="copy-editor-wrap"><table className="copy-editor">
                 <colgroup><col style={{ width: "25%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} /><col style={{ width: "17%" }} /><col style={{ width: "15%" }} /><col style={{ width: "11%" }} /><col style={{ width: 52 }} /></colgroup>
                 <thead><tr><th>Mã vạch *</th><th>Mã xếp giá</th><th>Vị trí kệ</th><th>Tình trạng</th><th>Lưu thông</th><th>Nhập kho</th><th aria-label="Thao tác" /></tr></thead>

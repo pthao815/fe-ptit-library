@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Icon } from "../../design-system";
+import { Badge, EmptyState, Icon, LoadingState } from "../../design-system";
 import type { LibraryNotification } from "../../data/notifications";
 import { notificationService } from "../../services/analytics.service";
 import { getAccessToken } from "../../services/session";
@@ -38,9 +38,9 @@ export default function NotificationDropdown({ open, onClose }: { open: boolean;
     <div className="notification-dropdown" aria-label="Thông báo gần đây">
       <header><div><strong>Thông báo</strong></div><Badge tone="brand">{items.length} MỚI NHẤT</Badge></header>
       <div>
-        {status === "loading" && <p role="status">Đang tải…</p>}
-        {status === "error" && <p role="alert">Không tải được thông báo.</p>}
-        {status === "ready" && !items.length && <p>Chưa có thông báo.</p>}
+        {status === "loading" && <LoadingState size="sm" title="Đang tải thông báo…" />}
+        {status === "error" && <EmptyState size="sm" tone="error" title="Không tải được thông báo" description="Vui lòng thử mở lại sau." />}
+        {status === "ready" && !items.length && <EmptyState size="sm" icon="bell" title="Chưa có thông báo mới" description="Bạn đã cập nhật hết các thông báo gần đây." />}
         {items.map((item) => (
           <button key={item.id} className={item.unread ? "unread" : ""} onClick={() => { onClose(); navigate(`/reader/notifications/${item.id}`); }}><span className={`notification-type ${item.tone}`}><Icon name={item.icon} size={17} /></span><span><strong>{item.title}</strong><small>{item.category} · {item.relativeTime}</small></span>{item.unread && <i />}</button>
         ))}

@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Avatar, Badge, Breadcrumb, Button, Icon, Rating, Status, Toast } from "../../../design-system";
+import { Avatar, Badge, Breadcrumb, Button, EmptyState, Icon, LoadingState, Rating, Status, Toast } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import { catalogService, syncFavoriteBook } from "../../../services/catalog.service";
 import { circulationService, getTrackedHoldByDocumentId } from "../../../services/circulation.service";
@@ -103,18 +103,36 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     return () => { active = false; };
   }, [requestedDocId, revision, isStaff]);
 
-  if (loading) return <div className="book-detail-page"><main className="book-detail-container"><p role="status">Đang tải chi tiết tài liệu…</p></main></div>;
-  if (loadError || !detail) return <div className="book-detail-page"><main className="book-detail-container">
-    <div className="catalog-empty" role="alert">
-      <Icon name="error" size={28} />
-      <h2>Không mở được tài liệu</h2>
-      <p>{loadError || "Không tìm thấy tài liệu."}</p>
-      <div className="detail-primary-actions">
-        <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
-        <Button variant="secondary" onClick={() => navigate(resultsPath)}>{backLabel}</Button>
+  if (loading) {
+    return (
+      <div className="book-detail-page">
+        <main className="book-detail-container">
+          <LoadingState variant="detail" surface="card" title="Đang tải chi tiết tài liệu…" />
+        </main>
       </div>
-    </div>
-  </main></div>;
+    );
+  }
+  if (loadError || !detail) {
+    return (
+      <div className="book-detail-page">
+        <main className="book-detail-container">
+          <EmptyState
+            surface="card"
+            size="lg"
+            tone="error"
+            title="Không mở được tài liệu"
+            description={loadError || "Không tìm thấy tài liệu."}
+            action={
+              <>
+                <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
+                <Button variant="secondary" onClick={() => navigate(resultsPath)}>{backLabel}</Button>
+              </>
+            }
+          />
+        </main>
+      </div>
+    );
+  }
 
   const currentBook: Book = mapDocumentDetailToBook(detail);
   const activeDocId = detail.id;
@@ -292,9 +310,15 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
                 ))}</div>
               </div>}
               {reviewError ? (
-                <div className="summary-content"><p role="alert">{reviewError}</p></div>
+                <EmptyState size="sm" tone="error" title="Không tải được đánh giá" description={reviewError} />
               ) : !reviews.length ? (
-                <div className="summary-content"><p>Tài liệu này chưa có đánh giá nào.</p></div>
+                <EmptyState
+                  size="sm"
+                  icon="sparkle"
+                  title="Tài liệu này chưa có đánh giá nào"
+                  description="Chia sẻ cảm nhận học thuật để giúp bạn đọc khác lựa chọn tài liệu phù hợp."
+                  action={readerActions ? <Button variant="secondary" size="sm" onClick={writeReview}>Viết đánh giá đầu tiên</Button> : undefined}
+                />
               ) : <div className="review-list">
                 {reviews.slice(0, 10).map((review) => {
                   const reviewerName = review.userFullName || review.user?.fullName || review.user?.userCode || "Bạn đọc PTIT";

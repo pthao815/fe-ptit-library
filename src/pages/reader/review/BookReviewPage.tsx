@@ -1,7 +1,7 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type * as React from "react";
-import { Badge, Button, Field, Icon, Modal, Rating, TextAreaField } from "../../../design-system";
+import { Badge, Button, EmptyState, Field, Icon, LoadingState, Modal, Rating, TextAreaField } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import type { DocumentDetailDto } from "../../../types/api";
 import { mapDocumentDetailToBook } from "../../../utils/mappers";
@@ -100,10 +100,31 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
     }
   };
 
-  if (!document || document.id !== documentId) return <main className="material-review-container">
-    <p role={documentError ? "alert" : "status"}>{documentError || "Đang tải tài liệu…"}</p>
-    {documentError && <><Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>{" "}<Button onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button></>}
-  </main>;
+  if (!document || document.id !== documentId) {
+    return (
+      <div className="material-review-page">
+        <main className="material-review-container">
+          {documentError ? (
+            <EmptyState
+              surface="card"
+              size="lg"
+              tone="error"
+              title="Không tải được thông tin tài liệu"
+              description={documentError}
+              action={
+                <>
+                  <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
+                  <Button variant="secondary" onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button>
+                </>
+              }
+            />
+          ) : (
+            <LoadingState variant="detail" surface="card" title="Đang tải tài liệu…" />
+          )}
+        </main>
+      </div>
+    );
+  }
   const detailBook = mapDocumentDetailToBook(document);
   return (
     <div className="material-review-page">

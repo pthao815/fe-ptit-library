@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Breadcrumb, Button, CustomSelect, Icon } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, EmptyState, Icon, LoadingState } from "../../../design-system";
 import { analyticsService } from "../../../services/analytics.service";
 import { userService } from "../../../services/user.service";
 import { getAccessToken } from "../../../services/session";
@@ -317,29 +317,36 @@ export default function ReportsScreen() {
                   {chartGeom.xLabels.map((lbl, idx) => <span key={`${idx}-${lbl}`}>{lbl}</span>)}
                 </div>
               </div>
+            ) : loading ? (
+              <LoadingState size="sm" title="Đang tải biểu đồ xu hướng…" />
             ) : (
-              <p style={{ padding: 24, textAlign: "center", color: "var(--gray-500)" }}>
-                {loading ? "Đang tải biểu đồ xu hướng…" : "Chưa có giao dịch lưu thông trong khoảng thời gian đã chọn."}
-              </p>
+              <EmptyState
+                size="sm"
+                icon="chart"
+                title="Chưa có giao dịch lưu thông"
+                description="Không có lượt mượn hoặc trả trong khoảng thời gian đã chọn."
+              />
             )}
           </section>
 
           <div className="report-two-column">
             <section className="report-panel">
               <header><div><h2>Lượt mượn theo ngành đào tạo</h2><p>Tỷ trọng theo hồ sơ bạn đọc</p></div></header>
-              <div className="horizontal-chart">
-                {deptStats.length > 0 ? (
-                  deptStats.map((dept) => (
+              {deptStats.length > 0 ? (
+                <div className="horizontal-chart">
+                  {deptStats.map((dept) => (
                     <div key={dept.key}>
                       <span>{dept.label}</span>
                       <div><i style={{ width: `${Math.max(4, Math.round((dept.count / maxDeptCount) * 100))}%` }} /></div>
                       <strong>{dept.count.toLocaleString("vi-VN")}</strong>
                     </div>
-                  ))
-                ) : (
-                  <p style={{ color: "var(--gray-500)", textAlign: "center" }}>Chưa có dữ liệu phân bổ theo ngành.</p>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : loading ? (
+                <LoadingState size="sm" title="Đang tải phân bổ theo ngành…" />
+              ) : (
+                <EmptyState size="sm" icon="users" title="Chưa có dữ liệu phân bổ theo ngành" />
+              )}
             </section>
 
             <section className="report-panel">
@@ -349,24 +356,26 @@ export default function ReportsScreen() {
                   <p>Phân bổ {docTypeTotal.toLocaleString("vi-VN")} lượt mượn</p>
                 </div>
               </header>
-              <div className="document-type-chart">
-                <div className="report-donut" style={{ background: donutBackground }}>
-                  <span><strong>{docTypeTotal.toLocaleString("vi-VN")}</strong><small>Lượt mượn</small></span>
-                </div>
-                <div className="donut-legend">
-                  {donutTop.length > 0 ? (
-                    donutTop.map((item, idx) => (
+              {donutTop.length > 0 ? (
+                <div className="document-type-chart">
+                  <div className="report-donut" style={{ background: donutBackground }}>
+                    <span><strong>{docTypeTotal.toLocaleString("vi-VN")}</strong><small>Lượt mượn</small></span>
+                  </div>
+                  <div className="donut-legend">
+                    {donutTop.map((item, idx) => (
                       <div key={item.key}>
                         <i className={DONUT_CLASSES[idx]} />
                         <span>{item.label}</span>
                         <strong>{item.percentage}%</strong>
                       </div>
-                    ))
-                  ) : (
-                    <span style={{ color: "var(--gray-500)" }}>Chưa có dữ liệu phân bổ.</span>
-                  )}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : loading ? (
+                <LoadingState size="sm" title="Đang tải phân bổ dạng tài liệu…" />
+              ) : (
+                <EmptyState size="sm" icon="chart" title="Chưa có dữ liệu phân bổ" />
+              )}
             </section>
           </div>
 
@@ -378,9 +387,9 @@ export default function ReportsScreen() {
               </div>
               <Badge tone="brand">TOP {popularDocs.length}</Badge>
             </header>
-            <div className="ranking-list">
-              {popularDocs.length > 0 ? (
-                popularDocs.map((doc) => {
+            {popularDocs.length > 0 ? (
+              <div className="ranking-list">
+                {popularDocs.map((doc) => {
                   const meterPct = Math.max(8, Math.round((doc.borrowCount / maxPopularBorrows) * 100));
                   return (
                     <div
@@ -398,13 +407,18 @@ export default function ReportsScreen() {
                       <em>{doc.averageRating ? `${doc.averageRating.toFixed(1)} ★` : "—"}</em>
                     </div>
                   );
-                })
-              ) : (
-                <p style={{ padding: 20, textAlign: "center", color: "var(--gray-500)" }}>
-                  {loading ? "Đang tải bảng xếp hạng tài liệu…" : "Chưa có tài liệu nào phát sinh mượn hoặc tương tác trong kỳ này."}
-                </p>
-              )}
-            </div>
+                })}
+              </div>
+            ) : loading ? (
+              <LoadingState variant="table" count={4} size="sm" title="Đang tải bảng xếp hạng tài liệu…" />
+            ) : (
+              <EmptyState
+                size="sm"
+                icon="book"
+                title="Chưa có tài liệu nổi bật"
+                description="Chưa có tài liệu nào phát sinh mượn hoặc tương tác trong kỳ này."
+              />
+            )}
           </section>
         </div>
       ) : (
@@ -438,10 +452,15 @@ export default function ReportsScreen() {
                       <Badge>{doc.borrowCount} lượt</Badge>
                     </article>
                   ))
+                ) : loading ? (
+                  <LoadingState size="sm" title="Đang tải danh sách tài liệu ít lưu thông…" />
                 ) : (
-                  <p style={{ padding: 20, textAlign: "center", color: "var(--gray-500)" }}>
-                    Không có dữ liệu tài liệu ít lưu thông.
-                  </p>
+                  <EmptyState
+                    size="sm"
+                    icon="book"
+                    title="Không có tài liệu ít lưu thông"
+                    description="Các tài liệu trong kho hiện đều có mức lưu thông ổn định."
+                  />
                 )}
               </div>
             </section>
@@ -480,14 +499,23 @@ export default function ReportsScreen() {
               </div>
               <Badge tone="warning">{suggestions.length} ĐỀ XUẤT</Badge>
             </header>
-            <div className="report-query-table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Chủ đề / Từ khóa</th><th>Khoa / Ngành</th><th>Số lần tìm</th><th>Thời gian gần nhất</th><th>Trạng thái</th></tr>
-                </thead>
-                <tbody>
-                  {suggestions.length > 0 ? (
-                    suggestions.map((item) => (
+            {loading && !suggestions.length ? (
+              <LoadingState variant="table" count={4} size="sm" title="Đang tải đề xuất bổ sung…" />
+            ) : suggestions.length === 0 ? (
+              <EmptyState
+                size="sm"
+                icon="search"
+                title="Chưa có đề xuất bổ sung tài liệu"
+                description="Chưa có cụm truy vấn không có kết quả nào được ghi nhận."
+              />
+            ) : (
+              <div className="report-query-table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Chủ đề / Từ khóa</th><th>Khoa / Ngành</th><th>Số lần tìm</th><th>Thời gian gần nhất</th><th>Trạng thái</th></tr>
+                  </thead>
+                  <tbody>
+                    {suggestions.map((item) => (
                       <tr key={item.id}>
                         <td><strong>“{item.topic}”</strong></td>
                         <td>{item.departmentName || "—"}</td>
@@ -495,17 +523,11 @@ export default function ReportsScreen() {
                         <td>{formatDateTimeVi(item.updatedAt || item.createdAt)}</td>
                         <td><Badge tone={item.queryCount >= 20 ? "error" : "warning"}>{item.status}</Badge></td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: "center", color: "var(--gray-500)" }}>
-                        {loading ? "Đang tải đề xuất bổ sung…" : "Chưa có đề xuất bổ sung tài liệu nào."}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </div>
       )}

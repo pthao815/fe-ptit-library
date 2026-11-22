@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Breadcrumb, Button } from "../../../design-system";
+import { Breadcrumb, Button, EmptyState, LoadingState } from "../../../design-system";
 import { notificationService } from "../../../services/analytics.service";
 import type { MessageQueueDto, PageResponse } from "../../../types/api";
 import { mapMessageQueueToNotification } from "../../../utils/mappers";
@@ -60,12 +60,20 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
       {notificationId && <Link className="btn btn-ghost" to={list}>Về danh sách thông báo</Link>}
       <h1>{notificationId ? "Chi tiết thông báo" : "Thông báo"}</h1>
       {error ? (
-        <div role="alert">
-          <p>{error}</p>
-          <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
-        </div>
+        <EmptyState
+          surface="card"
+          tone="error"
+          title="Không tải được thông báo"
+          description={error}
+          action={<Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+        />
       ) : !response ? (
-        <p role="status">Đang tải thông báo…</p>
+        <LoadingState
+          variant={notificationId ? "detail" : "list"}
+          count={4}
+          surface="card"
+          title="Đang tải thông báo…"
+        />
       ) : notificationId ? (
         selected ? (
           <article className="notification-detail-card">
@@ -84,7 +92,12 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
             )}
           </article>
         ) : (
-          <p>Không tìm thấy thông tin chi tiết cho thông báo này.</p>
+          <EmptyState
+            surface="card"
+            icon="bell"
+            title="Không tìm thấy thông báo"
+            description="Không tìm thấy thông tin chi tiết cho thông báo này."
+          />
         )
       ) : items.length ? (
         <ul className="notification-list-simple">
@@ -98,7 +111,12 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
           ))}
         </ul>
       ) : (
-        <p>Không có thông báo trên trang này.</p>
+        <EmptyState
+          surface="card"
+          icon="bell"
+          title="Chưa có thông báo nào"
+          description="Các thông báo về hạn trả, đặt trước và cập nhật thư viện sẽ xuất hiện tại đây."
+        />
       )}
       {!notificationId && response && (
         <nav className="catalog-pagination" aria-label="Phân trang thông báo">

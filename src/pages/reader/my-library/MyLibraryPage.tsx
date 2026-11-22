@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Icon, Rating, Status, Toast } from "../../../design-system";
+import { Badge, Breadcrumb, Button, EmptyState, Icon, LoadingState, Rating, Status, Toast } from "../../../design-system";
 import LibraryListCard from "../../../components/books/LibraryListCard";
 import { libraryTabs } from "../../../constants/library-options";
 import { loanBooks, reservedBooks, shelfGroups, loanHistory } from "../../../data/my-library";
@@ -115,15 +115,18 @@ function PersonalShelf({
   };
 
   if (isWantToRead && favoritesStatus === "loading") {
-    return <p role="status">Đang tải tủ sách yêu thích…</p>;
+    return <LoadingState variant="list" count={3} surface="card" title="Đang tải tủ sách yêu thích…" />;
   }
 
   if (isWantToRead && favoritesStatus === "error") {
     return (
-      <p role="alert">
-        Không tải được danh sách tài liệu yêu thích.{" "}
-        {onRetryFavorites && <Button size="sm" onClick={onRetryFavorites}>Thử lại</Button>}
-      </p>
+      <EmptyState
+        surface="card"
+        tone="error"
+        title="Không tải được tủ sách yêu thích"
+        description="Đã xảy ra lỗi khi tải danh sách tài liệu đã lưu của bạn."
+        action={onRetryFavorites && <Button size="sm" onClick={onRetryFavorites}>Thử lại</Button>}
+      />
     );
   }
 
@@ -134,7 +137,13 @@ function PersonalShelf({
         <Button variant="secondary" size="sm" icon="plus" onClick={() => navigate("/reader/search")}>Thêm tài liệu</Button>
       </div>
       {shelfBooks.length === 0 ? (
-        <p>{isWantToRead ? "Bạn chưa lưu tài liệu nào vào tủ sách yêu thích." : "Chưa có tài liệu trong danh sách này."}</p>
+        <EmptyState
+          surface="card"
+          icon="bookmark"
+          title={isWantToRead ? "Tủ sách yêu thích đang trống" : `Chưa có tài liệu trong “${group}”`}
+          description={isWantToRead ? "Lưu lại các tài liệu bạn quan tâm để dễ dàng tìm và đọc sau." : "Các tài liệu thuộc nhóm này sẽ hiển thị tại đây."}
+          action={<Button variant="secondary" size="sm" icon="search" onClick={() => navigate("/reader/search")}>Khám phá tài liệu</Button>}
+        />
       ) : (
         <div className="loan-list">{shelfBooks.map((book, index) => (
           <LibraryListCard
@@ -409,14 +418,30 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
           ))}
         </div>
 
-        {(activeTab === "Đang mượn" || activeTab === "Lịch sử mượn") && historyStatus === "loading" && <p role="status">Đang tải lượt mượn…</p>}
-        {(activeTab === "Đang mượn" || activeTab === "Lịch sử mượn") && historyStatus === "error" && <p role="alert">Không tải được lượt mượn. <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></p>}
-        {historyStatus === "ready" && ((activeTab === "Đang mượn" && !loans.length) || (activeTab === "Lịch sử mượn" && !historyItems.length)) && <p>Chưa có lượt mượn.</p>}
-        {activeTab === "Đặt trước" && !reservations.length && <p>Bạn chưa có yêu cầu đặt trước nào.</p>}
         {activeTab === "Đang mượn" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Tài liệu đang mượn</h2><p>Kiểm tra thời hạn và gia hạn các tài liệu đủ điều kiện.</p></div><Badge tone="warning">{String(overdueCount).padStart(2, "0")} TÀI LIỆU QUÁ HẠN</Badge></div>
-            <div className="loan-list">{loans.map((loan) => <LoanCard key={loan.id} loan={loan} onRenew={handleRenewLoan} />)}</div>
+            {historyStatus === "loading" ? (
+              <LoadingState variant="list" count={3} surface="card" title="Đang tải tài liệu đang mượn…" />
+            ) : historyStatus === "error" ? (
+              <EmptyState
+                surface="card"
+                tone="error"
+                title="Không tải được lượt mượn"
+                description="Vui lòng kiểm tra kết nối mạng và thử tải lại."
+                action={<Button size="sm" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+              />
+            ) : !loans.length ? (
+              <EmptyState
+                surface="card"
+                icon="book"
+                title="Bạn chưa có tài liệu đang mượn"
+                description="Các tài liệu đang mượn tại thư viện sẽ hiển thị tại đây cùng hạn trả và nút gia hạn."
+                action={<Button variant="secondary" size="sm" icon="search" onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button>}
+              />
+            ) : (
+              <div className="loan-list">{loans.map((loan) => <LoanCard key={loan.id} loan={loan} onRenew={handleRenewLoan} />)}</div>
+            )}
             <section className="debt-section">
               <div className="debt-heading"><span><Icon name="error" /></span><div><h2>Công nợ thư viện</h2><p>Các khoản phí chưa hoàn tất trong tài khoản của bạn.</p></div><strong>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</strong></div>
               {finesSummary?.fines?.length ? (
@@ -451,46 +476,75 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         {activeTab === "Lịch sử mượn" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Lịch sử mượn</h2><p>Các tài liệu bạn đã mượn và hoàn trả trong 12 tháng gần đây.</p></div><Button variant="secondary" size="sm">Xuất lịch sử</Button></div>
-            <div className="loan-list">{historyItems.map((item) => (
-              <LibraryListCard
-                key={item.id}
-                book={item}
-                badge={item.type}
-                badgeTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
-                status={item.returnStatus}
-                statusHint="Đã hoàn tất lượt mượn"
-                statusTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
-                details={[
-                  { label: "Ngày mượn", value: item.borrowed },
-                  { label: "Ngày trả", value: item.returned },
-                  { label: "Đánh giá", value: item.historyRating ? <Rating value={item.historyRating} /> : "Chưa đánh giá" },
-                ]}
-                actions={<><Button variant="secondary" size="sm">{item.historyRating ? "Xem chi tiết" : "Đánh giá tài liệu"}</Button><Button variant="ghost" size="sm">Mượn lại</Button></>}
+            {historyStatus === "loading" ? (
+              <LoadingState variant="list" count={3} surface="card" title="Đang tải lịch sử mượn…" />
+            ) : historyStatus === "error" ? (
+              <EmptyState
+                surface="card"
+                tone="error"
+                title="Không tải được lịch sử mượn"
+                description="Vui lòng thử tải lại sau."
+                action={<Button size="sm" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
               />
-            ))}</div>
+            ) : !historyItems.length ? (
+              <EmptyState
+                surface="card"
+                icon="book"
+                title="Chưa có lịch sử mượn trả"
+                description="Các giao dịch mượn và trả tài liệu đã hoàn tất của bạn sẽ được lưu lại tại đây."
+              />
+            ) : (
+              <div className="loan-list">{historyItems.map((item) => (
+                <LibraryListCard
+                  key={item.id}
+                  book={item}
+                  badge={item.type}
+                  badgeTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
+                  status={item.returnStatus}
+                  statusHint="Đã hoàn tất lượt mượn"
+                  statusTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
+                  details={[
+                    { label: "Ngày mượn", value: item.borrowed },
+                    { label: "Ngày trả", value: item.returned },
+                    { label: "Đánh giá", value: item.historyRating ? <Rating value={item.historyRating} /> : "Chưa đánh giá" },
+                  ]}
+                  actions={<><Button variant="secondary" size="sm">{item.historyRating ? "Xem chi tiết" : "Đánh giá tài liệu"}</Button><Button variant="ghost" size="sm">Mượn lại</Button></>}
+                />
+              ))}</div>
+            )}
           </div>
         )}
 
         {activeTab === "Đặt trước" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Tài liệu đã đặt trước</h2><p>Theo dõi vị trí hàng chờ và thời hạn nhận tài liệu.</p></div></div>
-            <div className="loan-list">{reservations.map((reservation) => (
-              <LibraryListCard
-                key={reservation.id}
-                book={reservation}
-                badge={reservation.type}
-                badgeTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
-                status={reservation.status}
-                statusHint={reservation.status === "Chờ nhận" ? "Tài liệu đã sẵn sàng" : `Vị trí hàng chờ: ${reservation.position}`}
-                statusTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
-                details={[
-                  { label: "Vị trí hàng chờ", value: reservation.position },
-                  { label: "Ngày đặt trước", value: reservation.reserved },
-                  { label: "Hạn nhận tài liệu", value: reservation.expiration },
-                ]}
-                actions={<><Button size="sm" disabled={reservation.status !== "Chờ nhận"}>Xem thông tin nhận</Button><Button variant="ghost" size="sm" onClick={() => handleCancelReservation(reservation.id)}>Hủy đặt trước</Button></>}
+            {!reservations.length ? (
+              <EmptyState
+                surface="card"
+                icon="bookmark"
+                title="Bạn chưa có yêu cầu đặt trước nào"
+                description="Khi bản in tạm hết, bạn có thể đặt trước để giữ chỗ ngay khi tài liệu được hoàn trả."
+                action={<Button variant="secondary" size="sm" icon="search" onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button>}
               />
-            ))}</div>
+            ) : (
+              <div className="loan-list">{reservations.map((reservation) => (
+                <LibraryListCard
+                  key={reservation.id}
+                  book={reservation}
+                  badge={reservation.type}
+                  badgeTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
+                  status={reservation.status}
+                  statusHint={reservation.status === "Chờ nhận" ? "Tài liệu đã sẵn sàng" : `Vị trí hàng chờ: ${reservation.position}`}
+                  statusTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
+                  details={[
+                    { label: "Vị trí hàng chờ", value: reservation.position },
+                    { label: "Ngày đặt trước", value: reservation.reserved },
+                    { label: "Hạn nhận tài liệu", value: reservation.expiration },
+                  ]}
+                  actions={<><Button size="sm" disabled={reservation.status !== "Chờ nhận"}>Xem thông tin nhận</Button><Button variant="ghost" size="sm" onClick={() => handleCancelReservation(reservation.id)}>Hủy đặt trước</Button></>}
+                />
+              ))}</div>
+            )}
           </div>
         )}
 

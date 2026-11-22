@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Breadcrumb, Button, Icon, IconButton, Modal, Pagination, SelectField } from "../../../design-system";
+import { Badge, Breadcrumb, Button, EmptyState, Icon, IconButton, Modal, Pagination, SelectField } from "../../../design-system";
 import type { ProcessingJob } from "../../../data/processing-jobs";
 import { initialProcessingJobs } from "../../../data/processing-jobs";
 import { pipelineSteps } from "../../../constants/library-options";
@@ -31,18 +31,26 @@ export default function DigitalProcessingPage() {
 
       <section className="processing-table-panel">
         <div className="processing-table-heading"><div><h2>Danh sách tác vụ</h2><p>{jobs.length} tệp · Cập nhật tự động mỗi 30 giây</p></div><div><SelectField label="Trạng thái" defaultValue="all"><option value="all">Tất cả trạng thái</option><option>Đang chờ</option><option>Đang xử lý</option><option>Hoàn thành</option><option>Lỗi</option></SelectField><IconButton label="Làm mới" icon="sparkle" /></div></div>
-        <div className="processing-table-wrap"><table className="processing-table"><thead><tr><th>Tài liệu</th><th>File</th><th>Dung lượng</th><th>Trạng thái</th><th>Tiến độ</th><th>Thời gian bắt đầu</th><th>Thời gian hoàn thành</th><th>Actions</th></tr></thead><tbody>
-          {jobs.map((job) => <tr key={job.id}>
-            <td><div className="processing-title"><span><Icon name="document" /></span><div><strong>{job.title}</strong><small>{job.record}</small></div></div></td>
-            <td><div className="processing-file"><strong>{job.file}</strong>{job.status === "Lỗi" && <small className="file-error">Không thể trích xuất văn bản</small>}</div></td>
-            <td>{job.size}</td>
-            <td><Badge tone={job.status === "Hoàn thành" ? "success" : job.status === "Lỗi" ? "error" : job.status === "Đang xử lý" ? "info" : "warning"}>{job.status}</Badge></td>
-            <td><div className="job-progress"><div><i className={`progress-value progress-${job.progress}`} /></div><span>{job.progress}%</span><small>{job.stage}</small></div></td>
-            <td>{job.started}</td>
-            <td>{job.completed}</td>
-            <td><div className="processing-actions"><Button variant="ghost" size="sm" onClick={() => setDetailJob(job)}>Chi tiết</Button>{job.status === "Lỗi" && <Button variant="secondary" size="sm" onClick={() => retry(job.id)}>Xử lý lại</Button>}</div></td>
-          </tr>)}
-        </tbody></table></div>
+        {jobs.length === 0 ? (
+          <EmptyState
+            icon="document"
+            title="Chưa có tác vụ xử lý nào"
+            description="Các tệp PDF tải lên để trích xuất văn bản và lập chỉ mục sẽ hiển thị tại đây."
+          />
+        ) : (
+          <div className="processing-table-wrap"><table className="processing-table"><thead><tr><th>Tài liệu</th><th>File</th><th>Dung lượng</th><th>Trạng thái</th><th>Tiến độ</th><th>Thời gian bắt đầu</th><th>Thời gian hoàn thành</th><th>Actions</th></tr></thead><tbody>
+            {jobs.map((job) => <tr key={job.id}>
+              <td><div className="processing-title"><span><Icon name="document" /></span><div><strong>{job.title}</strong><small>{job.record}</small></div></div></td>
+              <td><div className="processing-file"><strong>{job.file}</strong>{job.status === "Lỗi" && <small className="file-error">Không thể trích xuất văn bản</small>}</div></td>
+              <td>{job.size}</td>
+              <td><Badge tone={job.status === "Hoàn thành" ? "success" : job.status === "Lỗi" ? "error" : job.status === "Đang xử lý" ? "info" : "warning"}>{job.status}</Badge></td>
+              <td><div className="job-progress"><div><i className={`progress-value progress-${job.progress}`} /></div><span>{job.progress}%</span><small>{job.stage}</small></div></td>
+              <td>{job.started}</td>
+              <td>{job.completed}</td>
+              <td><div className="processing-actions"><Button variant="ghost" size="sm" onClick={() => setDetailJob(job)}>Chi tiết</Button>{job.status === "Lỗi" && <Button variant="secondary" size="sm" onClick={() => retry(job.id)}>Xử lý lại</Button>}</div></td>
+            </tr>)}
+          </tbody></table></div>
+        )}
         <div className="processing-footnote"><span><Icon name="info" size={14} />Pipeline đang sử dụng cấu hình mặc định · 2 tác vụ chạy song song</span><Pagination /></div>
       </section>
 

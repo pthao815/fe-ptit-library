@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, Icon, Rating } from "../../../design-system";
+import { Badge, Button, EmptyState, Icon, LoadingState, Rating } from "../../../design-system";
 import Brand from "../../../components/common/Brand";
 import HomeSection from "../../../components/common/HomeSection";
 import BookCard from "../../../components/books/BookCard";
@@ -121,9 +121,29 @@ export default function ReaderHome() {
   }
 
   const renderCatalog = (catalog: ReturnType<typeof useHomeCatalog>) => {
-    if (catalog.error) return <p role="alert">{catalog.error} <Button size="sm" onClick={catalog.retry}>Thử lại</Button></p>;
-    if (!catalog.books) return <p role="status">Đang tải tài liệu…</p>;
-    if (!catalog.books.length) return <p>Chưa có tài liệu.</p>;
+    if (catalog.error) {
+      return (
+        <EmptyState
+          surface="card"
+          tone="error"
+          title="Không tải được danh mục tài liệu"
+          description={catalog.error}
+          action={<Button size="sm" onClick={catalog.retry}>Thử lại</Button>}
+        />
+      );
+    }
+    if (!catalog.books) return <LoadingState variant="cards" count={4} title="Đang tải tài liệu…" />;
+    if (!catalog.books.length) {
+      return (
+        <EmptyState
+          surface="card"
+          icon="book"
+          title="Chưa có tài liệu nào"
+          description="Danh mục này hiện chưa có biểu ghi nào để hiển thị."
+          action={<Button variant="secondary" size="sm" onClick={() => navigate("/reader/search")}>Khám phá kho tài liệu</Button>}
+        />
+      );
+    }
     return <div className="book-grid">
       {catalog.books.map((book) => <BookCard key={book.documentId ?? book.id} book={book}
         detailPath={book.documentId ? "/reader/book-detail?id=" + encodeURIComponent(book.documentId) : undefined}
@@ -134,8 +154,11 @@ export default function ReaderHome() {
 
   const handleHeroSearch = () => {
     const q = searchInput.trim();
-    const targetPath = searchMode === "content" ? "/reader/content-search" : "/reader/search";
-    navigate(q ? `${targetPath}?q=${encodeURIComponent(q)}` : targetPath);
+    const params = new URLSearchParams();
+    if (searchMode === "content") params.set("mode", "smart");
+    if (q) params.set("q", q);
+    const search = params.toString();
+    navigate(search ? `/reader/search?${search}` : "/reader/search");
   };
 
   return (
@@ -144,10 +167,10 @@ export default function ReaderHome() {
         <div className="reader-hero-inner">
           <Badge tone="brand"><Icon name="sparkle" size={14} /> KHÔNG GIAN TRI THỨC PTIT</Badge>
           <h1>Khám phá kho tri thức</h1>
-          <p>Tìm kiếm tài liệu theo từ khóa hoặc mô tả nội dung bạn đang quan tâm.</p>
+          <p>Tìm kiếm tài liệu theo từ khóa hoặc tìm kiếm thông minh theo nội dung bạn đang quan tâm.</p>
           <div className="search-mode" role="tablist" aria-label="Chế độ tìm kiếm">
-            <button className={searchMode === "keyword" ? "active" : ""} onClick={() => setSearchMode("keyword")} role="tab" aria-selected={searchMode === "keyword"}><Icon name="search" size={17} />Từ khóa</button>
-            <button className={searchMode === "content" ? "active" : ""} onClick={() => setSearchMode("content")} role="tab" aria-selected={searchMode === "content"}><Icon name="sparkle" size={17} />Nội dung</button>
+            <button className={searchMode === "keyword" ? "active" : ""} onClick={() => setSearchMode("keyword")} role="tab" aria-selected={searchMode === "keyword"}><Icon name="search" size={17} />Tìm theo từ khóa</button>
+            <button className={searchMode === "content" ? "active" : ""} onClick={() => setSearchMode("content")} role="tab" aria-selected={searchMode === "content"}><Icon name="sparkle" size={17} />Tìm kiếm thông minh</button>
           </div>
           <div className={`hero-search ${searchMode === "content" ? "content-mode" : ""}`}>
             <Icon name={searchMode === "content" ? "sparkle" : "search"} size={23} />

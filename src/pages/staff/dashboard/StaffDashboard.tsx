@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Badge, Breadcrumb, Button, Icon, IconButton, Rating, Status } from "../../../design-system";
+import { Badge, Breadcrumb, Button, EmptyState, Icon, IconButton, LoadingState, Rating, Status } from "../../../design-system";
 import { staffSummary } from "../../../data/dashboard";
 import { analyticsService } from "../../../services/analytics.service";
 import { getAccessToken } from "../../../services/session";
@@ -26,19 +26,18 @@ function formatPercent(part: number, total: number): string {
   return `${((part / total) * 100).toFixed(2).replace(".", ",")}%`;
 }
 
-function CirculationChart({ trend }: { trend: CirculationTrendPointDto[] }) {
+function CirculationChart({ trend, loading }: { trend: CirculationTrendPointDto[]; loading?: boolean }) {
   const visible = trend.slice(-7);
   if (visible.length === 0) {
-    return (
-      <div className="circulation-chart">
-        <div className="chart-y-axis"><span>4</span><span>3</span><span>2</span><span>1</span><span>0</span></div>
-        <div className="chart-plot">
-          <div className="chart-grid"><i /><i /><i /><i /><i /></div>
-          <p style={{ position: "relative", paddingTop: 72, textAlign: "center", color: "var(--gray-500)", fontSize: 13 }}>
-            Chưa có dữ liệu lưu thông trong khoảng thời gian này.
-          </p>
-        </div>
-      </div>
+    return loading ? (
+      <LoadingState size="sm" title="Đang tải biểu đồ lưu thông…" />
+    ) : (
+      <EmptyState
+        size="sm"
+        icon="chart"
+        title="Chưa có dữ liệu lưu thông"
+        description="Chưa phát sinh lượt mượn hoặc trả trong khoảng thời gian này."
+      />
     );
   }
 
@@ -240,7 +239,7 @@ export default function StaffDashboard() {
               <span><i className="legend-overdue" />Quá hạn</span>
             </div>
           </header>
-          <CirculationChart trend={overview?.circulationTrend ?? []} />
+          <CirculationChart trend={overview?.circulationTrend ?? []} loading={loading} />
           <div className="chart-summary">
             <div>
               <small>Tổng lượt mượn</small>
@@ -322,14 +321,23 @@ export default function StaffDashboard() {
               Xem báo cáo<Icon name="chevron-right" size={15} />
             </Button>
           </header>
-          <div className="staff-table-wrap">
-            <table className="staff-data-table">
-              <thead>
-                <tr><th>Tài liệu</th><th>Lượt mượn</th><th>Đánh giá</th><th>Tình trạng</th></tr>
-              </thead>
-              <tbody>
-                {popularDocs.length > 0 ? (
-                  popularDocs.map((doc) => {
+          {loading && !popularDocs.length ? (
+            <LoadingState variant="table" count={4} size="sm" title="Đang tải danh sách tài liệu nổi bật…" />
+          ) : popularDocs.length === 0 ? (
+            <EmptyState
+              size="sm"
+              icon="book"
+              title="Chưa có tài liệu nổi bật"
+              description="Chưa phát sinh lượt mượn hoặc tương tác trong khoảng thời gian này."
+            />
+          ) : (
+            <div className="staff-table-wrap">
+              <table className="staff-data-table">
+                <thead>
+                  <tr><th>Tài liệu</th><th>Lượt mượn</th><th>Đánh giá</th><th>Tình trạng</th></tr>
+                </thead>
+                <tbody>
+                  {popularDocs.map((doc) => {
                     const availabilityTone =
                       doc.availablePhysicalCopies <= 0
                         ? "error"
@@ -371,17 +379,11 @@ export default function StaffDashboard() {
                         <td><Status tone={availabilityTone}>{availabilityText}</Status></td>
                       </tr>
                     );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: "center", color: "var(--gray-500)" }}>
-                      {loading ? "Đang tải danh sách tài liệu nổi bật…" : "Chưa có lượt mượn hoặc tương tác trong khoảng thời gian này."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </article>
 
         <article className="staff-panel inventory-panel">
@@ -421,14 +423,23 @@ export default function StaffDashboard() {
           </div>
           <Badge tone="warning">{suggestions.length} ĐỀ XUẤT</Badge>
         </header>
-        <div className="staff-table-wrap">
-          <table className="staff-data-table query-table">
-            <thead>
-              <tr><th>Chủ đề / Từ khóa</th><th>Số lượt tìm</th><th>Cập nhật gần nhất</th><th>Trạng thái đề xuất</th><th /></tr>
-            </thead>
-            <tbody>
-              {suggestions.length > 0 ? (
-                suggestions.map((item) => (
+        {loading && !suggestions.length ? (
+          <LoadingState variant="table" count={4} size="sm" title="Đang tải danh sách đề xuất bổ sung…" />
+        ) : suggestions.length === 0 ? (
+          <EmptyState
+            size="sm"
+            icon="search"
+            title="Chưa có đề xuất bổ sung tài liệu"
+            description="Chưa ghi nhận cụm truy vấn rỗng nào cần đề xuất mua bổ sung."
+          />
+        ) : (
+          <div className="staff-table-wrap">
+            <table className="staff-data-table query-table">
+              <thead>
+                <tr><th>Chủ đề / Từ khóa</th><th>Số lượt tìm</th><th>Cập nhật gần nhất</th><th>Trạng thái đề xuất</th><th /></tr>
+              </thead>
+              <tbody>
+                {suggestions.map((item) => (
                   <tr key={item.id}>
                     <td>
                       <strong>“{item.topic}”</strong>
@@ -439,17 +450,11 @@ export default function StaffDashboard() {
                     <td><span className="suggested-action">{item.status}</span></td>
                     <td><IconButton label="Xem báo cáo" icon="chevron-right" onClick={() => navigate("/staff/reports")} /></td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "center", color: "var(--gray-500)" }}>
-                    {loading ? "Đang tải danh sách đề xuất bổ sung…" : "Chưa có đề xuất bổ sung tài liệu nào từ cụm truy vấn rỗng."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );
