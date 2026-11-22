@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Button, Icon } from "../../../design-system"
+import { Button, EmptyState, LoadingState } from "../../../design-system"
 export default function SettingsPanel({
   title,
   count,
@@ -40,23 +40,20 @@ export default function SettingsPanel({
         </div>
       </div>
       {status === "loading" ? (
-        <div className="configuration-state" role="status">
-          <span className="spinner" />
-          <h3>Đang tải dữ liệu…</h3>
-        </div>
+        <LoadingState variant="table" count={4} title="Đang tải dữ liệu…" />
       ) : status === "error" ? (
-        <div className="configuration-state" role="alert">
-          <Icon name="error" size={30} />
-          <h3>Không thể tải danh sách</h3>
-          <p>{error}</p>
-          <Button onClick={reload}>Thử lại</Button>
-        </div>
+        <EmptyState
+          tone="error"
+          title="Không thể tải danh sách"
+          description={error}
+          action={<Button onClick={reload}>Thử lại</Button>}
+        />
       ) : !count ? (
-        <div className="configuration-state">
-          <Icon name="document" size={30} />
-          <h3>Chưa có dữ liệu</h3>
-          <p>Backend chưa có bản ghi cho mục này.</p>
-        </div>
+        <EmptyState
+          icon="document"
+          title="Chưa có dữ liệu"
+          description="Hệ thống chưa có bản ghi nào cho mục này."
+        />
       ) : (
         <div
           className="configuration-table-scroll"

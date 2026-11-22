@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Avatar, Breadcrumb, Button, Modal, SearchInput, SelectField, Status } from "../../../design-system";
+import { Avatar, Breadcrumb, Button, EmptyState, LoadingState, Modal, SearchInput, SelectField, Status } from "../../../design-system";
 import { userService } from "../../../services/user.service";
 import type { DepartmentDto, PageResponse, UserDto } from "../../../types/api";
 import { formatDateVi } from "../../../utils/mappers";
@@ -162,10 +162,23 @@ export default function ReaderManagementPage() {
 
       <section className="reader-table-panel">
         <div className="reader-table-heading"><h2>Danh sách bạn đọc</h2>{result && <p>{result.totalElements.toLocaleString("vi-VN")} kết quả</p>}</div>
-        {loadError ? <p role="alert">{loadError} <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></p>
-          : !result ? <p role="status">Đang tải danh sách…</p>
-          : !result.items.length ? <p>Không tìm thấy bạn đọc phù hợp.</p>
-          : <>
+        {loadError ? (
+          <EmptyState
+            tone="error"
+            title="Không tải được danh sách bạn đọc"
+            description={loadError}
+            action={<Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+          />
+        ) : !result ? (
+          <LoadingState variant="table" count={6} title="Đang tải danh sách bạn đọc…" />
+        ) : !result.items.length ? (
+          <EmptyState
+            icon="users"
+            title="Không tìm thấy bạn đọc phù hợp"
+            description="Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc hiện tại."
+            action={<Button variant="secondary" size="sm" onClick={() => { setDraftKeyword(""); setParams({}); }}>Xóa bộ lọc</Button>}
+          />
+        ) : <>
             <div className="reader-management-table-wrap">
               <table className="reader-management-table">
                 <thead><tr><th>Mã bạn đọc</th><th>Họ tên</th><th>Loại bạn đọc</th><th>Khoa/ngành</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>

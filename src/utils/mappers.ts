@@ -7,8 +7,10 @@ import type {
   ContentSearchResultDto,
   DocumentDetailDto,
   DocumentSummaryDto,
+  FavoriteDocumentDto,
   MessageQueueDto,
   RecommendationItemDto,
+  SimilarDocumentDto,
   UserDto,
 } from "../types/api";
 import type { Book } from "../types/library";
@@ -74,6 +76,22 @@ export function mapDocumentSummaryToBook(dto: DocumentSummaryDto, index = 0): Bo
   };
 }
 
+export function mapFavoriteDocumentToBook(dto: FavoriteDocumentDto, index = 0): Book {
+  const docId = dto.documentId || dto.id;
+  return {
+    id: index + 3000,
+    documentId: docId,
+    title: dto.title,
+    author: dto.authors?.length ? dto.authors.join(", ") : "Chưa cập nhật tác giả",
+    year: dto.publicationYear?.toString() ?? "—",
+    type: dto.hasDigitalCopy && dto.totalPhysicalCopies === 0 ? "Tài liệu số" : formatDocTypeLabel(dto.docType),
+    rating: dto.averageRating ? Math.round(dto.averageRating) : 0,
+    available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
+    code: docId.slice(0, 6).toUpperCase(),
+    cover: pickCoverByIndex(index, dto.coverUrl),
+  };
+}
+
 export function mapDocumentDetailToBook(dto: DocumentDetailDto, index = 0): Book {
   return {
     id: index + 2000,
@@ -110,6 +128,24 @@ export function mapRecommendationToBook(
     cover: pickCoverByIndex(index),
     reason: dto.reason || "Gợi ý cá nhân hóa dựa trên hồ sơ học tập của bạn",
     relevance,
+  };
+}
+
+export function mapSimilarDocumentToBook(
+  dto: SimilarDocumentDto,
+  index = 0,
+): Book {
+  return {
+    id: index + 4000,
+    documentId: dto.documentId,
+    title: dto.title,
+    author: dto.authors?.length ? dto.authors.join(", ") : "Chưa cập nhật tác giả",
+    year: dto.publicationYear ? String(dto.publicationYear) : "—",
+    type: formatDocTypeLabel(dto.docType),
+    rating: 5,
+    available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
+    code: dto.classificationNumber || dto.documentId.slice(0, 6).toUpperCase(),
+    cover: pickCoverByIndex(index, dto.coverUrl),
   };
 }
 

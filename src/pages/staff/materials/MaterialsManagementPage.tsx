@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Badge, Breadcrumb, Button, CustomSelect, Dropdown, Icon, IconButton, Modal, SearchInput } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Dropdown, EmptyState, Icon, IconButton, LoadingState, Modal, SearchInput } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
 import { userService } from "../../../services/user.service";
 import { authSession } from "../../../shared/auth/auth-session";
@@ -197,21 +197,21 @@ export default function MaterialsManagementPage() {
         </div>
 
         {loadError ? (
-          <div className="catalog-empty" role="alert">
-            <Icon name="error" size={28} />
-            <h2>Không tải được danh mục</h2>
-            <p>{loadError}</p>
-            <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>
-          </div>
+          <EmptyState
+            tone="error"
+            title="Không tải được danh mục"
+            description={loadError}
+            action={<Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+          />
         ) : !result ? (
-          <div className="catalog-empty" role="status"><p>Đang tải danh mục…</p></div>
+          <LoadingState variant="table" count={6} title="Đang tải danh mục tài liệu…" />
         ) : !result.items.length ? (
-          <div className="catalog-empty">
-            <Icon name="search" size={28} />
-            <h2>Không tìm thấy tài liệu</h2>
-            <p>{hasFilters ? "Thử đổi từ khóa hoặc bỏ bớt bộ lọc." : "Kho chưa có biểu ghi nào."}</p>
-            <Button icon="plus" onClick={() => navigate(base + "/new" + search)}>Thêm tài liệu</Button>
-          </div>
+          <EmptyState
+            icon="search"
+            title="Không tìm thấy tài liệu"
+            description={hasFilters ? "Thử đổi từ khóa hoặc bỏ bớt bộ lọc." : "Kho chưa có biểu ghi nào."}
+            action={<Button icon="plus" onClick={() => navigate(base + "/new" + search)}>Thêm tài liệu</Button>}
+          />
         ) : <>
           <div className="catalog-table-wrap">
             <table className="catalog-table">

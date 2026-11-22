@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { LoadingState } from "./design-system";
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPortal from "./layouts/DashboardPortal";
 import ReaderPortal from "./layouts/ReaderPortal";
@@ -40,8 +41,12 @@ export default function App({ restoration }: { restoration?: Promise<unknown> })
   const target = location.pathname + location.search + location.hash;
   const login = path === "" || path === "login";
   const access = routeAccess(location.pathname, session?.role);
-  if (restoring && (login || (access !== "public" && access !== "missing"))) {
-    return <main className="reader-main" role="status">Đang khôi phục phiên đăng nhập…</main>;
+  if (restoring) {
+    return (
+      <main className="reader-main ui-state-page-wrap">
+        <LoadingState size="lg" surface="card" title="Đang khôi phục phiên đăng nhập…" />
+      </main>
+    );
   }
   if (login) {
     return session

@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, Icon, Rating, Status, Toast } from "../../../design-system";
+import { Badge, Breadcrumb, Button, EmptyState, Icon, LoadingState, Rating, Status, Toast } from "../../../design-system";
 import LibraryListCard from "../../../components/books/LibraryListCard";
 import { libraryTabs } from "../../../constants/library-options";
 import { loanBooks, reservedBooks, shelfGroups, loanHistory } from "../../../data/my-library";
-import { getTrackedFavorites, removeTrackedFavoriteById } from "../../../services/catalog.service";
+import { catalogService, removeTrackedFavoriteById } from "../../../services/catalog.service";
 import {
   circulationService,
   getTrackedHolds,
@@ -17,6 +17,7 @@ import {
   formatDateVi,
   mapCirculationItemToHistoryBook,
   mapCirculationItemToLoanBook,
+  mapFavoriteDocumentToBook,
 } from "../../../utils/mappers";
 
 type LoanItem = typeof loanBooks[number] & {
@@ -70,60 +71,171 @@ function LoanCard({
   );
 }
 
-function PersonalShelf({ group }: { group: string }) {
-  const trackedFavorites = getTrackedFavorites();
-  const initialBooks: Book[] =
-    group === "Muốn đọc" && trackedFavorites.length > 0
-      ? trackedFavorites
-      : shelfGroups[group] || [];
-  const [shelfBooks, setShelfBooks] = useState<Book[]>(initialBooks);
-  const [saved, setSaved] = useState<number[]>(initialBooks.map((book) => book.id));
-  const status = group === "Muốn đọc" ? "Đã lưu" : group === "Đang đọc" ? "Đang đọc dở" : "Đã hoàn thành";
-  const statusHint = group === "Muốn đọc" ? "Trong danh sách cá nhân" : group === "Đang đọc" ? "Tiếp tục từ lần gần nhất" : "Đã đọc toàn bộ";
+function PersonalShelf({
+  group,
+  favoriteBooks,
+  favoritesTotal,
+  favoritesStatus,
+  favoritesPage,
+  favoritesTotalPages,
+  onFavoritePageChange,
+  onRetryFavorites,
+  onRemoveFavorite,
+}: {
+  group: string;
+  favoriteBooks?: Book[];
+  favoritesTotal?: number;
+  favoritesStatus?: "loading" | "error" | "ready";
+  favoritesPage?: number;
+  favoritesTotalPages?: number;
+  onFavoritePageChange?: (page: number) => void;
+  onRetryFavorites?: () => void;
+  onRemoveFavorite?: (book: Book) => void;
+}) {
+  const navigate = useNavigate();
+  const isWantToRead = group === "Muốn đọc";
+  const [localBooks, setLocalBooks] = useState<Book[]>(() => shelfGroups[group] || []);
+  useEffect(() => {
+    if (!isWantToRead) {
+      setLocalBooks(shelfGroups[group] || []);
+    }
+  }, [group, isWantToRead]);
+
+  const shelfBooks = isWantToRead ? (favoriteBooks ?? []) : localBooks;
+  const totalCount = isWantToRead ? (favoritesTotal ?? shelfBooks.length) : shelfBooks.length;
+  const status = isWantToRead ? "Đã lưu" : group === "Đang đọc" ? "Đang đọc dở" : "Đã hoàn thành";
+  const statusHint = isWantToRead ? "Trong danh sách cá nhân" : group === "Đang đọc" ? "Tiếp tục từ lần gần nhất" : "Đã đọc toàn bộ";
 
   const handleRemove = (book: Book) => {
-    setSaved((items) => items.filter((item) => item !== book.id));
-    setShelfBooks((items) => items.filter((item) => item.id !== book.id));
-    if (group === "Muốn đọc" && book.documentId) {
-      removeTrackedFavoriteById(book.documentId);
+    if (isWantToRead && onRemoveFavorite) {
+      onRemoveFavorite(book);
+      return;
     }
+    setLocalBooks((items) => items.filter((item) => item.id !== book.id));
   };
+
+  if (isWantToRead && favoritesStatus === "loading") {
+    return <LoadingState variant="list" count={3} surface="card" title="Đang tải tủ sách yêu thích…" />;
+  }
+
+  if (isWantToRead && favoritesStatus === "error") {
+    return (
+      <EmptyState
+        surface="card"
+        tone="error"
+        title="Không tải được tủ sách yêu thích"
+        description="Đã xảy ra lỗi khi tải danh sách tài liệu đã lưu của bạn."
+        action={onRetryFavorites && <Button size="sm" onClick={onRetryFavorites}>Thử lại</Button>}
+      />
+    );
+  }
 
   return (
     <div className="personal-shelf">
-      <div className="shelf-toolbar"><p><strong>{shelfBooks.length} tài liệu</strong> trong danh sách “{group}”</p><Button variant="secondary" size="sm" icon="plus">Thêm tài liệu</Button></div>
-      <div className="loan-list">{shelfBooks.map((book, index) => (
-        <LibraryListCard
-          key={book.id}
-          book={book}
-          badge={book.type}
-          badgeTone={group === "Đã đọc" ? "success" : group === "Đang đọc" ? "info" : "brand"}
-          status={status}
-          statusHint={statusHint}
-          statusTone={group === "Đã đọc" ? "success" : "info"}
-          details={[
-            { label: "Năm xuất bản", value: book.year },
-            { label: "Định dạng", value: book.type === "Tài liệu số" ? "Tài liệu số" : "Bản in" },
-            { label: group === "Đang đọc" ? "Tiến độ đọc" : "Đánh giá", value: group === "Đang đọc" ? `${42 + index * 23}% hoàn thành` : <Rating value={book.rating} /> },
-          ]}
-          actions={<><Button size="sm">{group === "Đang đọc" ? "Tiếp tục đọc" : group === "Đã đọc" ? "Đọc lại" : "Xem chi tiết"}</Button><Button variant="ghost" size="sm" icon="bookmark" onClick={() => handleRemove(book)}>{saved.includes(book.id) ? "Bỏ khỏi danh sách" : "Đã xóa"}</Button></>}
+      <div className="shelf-toolbar">
+        <p><strong>{totalCount} tài liệu</strong> trong danh sách “{group}”</p>
+        <Button variant="secondary" size="sm" icon="plus" onClick={() => navigate("/reader/search")}>Thêm tài liệu</Button>
+      </div>
+      {shelfBooks.length === 0 ? (
+        <EmptyState
+          surface="card"
+          icon="bookmark"
+          title={isWantToRead ? "Tủ sách yêu thích đang trống" : `Chưa có tài liệu trong “${group}”`}
+          description={isWantToRead ? "Lưu lại các tài liệu bạn quan tâm để dễ dàng tìm và đọc sau." : "Các tài liệu thuộc nhóm này sẽ hiển thị tại đây."}
+          action={<Button variant="secondary" size="sm" icon="search" onClick={() => navigate("/reader/search")}>Khám phá tài liệu</Button>}
         />
-      ))}</div>
+      ) : (
+        <div className="loan-list">{shelfBooks.map((book, index) => (
+          <LibraryListCard
+            key={book.documentId || book.id}
+            book={book}
+            badge={book.type}
+            badgeTone={group === "Đã đọc" ? "success" : group === "Đang đọc" ? "info" : "brand"}
+            status={status}
+            statusHint={statusHint}
+            statusTone={group === "Đã đọc" ? "success" : "info"}
+            details={[
+              { label: "Năm xuất bản", value: book.year },
+              { label: "Định dạng", value: book.type === "Tài liệu số" ? "Tài liệu số" : "Bản in" },
+              { label: group === "Đang đọc" ? "Tiến độ đọc" : "Đánh giá", value: group === "Đang đọc" ? `${42 + index * 23}% hoàn thành` : book.rating > 0 ? <Rating value={book.rating} /> : "Chưa có đánh giá" },
+            ]}
+            actions={
+              <>
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    navigate(
+                      book.documentId
+                        ? `/reader/book-detail?id=${encodeURIComponent(book.documentId)}`
+                        : "/reader/search",
+                    )
+                  }
+                >
+                  {group === "Đang đọc" ? "Tiếp tục đọc" : group === "Đã đọc" ? "Đọc lại" : "Xem chi tiết"}
+                </Button>
+                <Button variant="ghost" size="sm" icon="bookmark" onClick={() => handleRemove(book)}>
+                  Bỏ khỏi danh sách
+                </Button>
+              </>
+            }
+          />
+        ))}</div>
+      )}
+      {isWantToRead && (favoritesTotalPages ?? 0) > 1 && onFavoritePageChange && (
+        <nav className="reader-table-pagination" aria-label="Phân trang tủ sách yêu thích">
+          <Button variant="secondary" size="sm" disabled={(favoritesPage ?? 0) <= 0} onClick={() => onFavoritePageChange((favoritesPage ?? 0) - 1)}>Trang trước</Button>
+          <span>Trang {(favoritesPage ?? 0) + 1}/{favoritesTotalPages}</span>
+          <Button variant="secondary" size="sm" disabled={(favoritesPage ?? 0) + 1 >= (favoritesTotalPages ?? 1)} onClick={() => onFavoritePageChange((favoritesPage ?? 0) + 1)}>Trang sau</Button>
+        </nav>
+      )}
     </div>
   );
 }
 
 export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initialTab?: string }) {
   const navigate = useNavigate();
-  const activeTab = initialTab;
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [loans, setLoans] = useState<LoanItem[]>([]);
   const [historyItems, setHistoryItems] = useState<typeof loanHistory>([]);
   const [finesSummary, setFinesSummary] = useState<UserFinesSummaryDto | null>(null);
   const [reservations, setReservations] = useState<typeof reservedBooks>([]);
+  const [favoriteBooks, setFavoriteBooks] = useState<Book[]>([]);
+  const [favoritesTotal, setFavoritesTotal] = useState(0);
+  const [favoritesPage, setFavoritesPage] = useState(0);
+  const [favoritesTotalPages, setFavoritesTotalPages] = useState(0);
+  const [favoritesStatus, setFavoritesStatus] = useState<"loading" | "error" | "ready">("ready");
+  const [favoritesRevision, setFavoritesRevision] = useState(0);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [historyStatus, setHistoryStatus] = useState<"loading" | "error" | "ready">("loading");
   const [revision, setRevision] = useState(0);
   const [renewing, setRenewing] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let active = true;
+    setFavoritesStatus("loading");
+
+    catalogService
+      .getMyFavorites({ page: favoritesPage, size: 20 })
+      .then((pageData) => {
+        if (!active) return;
+        setFavoriteBooks(pageData.items.map((dto, idx) => mapFavoriteDocumentToBook(dto, idx)));
+        setFavoritesTotal(pageData.totalElements);
+        setFavoritesTotalPages(pageData.totalPages);
+        setFavoritesStatus("ready");
+      })
+      .catch(() => {
+        if (active) setFavoritesStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [favoritesPage, favoritesRevision]);
 
 
   useEffect(() => {
@@ -242,6 +354,25 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
     setToastMsg("Vui lòng đăng nhập để thao tác.");
   };
 
+  const handleRemoveFavorite = async (book: Book) => {
+    if (!book.documentId) return;
+    if (!getAccessToken()) {
+      setToastMsg("Vui lòng đăng nhập để thao tác.");
+      return;
+    }
+    try {
+      const res = await catalogService.toggleFavorite(book.documentId);
+      if (!res.isFavorite) {
+        removeTrackedFavoriteById(book.documentId);
+        setFavoriteBooks((items) => items.filter((item) => item.documentId !== book.documentId));
+        setFavoritesTotal((count) => Math.max(0, count - 1));
+        setToastMsg("Đã xóa tài liệu khỏi tủ sách yêu thích.");
+      }
+    } catch (err) {
+      setToastMsg(err instanceof Error ? err.message : "Không thể bỏ lưu tài liệu.");
+    }
+  };
+
   const unpaidDebt = finesSummary ? finesSummary.totalUnpaidAmount : 0;
   const overdueCount = loans.filter((l) => l.days < 0).length;
 
@@ -262,17 +393,55 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         </section>
 
         <div className="library-tabs" role="tablist">
-          {libraryTabs.map((tab) => <button key={tab} className={activeTab === tab ? "active" : ""} role="tab" aria-selected={activeTab === tab} onClick={() => navigate(tab === "Lịch sử mượn" ? "/reader/my-library/history" : tab === "Đặt trước" ? "/reader/my-library/reservations" : "/reader/my-library")}>{tab}{tab === "Đang mượn" && <span>{loans.length}</span>}{tab === "Đặt trước" && <span>{reservations.length}</span>}</button>)}
+          {libraryTabs.map((tab) => (
+            <button
+              key={tab}
+              className={activeTab === tab ? "active" : ""}
+              role="tab"
+              aria-selected={activeTab === tab}
+              onClick={() => {
+                if (tab === "Lịch sử mượn") navigate("/reader/my-library/history");
+                else if (tab === "Đặt trước") navigate("/reader/my-library/reservations");
+                else if (tab === "Đang mượn") {
+                  setActiveTab("Đang mượn");
+                  navigate("/reader/my-library");
+                } else {
+                  setActiveTab(tab);
+                }
+              }}
+            >
+              {tab}
+              {tab === "Đang mượn" && <span>{loans.length}</span>}
+              {tab === "Đặt trước" && <span>{reservations.length}</span>}
+              {tab === "Muốn đọc" && <span>{favoritesTotal}</span>}
+            </button>
+          ))}
         </div>
 
-        {activeTab !== "Đặt trước" && historyStatus === "loading" && <p role="status">Đang tải lượt mượn…</p>}
-        {activeTab !== "Đặt trước" && historyStatus === "error" && <p role="alert">Không tải được lượt mượn. <Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></p>}
-        {historyStatus === "ready" && ((activeTab === "Đang mượn" && !loans.length) || (activeTab === "Lịch sử mượn" && !historyItems.length)) && <p>Chưa có lượt mượn.</p>}
-        {activeTab === "Đặt trước" && !reservations.length && <p>Bạn chưa có yêu cầu đặt trước nào.</p>}
         {activeTab === "Đang mượn" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Tài liệu đang mượn</h2><p>Kiểm tra thời hạn và gia hạn các tài liệu đủ điều kiện.</p></div><Badge tone="warning">{String(overdueCount).padStart(2, "0")} TÀI LIỆU QUÁ HẠN</Badge></div>
-            <div className="loan-list">{loans.map((loan) => <LoanCard key={loan.id} loan={loan} onRenew={handleRenewLoan} />)}</div>
+            {historyStatus === "loading" ? (
+              <LoadingState variant="list" count={3} surface="card" title="Đang tải tài liệu đang mượn…" />
+            ) : historyStatus === "error" ? (
+              <EmptyState
+                surface="card"
+                tone="error"
+                title="Không tải được lượt mượn"
+                description="Vui lòng kiểm tra kết nối mạng và thử tải lại."
+                action={<Button size="sm" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+              />
+            ) : !loans.length ? (
+              <EmptyState
+                surface="card"
+                icon="book"
+                title="Bạn chưa có tài liệu đang mượn"
+                description="Các tài liệu đang mượn tại thư viện sẽ hiển thị tại đây cùng hạn trả và nút gia hạn."
+                action={<Button variant="secondary" size="sm" icon="search" onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button>}
+              />
+            ) : (
+              <div className="loan-list">{loans.map((loan) => <LoanCard key={loan.id} loan={loan} onRenew={handleRenewLoan} />)}</div>
+            )}
             <section className="debt-section">
               <div className="debt-heading"><span><Icon name="error" /></span><div><h2>Công nợ thư viện</h2><p>Các khoản phí chưa hoàn tất trong tài khoản của bạn.</p></div><strong>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</strong></div>
               {finesSummary?.fines?.length ? (
@@ -307,53 +476,92 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         {activeTab === "Lịch sử mượn" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Lịch sử mượn</h2><p>Các tài liệu bạn đã mượn và hoàn trả trong 12 tháng gần đây.</p></div><Button variant="secondary" size="sm">Xuất lịch sử</Button></div>
-            <div className="loan-list">{historyItems.map((item) => (
-              <LibraryListCard
-                key={item.id}
-                book={item}
-                badge={item.type}
-                badgeTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
-                status={item.returnStatus}
-                statusHint="Đã hoàn tất lượt mượn"
-                statusTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
-                details={[
-                  { label: "Ngày mượn", value: item.borrowed },
-                  { label: "Ngày trả", value: item.returned },
-                  { label: "Đánh giá", value: item.historyRating ? <Rating value={item.historyRating} /> : "Chưa đánh giá" },
-                ]}
-                actions={<><Button variant="secondary" size="sm">{item.historyRating ? "Xem chi tiết" : "Đánh giá tài liệu"}</Button><Button variant="ghost" size="sm">Mượn lại</Button></>}
+            {historyStatus === "loading" ? (
+              <LoadingState variant="list" count={3} surface="card" title="Đang tải lịch sử mượn…" />
+            ) : historyStatus === "error" ? (
+              <EmptyState
+                surface="card"
+                tone="error"
+                title="Không tải được lịch sử mượn"
+                description="Vui lòng thử tải lại sau."
+                action={<Button size="sm" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
               />
-            ))}</div>
+            ) : !historyItems.length ? (
+              <EmptyState
+                surface="card"
+                icon="book"
+                title="Chưa có lịch sử mượn trả"
+                description="Các giao dịch mượn và trả tài liệu đã hoàn tất của bạn sẽ được lưu lại tại đây."
+              />
+            ) : (
+              <div className="loan-list">{historyItems.map((item) => (
+                <LibraryListCard
+                  key={item.id}
+                  book={item}
+                  badge={item.type}
+                  badgeTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
+                  status={item.returnStatus}
+                  statusHint="Đã hoàn tất lượt mượn"
+                  statusTone={item.returnStatus.includes("muộn") ? "warning" : "success"}
+                  details={[
+                    { label: "Ngày mượn", value: item.borrowed },
+                    { label: "Ngày trả", value: item.returned },
+                    { label: "Đánh giá", value: item.historyRating ? <Rating value={item.historyRating} /> : "Chưa đánh giá" },
+                  ]}
+                  actions={<><Button variant="secondary" size="sm">{item.historyRating ? "Xem chi tiết" : "Đánh giá tài liệu"}</Button><Button variant="ghost" size="sm">Mượn lại</Button></>}
+                />
+              ))}</div>
+            )}
           </div>
         )}
 
         {activeTab === "Đặt trước" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Tài liệu đã đặt trước</h2><p>Theo dõi vị trí hàng chờ và thời hạn nhận tài liệu.</p></div></div>
-            <div className="loan-list">{reservations.map((reservation) => (
-              <LibraryListCard
-                key={reservation.id}
-                book={reservation}
-                badge={reservation.type}
-                badgeTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
-                status={reservation.status}
-                statusHint={reservation.status === "Chờ nhận" ? "Tài liệu đã sẵn sàng" : `Vị trí hàng chờ: ${reservation.position}`}
-                statusTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
-                details={[
-                  { label: "Vị trí hàng chờ", value: reservation.position },
-                  { label: "Ngày đặt trước", value: reservation.reserved },
-                  { label: "Hạn nhận tài liệu", value: reservation.expiration },
-                ]}
-                actions={<><Button size="sm" disabled={reservation.status !== "Chờ nhận"}>Xem thông tin nhận</Button><Button variant="ghost" size="sm" onClick={() => handleCancelReservation(reservation.id)}>Hủy đặt trước</Button></>}
+            {!reservations.length ? (
+              <EmptyState
+                surface="card"
+                icon="bookmark"
+                title="Bạn chưa có yêu cầu đặt trước nào"
+                description="Khi bản in tạm hết, bạn có thể đặt trước để giữ chỗ ngay khi tài liệu được hoàn trả."
+                action={<Button variant="secondary" size="sm" icon="search" onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button>}
               />
-            ))}</div>
+            ) : (
+              <div className="loan-list">{reservations.map((reservation) => (
+                <LibraryListCard
+                  key={reservation.id}
+                  book={reservation}
+                  badge={reservation.type}
+                  badgeTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
+                  status={reservation.status}
+                  statusHint={reservation.status === "Chờ nhận" ? "Tài liệu đã sẵn sàng" : `Vị trí hàng chờ: ${reservation.position}`}
+                  statusTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
+                  details={[
+                    { label: "Vị trí hàng chờ", value: reservation.position },
+                    { label: "Ngày đặt trước", value: reservation.reserved },
+                    { label: "Hạn nhận tài liệu", value: reservation.expiration },
+                  ]}
+                  actions={<><Button size="sm" disabled={reservation.status !== "Chờ nhận"}>Xem thông tin nhận</Button><Button variant="ghost" size="sm" onClick={() => handleCancelReservation(reservation.id)}>Hủy đặt trước</Button></>}
+                />
+              ))}</div>
+            )}
           </div>
         )}
 
         {["Muốn đọc", "Đang đọc", "Đã đọc"].includes(activeTab) && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>{activeTab}</h2><p>{activeTab === "Muốn đọc" ? "Các tài liệu bạn đã lưu để khám phá sau." : activeTab === "Đang đọc" ? "Các tài liệu số bạn đang đọc dở." : "Các tài liệu bạn đã hoàn thành."}</p></div></div>
-            <PersonalShelf group={activeTab} />
+            <PersonalShelf
+              group={activeTab}
+              favoriteBooks={favoriteBooks}
+              favoritesTotal={favoritesTotal}
+              favoritesStatus={favoritesStatus}
+              favoritesPage={favoritesPage}
+              favoritesTotalPages={favoritesTotalPages}
+              onFavoritePageChange={(nextPage) => setFavoritesPage(nextPage)}
+              onRetryFavorites={() => setFavoritesRevision((v) => v + 1)}
+              onRemoveFavorite={handleRemoveFavorite}
+            />
           </div>
         )}
       </main>

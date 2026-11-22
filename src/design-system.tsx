@@ -23,7 +23,7 @@ import {
 } from "react";
 
 type Tone = "brand" | "neutral" | "success" | "warning" | "error" | "info";
-type IconName =
+export type IconName =
   | "arrow-left"
   | "bell"
   | "book"
@@ -464,8 +464,164 @@ export function NavItem({ icon, label }: { icon: IconName; label: string }) {
   return <button className={`nav-item ${nav?.active === label ? "active" : ""}`} onClick={() => nav?.setActive(label)}><Icon name={icon} /><span>{label}</span></button>;
 }
 
-export function EmptyState({ error = false }: { error?: boolean }) {
-  return <div className={`empty-state ${error ? "error-state" : ""}`}><span className="empty-icon"><Icon name={error ? "error" : "book"} size={28} /></span><strong>{error ? "Không thể tải dữ liệu" : "Chưa có tài liệu"}</strong><p>{error ? "Đã xảy ra lỗi kết nối. Vui lòng thử lại sau." : "Các tài liệu được thêm vào sẽ xuất hiện tại đây."}</p><Button variant={error ? "secondary" : "primary"} size="sm">{error ? "Thử lại" : "Thêm tài liệu"}</Button></div>;
+export type LoadingStateVariant = "spinner" | "cards" | "list" | "table" | "detail";
+export type StateSize = "sm" | "md" | "lg";
+export type StateSurface = "card" | "plain";
+
+export function LoadingState({
+  title = "Đang tải dữ liệu…",
+  description,
+  variant = "spinner",
+  count,
+  size = "md",
+  surface = "plain",
+  className = "",
+}: {
+  title?: string;
+  description?: string;
+  variant?: LoadingStateVariant;
+  count?: number;
+  size?: StateSize;
+  surface?: StateSurface;
+  className?: string;
+}) {
+  if (variant === "cards") {
+    const items = Array.from({ length: count ?? 4 });
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-cards ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        {items.map((_, index) => (
+          <div key={index} className="ui-skeleton-card" aria-hidden="true">
+            <Skeleton className="ui-skeleton-cover" />
+            <div className="ui-skeleton-card-body">
+              <Skeleton className="ui-skeleton-line short" />
+              <Skeleton className="ui-skeleton-line" />
+              <Skeleton className="ui-skeleton-line wide" />
+              <Skeleton className="ui-skeleton-pill" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "list") {
+    const items = Array.from({ length: count ?? 3 });
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-list ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        {items.map((_, index) => (
+          <div key={index} className={`ui-skeleton-list-item ${surface === "card" ? "ui-state-card" : ""}`} aria-hidden="true">
+            <Skeleton className="ui-skeleton-thumb" />
+            <div className="ui-skeleton-list-body">
+              <Skeleton className="ui-skeleton-line short" />
+              <Skeleton className="ui-skeleton-line wide" />
+              <Skeleton className="ui-skeleton-line" />
+              <div className="ui-skeleton-chip-row">
+                <Skeleton className="ui-skeleton-pill" />
+                <Skeleton className="ui-skeleton-pill" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "table") {
+    const rows = Array.from({ length: count ?? 5 });
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-table ui-state-${size} ${surface === "card" ? "ui-state-card" : ""} ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        {rows.map((_, index) => (
+          <div key={index} className="ui-skeleton-table-row" aria-hidden="true">
+            <Skeleton className="ui-skeleton-cell-avatar" />
+            <div className="ui-skeleton-cell-main">
+              <Skeleton className="ui-skeleton-line wide" />
+              <Skeleton className="ui-skeleton-line short" />
+            </div>
+            <Skeleton className="ui-skeleton-cell-meta" />
+            <Skeleton className="ui-skeleton-pill" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "detail") {
+    return (
+      <div className={`ui-loading-skeleton ui-skeleton-detail ${surface === "card" ? "ui-state-card" : ""} ${className}`} role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{title}</span>
+        <div className="ui-skeleton-detail-head" aria-hidden="true">
+          <Skeleton className="ui-skeleton-detail-cover" />
+          <div className="ui-skeleton-detail-meta">
+            <Skeleton className="ui-skeleton-line short" />
+            <Skeleton className="ui-skeleton-title" />
+            <Skeleton className="ui-skeleton-line wide" />
+            <Skeleton className="ui-skeleton-line" />
+            <div className="ui-skeleton-chip-row">
+              <Skeleton className="ui-skeleton-btn" />
+              <Skeleton className="ui-skeleton-btn" />
+            </div>
+          </div>
+        </div>
+        <div className="ui-skeleton-detail-blocks" aria-hidden="true">
+          <Skeleton className="ui-skeleton-block" />
+          <Skeleton className="ui-skeleton-block" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`ui-state-box ui-loading-state ui-state-${size} ui-state-${surface} ${className}`} role="status" aria-live="polite" aria-busy="true">
+      <span className={`ui-spinner ui-spinner-${size}`} aria-hidden="true" />
+      <strong className="ui-state-title">{title}</strong>
+      {description && <p className="ui-state-desc">{description}</p>}
+    </div>
+  );
+}
+
+export function EmptyState({
+  error = false,
+  tone,
+  icon,
+  title,
+  description,
+  action,
+  size = "md",
+  surface = "plain",
+  className = "",
+}: {
+  error?: boolean;
+  tone?: "brand" | "neutral" | "info" | "error";
+  icon?: IconName;
+  title?: string;
+  description?: string;
+  action?: ReactNode;
+  size?: StateSize;
+  surface?: StateSurface;
+  className?: string;
+}) {
+  const resolvedTone = tone ?? (error ? "error" : "brand");
+  const isError = resolvedTone === "error";
+  const resolvedIcon = icon ?? (isError ? "error" : "book");
+  const resolvedTitle = title ?? (isError ? "Không thể tải dữ liệu" : "Chưa có dữ liệu");
+  const iconSize = size === "sm" ? 20 : size === "lg" ? 28 : 24;
+
+  return (
+    <div
+      className={`ui-state-box ui-empty-state ui-state-${size} ui-state-${surface} ui-tone-${resolvedTone} ${className}`}
+      role={isError ? "alert" : "status"}
+    >
+      <span className="ui-empty-icon" aria-hidden="true">
+        <Icon name={resolvedIcon} size={iconSize} />
+      </span>
+      <strong className="ui-state-title">{resolvedTitle}</strong>
+      {description && <p className="ui-state-desc">{description}</p>}
+      {action && <div className="ui-state-actions">{action}</div>}
+    </div>
+  );
 }
 
 export function Breadcrumb({ items }: { items: (string | { label: string; to: string })[] }) {
