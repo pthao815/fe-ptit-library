@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Avatar, Breadcrumb, Button, EmptyState, LoadingState, Modal, SearchInput, SelectField, Status } from "../../../design-system";
+import { Avatar, Breadcrumb, Button, EmptyState, LoadingState, Modal, Pagination, SearchInput, SelectField, Status } from "../../../design-system";
 import { userService } from "../../../services/user.service";
 import type { DepartmentDto, PageResponse, UserDto } from "../../../types/api";
 import { formatDateVi } from "../../../utils/mappers";
@@ -24,6 +24,8 @@ export default function ReaderManagementPage() {
   const departmentId = params.get("departmentId") ?? "";
   const requestedPage = Number(params.get("page"));
   const page = Number.isInteger(requestedPage) && requestedPage >= 0 && requestedPage <= 2147483647 ? requestedPage : 0;
+  const requestedSize = Number(params.get("size"));
+  const pageSize = Number.isInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 100 ? requestedSize : 20;
   const [draftKeyword, setDraftKeyword] = useState(keyword);
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
   const [departmentError, setDepartmentError] = useState(false);
@@ -60,7 +62,7 @@ export default function ReaderManagementPage() {
       userType: userType || undefined,
       departmentId: Number.isSafeInteger(department) && department > 0 ? department : undefined,
       page,
-      size: 20,
+      size: pageSize,
     }).then((data) => {
       if (!active) return;
       if (page > 0 && page >= data.totalPages) {
@@ -76,7 +78,7 @@ export default function ReaderManagementPage() {
       if (active) setLoad({ key: requestKey, error: error instanceof Error ? error.message : "Không tải được danh sách bạn đọc." });
     });
     return () => { active = false; };
-  }, [departmentId, keyword, page, requestKey, setParams, status, userType]);
+  }, [departmentId, keyword, page, pageSize, requestKey, setParams, status, userType]);
 
   function changeFilter(key: string, value: string) {
     const next = new URLSearchParams(params);
@@ -90,6 +92,13 @@ export default function ReaderManagementPage() {
   function changePage(nextPage: number) {
     const next = new URLSearchParams(params);
     next.set("page", String(nextPage));
+    setParams(next);
+  }
+
+  function changePageSize(nextSize: number) {
+    const next = new URLSearchParams(params);
+    next.set("size", String(nextSize));
+    next.delete("page");
     setParams(next);
   }
 
@@ -198,11 +207,17 @@ export default function ReaderManagementPage() {
                 </tr>)}</tbody>
               </table>
             </div>
-            <nav className="reader-table-pagination" aria-label="Phân trang bạn đọc">
-              <Button disabled={!result.hasPrevious} onClick={() => changePage(result.page - 1)}>Trang trước</Button>
-              <span>Trang {result.page + 1}/{result.totalPages}</span>
-              <Button disabled={!result.hasNext} onClick={() => changePage(result.page + 1)}>Trang sau</Button>
-            </nav>
+            <Pagination
+              variant="bar"
+              page={result.page + 1}
+              totalPages={result.totalPages}
+              totalElements={result.totalElements}
+              pageSize={pageSize}
+              itemLabel="bạn đọc"
+              ariaLabel="Phân trang danh sách bạn đọc"
+              onPageChange={(nextPage) => changePage(nextPage - 1)}
+              onPageSizeChange={changePageSize}
+            />
           </>}
       </section>
 

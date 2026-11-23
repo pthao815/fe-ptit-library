@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Breadcrumb, Button, EmptyState, LoadingState } from "../../../design-system";
+import { Breadcrumb, Button, EmptyState, LoadingState, Pagination } from "../../../design-system";
 import { notificationService } from "../../../services/analytics.service";
 import type { MessageQueueDto, PageResponse } from "../../../types/api";
 import { mapMessageQueueToNotification } from "../../../utils/mappers";
@@ -9,10 +9,16 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
   const [params, setParams] = useSearchParams();
   const requested = Number(params.get("page"));
   const page = Number.isSafeInteger(requested) && requested >= 0 && requested <= 2147483647 ? requested : 0;
+  const requestedSize = Number(params.get("size"));
+  const pageSize = Number.isSafeInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 100 ? requestedSize : 20;
   const [response, setResponse] = useState<PageResponse<MessageQueueDto>>();
   const [selectedItem, setSelectedItem] = useState<MessageQueueDto | null>(null);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+
+  const updatePagination = (nextPage: number, nextSize: number) => {
+    setParams({ page: String(nextPage), size: String(nextSize) });
+  };
 
   useEffect(() => {
     let active = true;
@@ -22,7 +28,7 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
 
     if (notificationId) {
       notificationService
-        .findMyNotificationById(notificationId, page, 20)
+        .findMyNotificationById(notificationId, page, pageSize)
         .then((res) => {
           if (!active) return;
           setResponse(res.pageData);
@@ -36,7 +42,7 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
         });
     } else {
       notificationService
-        .getMyNotifications({ page, size: 20 })
+        .getMyNotifications({ page, size: pageSize })
         .then((result) => {
           if (active) setResponse(result);
         })
@@ -48,11 +54,11 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
     return () => {
       active = false;
     };
-  }, [notificationId, page, revision]);
+  }, [notificationId, page, pageSize, revision]);
 
   const items = response?.items.map(mapMessageQueueToNotification) ?? [];
   const selected = selectedItem ? mapMessageQueueToNotification(selectedItem) : items.find((item) => item.id === notificationId);
-  const list = "/reader/notifications?page=" + page;
+  const list = `/reader/notifications?page=${page}&size=${pageSize}`;
 
   return (
     <main className="notification-detail-container">
@@ -118,16 +124,18 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
           description="Các thông báo về hạn trả, đặt trước và cập nhật thư viện sẽ xuất hiện tại đây."
         />
       )}
-      {!notificationId && response && (
-        <nav className="catalog-pagination" aria-label="Phân trang thông báo">
-          <Button disabled={page === 0} onClick={() => setParams({ page: String(page - 1) })}>
-            Trang trước
-          </Button>
-          <span>Trang {page + 1}</span>
-          <Button disabled={!response.hasNext} onClick={() => setParams({ page: String(page + 1) })}>
-            Trang sau
-          </Button>
-        </nav>
+      {!notificationId && response && response.totalElements > 0 && (
+        <Pagination
+          variant="card"
+          page={page + 1}
+          totalPages={response.totalPages}
+          totalElements={response.totalElements}
+          pageSize={pageSize}
+          itemLabel="thông báo"
+          ariaLabel="Phân trang thông báo"
+          onPageChange={(nextPage) => updatePagination(nextPage - 1, pageSize)}
+          onPageSizeChange={(nextSize) => updatePagination(0, nextSize)}
+        />
       )}
     </main>
   );

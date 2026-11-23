@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Badge, Breadcrumb, Button, CustomSelect, Dropdown, EmptyState, Icon, IconButton, LoadingState, Modal, SearchInput } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, Dropdown, EmptyState, Icon, IconButton, LoadingState, Modal, Pagination, SearchInput } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
 import { userService } from "../../../services/user.service";
 import { authSession } from "../../../shared/auth/auth-session";
 import type { DepartmentDto, DocumentSummaryDto, PageResponse } from "../../../types/api";
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
 const MAX_INT = 2147483647;
 
 // Mã docType đang có trong CSDL; mã lạ vẫn hiển thị nguyên văn.
@@ -29,13 +30,6 @@ function intParam(value: string | null, min: number, max: number) {
   return value && Number.isSafeInteger(number) && number >= min && number <= max ? number : undefined;
 }
 
-/** Các số trang cần hiện: trang đầu, trang cuối và lân cận trang hiện tại. */
-function pageItems(current: number, total: number): (number | "gap")[] {
-  const pages = new Set([0, total - 1, current - 1, current, current + 1].filter((page) => page >= 0 && page < total));
-  const sorted = [...pages].sort((a, b) => a - b);
-  return sorted.flatMap((page, index) => (index > 0 && page - sorted[index - 1] > 1 ? ["gap" as const, page] : [page]));
-}
-
 export default function MaterialsManagementPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -49,6 +43,7 @@ export default function MaterialsManagementPage() {
   const departmentId = intParam(params.get("dept"), 1, MAX_INT);
   const year = intParam(params.get("year"), 1000, 9999);
   const page = intParam(params.get("page"), 0, MAX_INT) ?? 0;
+  const pageSize = intParam(params.get("size"), 1, MAX_PAGE_SIZE) ?? DEFAULT_PAGE_SIZE;
 
   const [keyword, setKeyword] = useState(query);
   useEffect(() => setKeyword(query), [query]);
@@ -92,7 +87,7 @@ export default function MaterialsManagementPage() {
       departmentId,
       publicationYear: year,
       page,
-      size: PAGE_SIZE,
+      size: pageSize,
     }).then((data) => {
       if (!active) return;
       if (page > 0 && page >= data.totalPages) updateParams({ page: String(Math.max(0, data.totalPages - 1)) }, true);
@@ -102,7 +97,7 @@ export default function MaterialsManagementPage() {
     });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, docType, departmentId, year, page, revision]);
+  }, [query, docType, departmentId, year, page, pageSize, revision]);
 
   useEffect(() => {
     if (!actionMenu) return;
@@ -135,8 +130,6 @@ export default function MaterialsManagementPage() {
 
   const docTypeOptions = [...new Set([...Object.keys(docTypeLabels), docType].filter(Boolean))];
   const hasFilters = Boolean(query || docType || departmentId || year);
-  const first = result ? result.page * result.size + 1 : 0;
-  const last = result ? result.page * result.size + result.items.length : 0;
 
   return (
     <div className="materials-page">
@@ -263,16 +256,17 @@ export default function MaterialsManagementPage() {
               ))}</tbody>
             </table>
           </div>
-          <div className="catalog-pagination">
-            <p>Hiển thị <strong>{first}–{last}</strong> trong tổng số <strong>{result.totalElements.toLocaleString("vi-VN")}</strong> biểu ghi</p>
-            {result.totalPages > 1 && <nav className="pagination" aria-label="Phân trang">
-              <IconButton label="Trang trước" icon="chevron-left" disabled={page === 0} onClick={() => updateParams({ page: String(page - 1) })} />
-              {pageItems(page, result.totalPages).map((item, index) => item === "gap"
-                ? <span key={"gap" + index}>…</span>
-                : <button key={item} type="button" className={item === page ? "active" : ""} aria-current={item === page ? "page" : undefined} onClick={() => updateParams({ page: String(item) })}>{item + 1}</button>)}
-              <IconButton label="Trang sau" icon="chevron-right" disabled={page + 1 >= result.totalPages} onClick={() => updateParams({ page: String(page + 1) })} />
-            </nav>}
-          </div>
+          <Pagination
+            variant="bar"
+            page={page + 1}
+            totalPages={result.totalPages}
+            totalElements={result.totalElements}
+            pageSize={pageSize}
+            itemLabel="biểu ghi"
+            ariaLabel="Phân trang danh mục tài liệu"
+            onPageChange={(nextPage) => updateParams({ page: String(nextPage - 1) })}
+            onPageSizeChange={(nextSize) => updateParams({ size: String(nextSize), page: undefined })}
+          />
         </>}
       </section>
 

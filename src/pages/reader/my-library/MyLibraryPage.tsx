@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Breadcrumb, Button, EmptyState, Icon, LoadingState, Rating, Status, Toast } from "../../../design-system";
+import { Badge, Breadcrumb, Button, EmptyState, Icon, LoadingState, Pagination, Rating, Status, Toast } from "../../../design-system";
 import LibraryListCard from "../../../components/books/LibraryListCard";
 import { libraryTabs } from "../../../constants/library-options";
 import { loanBooks, reservedBooks, shelfGroups, loanHistory } from "../../../data/my-library";
@@ -77,8 +77,10 @@ function PersonalShelf({
   favoritesTotal,
   favoritesStatus,
   favoritesPage,
+  favoritesPageSize,
   favoritesTotalPages,
   onFavoritePageChange,
+  onFavoritePageSizeChange,
   onRetryFavorites,
   onRemoveFavorite,
 }: {
@@ -87,8 +89,10 @@ function PersonalShelf({
   favoritesTotal?: number;
   favoritesStatus?: "loading" | "error" | "ready";
   favoritesPage?: number;
+  favoritesPageSize?: number;
   favoritesTotalPages?: number;
   onFavoritePageChange?: (page: number) => void;
+  onFavoritePageSizeChange?: (pageSize: number) => void;
   onRetryFavorites?: () => void;
   onRemoveFavorite?: (book: Book) => void;
 }) {
@@ -181,12 +185,19 @@ function PersonalShelf({
           />
         ))}</div>
       )}
-      {isWantToRead && (favoritesTotalPages ?? 0) > 1 && onFavoritePageChange && (
-        <nav className="reader-table-pagination" aria-label="Phân trang tủ sách yêu thích">
-          <Button variant="secondary" size="sm" disabled={(favoritesPage ?? 0) <= 0} onClick={() => onFavoritePageChange((favoritesPage ?? 0) - 1)}>Trang trước</Button>
-          <span>Trang {(favoritesPage ?? 0) + 1}/{favoritesTotalPages}</span>
-          <Button variant="secondary" size="sm" disabled={(favoritesPage ?? 0) + 1 >= (favoritesTotalPages ?? 1)} onClick={() => onFavoritePageChange((favoritesPage ?? 0) + 1)}>Trang sau</Button>
-        </nav>
+      {isWantToRead && totalCount > 0 && onFavoritePageChange && (
+        <Pagination
+          variant="card"
+          page={(favoritesPage ?? 0) + 1}
+          totalPages={favoritesTotalPages ?? 1}
+          totalElements={totalCount}
+          pageSize={favoritesPageSize ?? 10}
+          pageSizeOptions={[10, 20, 50]}
+          itemLabel="tài liệu"
+          ariaLabel="Phân trang tủ sách yêu thích"
+          onPageChange={(nextPage) => onFavoritePageChange(nextPage - 1)}
+          onPageSizeChange={onFavoritePageSizeChange}
+        />
       )}
     </div>
   );
@@ -202,6 +213,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
   const [favoriteBooks, setFavoriteBooks] = useState<Book[]>([]);
   const [favoritesTotal, setFavoritesTotal] = useState(0);
   const [favoritesPage, setFavoritesPage] = useState(0);
+  const [favoritesPageSize, setFavoritesPageSize] = useState(10);
   const [favoritesTotalPages, setFavoritesTotalPages] = useState(0);
   const [favoritesStatus, setFavoritesStatus] = useState<"loading" | "error" | "ready">("ready");
   const [favoritesRevision, setFavoritesRevision] = useState(0);
@@ -220,7 +232,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
     setFavoritesStatus("loading");
 
     catalogService
-      .getMyFavorites({ page: favoritesPage, size: 20 })
+      .getMyFavorites({ page: favoritesPage, size: favoritesPageSize })
       .then((pageData) => {
         if (!active) return;
         setFavoriteBooks(pageData.items.map((dto, idx) => mapFavoriteDocumentToBook(dto, idx)));
@@ -235,7 +247,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
     return () => {
       active = false;
     };
-  }, [favoritesPage, favoritesRevision]);
+  }, [favoritesPage, favoritesPageSize, favoritesRevision]);
 
 
   useEffect(() => {
@@ -557,8 +569,13 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
               favoritesTotal={favoritesTotal}
               favoritesStatus={favoritesStatus}
               favoritesPage={favoritesPage}
+              favoritesPageSize={favoritesPageSize}
               favoritesTotalPages={favoritesTotalPages}
               onFavoritePageChange={(nextPage) => setFavoritesPage(nextPage)}
+              onFavoritePageSizeChange={(nextSize) => {
+                setFavoritesPageSize(nextSize);
+                setFavoritesPage(0);
+              }}
               onRetryFavorites={() => setFavoritesRevision((v) => v + 1)}
               onRemoveFavorite={handleRemoveFavorite}
             />

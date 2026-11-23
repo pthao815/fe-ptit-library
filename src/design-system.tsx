@@ -1,6 +1,11 @@
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
+  buildPaginationRange,
+  clampPageNumber,
+  DEFAULT_PAGE_SIZE_OPTIONS,
+} from "./utils/pagination";
+import {
   Children,
   createContext,
   Fragment,
@@ -367,8 +372,130 @@ export function Tabs({ items, active, onChange }: { items: string[]; active: str
   return <div className="tabs" role="tablist">{items.map((item) => <button key={item} className={active === item ? "active" : ""} role="tab" aria-selected={active === item} onClick={() => onChange(item)}>{item}</button>)}</div>;
 }
 
-export function Pagination() {
-  return <nav className="pagination" aria-label="Phân trang"><IconButton label="Trang trước" icon="chevron-left" disabled /><button className="active">1</button><button>2</button><button>3</button><span>…</span><button>12</button><IconButton label="Trang sau" icon="chevron-right" /></nav>;
+export interface PaginationProps {
+  /** Trang hiện tại (bắt đầu từ 1). */
+  page: number;
+  /** Tổng số trang. */
+  totalPages: number;
+  /** Tổng số bản ghi (tùy chọn). */
+  totalElements?: number;
+  /** Số bản ghi hiển thị trên mỗi trang. */
+  pageSize: number;
+  /** Các mức số bản ghi/trang có thể chọn (mặc định [10, 20, 50, 100]). */
+  pageSizeOptions?: number[];
+  /** Nhãn đơn vị bản ghi, ví dụ "kết quả", "biểu ghi", "bạn đọc". */
+  itemLabel?: string;
+  /** Gọi khi người dùng chuyển trang (trả về số trang 1-based). */
+  onPageChange: (nextPage: number) => void;
+  /** Gọi khi người dùng đổi số lượng hiển thị mỗi trang. */
+  onPageSizeChange?: (nextPageSize: number) => void;
+  /** Kiểu khung hiển thị. */
+  variant?: "bar" | "card" | "compact";
+  ariaLabel?: string;
+  className?: string;
+}
+
+export { buildPaginationRange };
+
+export function Pagination({
+  page,
+  totalPages,
+  totalElements,
+  pageSize,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
+  itemLabel = "kết quả",
+  onPageChange,
+  onPageSizeChange,
+  variant = "bar",
+  ariaLabel = "Phân trang",
+  className = "",
+}: PaginationProps) {
+  const safeTotalPages = Math.max(1, totalPages);
+  const safePage = clampPageNumber(page, safeTotalPages);
+
+  if (totalElements === 0) return null;
+
+  const pageNumbers = buildPaginationRange(safePage, safeTotalPages);
+  const sizeOptions = Array.from(new Set([...pageSizeOptions, pageSize])).sort((a, b) => a - b);
+
+  const firstItem = totalElements !== undefined ? (safePage - 1) * pageSize + 1 : 0;
+  const lastItem = totalElements !== undefined ? Math.min(safePage * pageSize, totalElements) : 0;
+
+  return (
+    <div className={`ui-pagination ui-pagination-${variant} ${className}`}>
+      <p className="ui-pagination-summary">
+        {totalElements !== undefined ? (
+          <>
+            Hiển thị <strong>{firstItem.toLocaleString("vi-VN")}–{lastItem.toLocaleString("vi-VN")}</strong> trong tổng số{" "}
+            <strong>{totalElements.toLocaleString("vi-VN")}</strong> {itemLabel}
+          </>
+        ) : (
+          <>
+            Trang <strong>{safePage}</strong> / <strong>{safeTotalPages}</strong>
+          </>
+        )}
+      </p>
+
+      <div className="ui-pagination-controls">
+        {safeTotalPages > 1 && (
+          <nav className="ui-pagination-nav" aria-label={ariaLabel}>
+            <IconButton
+              type="button"
+              label="Trang trước"
+              icon="chevron-left"
+              disabled={safePage <= 1}
+              onClick={() => onPageChange(safePage - 1)}
+            />
+            {pageNumbers.map((item, index) =>
+              item === "gap" ? (
+                <span key={`gap-${index}`} className="ui-pagination-gap" aria-hidden="true">…</span>
+              ) : (
+                <button
+                  key={item}
+                  type="button"
+                  className={item === safePage ? "ui-pagination-page active" : "ui-pagination-page"}
+                  aria-current={item === safePage ? "page" : undefined}
+                  aria-label={`Trang ${item}`}
+                  onClick={() => item !== safePage && onPageChange(item)}
+                >
+                  {item}
+                </button>
+              ),
+            )}
+            <IconButton
+              type="button"
+              label="Trang sau"
+              icon="chevron-right"
+              disabled={safePage >= safeTotalPages}
+              onClick={() => onPageChange(safePage + 1)}
+            />
+          </nav>
+        )}
+
+        {onPageSizeChange && (
+          <label className="ui-pagination-size">
+            <span>Hiển thị</span>
+            <CustomSelect
+              aria-label="Số bản ghi hiển thị mỗi trang"
+              value={String(pageSize)}
+              onChange={(event) => {
+                const nextSize = Number(event.target.value);
+                if (Number.isFinite(nextSize) && nextSize > 0 && nextSize !== pageSize) {
+                  onPageSizeChange(nextSize);
+                }
+              }}
+            >
+              {sizeOptions.map((option) => (
+                <option key={option} value={String(option)}>
+                  {option} / trang
+                </option>
+              ))}
+            </CustomSelect>
+          </label>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {

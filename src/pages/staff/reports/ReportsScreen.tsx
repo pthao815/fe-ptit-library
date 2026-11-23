@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge, Breadcrumb, Button, CustomSelect, EmptyState, Icon, LoadingState } from "../../../design-system";
+import { Badge, Breadcrumb, Button, CustomSelect, EmptyState, Icon, LoadingState, Pagination } from "../../../design-system";
 import { analyticsService } from "../../../services/analytics.service";
 import { userService } from "../../../services/user.service";
 import { getAccessToken } from "../../../services/session";
@@ -90,6 +90,11 @@ export default function ReportsScreen() {
   const [overview, setOverview] = useState<LibraryOverviewStatsDto | null>(null);
   const [popularDocs, setPopularDocs] = useState<PopularDocumentDto[]>([]);
   const [suggestions, setSuggestions] = useState<AcquisitionSuggestionDto[]>([]);
+  const [acqPage, setAcqPage] = useState(0);
+  const [acqPageSize, setAcqPageSize] = useState(10);
+  const [acqTotalElements, setAcqTotalElements] = useState(0);
+  const [acqTotalPages, setAcqTotalPages] = useState(0);
+  const [acqLoading, setAcqLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -117,13 +122,11 @@ export default function ReportsScreen() {
     Promise.all([
       analyticsService.getOverviewStatistics({ period, departmentId, docType }),
       analyticsService.getPopularDocuments({ period, departmentId, docType, limit: 10, sortBy: "BORROWS" }),
-      analyticsService.getAcquisitionSuggestions(undefined, { page: 0, size: 10, sortBy: "queryCount", sortDir: "desc" }, departmentId),
     ])
-      .then(([stats, popular, acqPage]) => {
+      .then(([stats, popular]) => {
         if (!active) return;
         setOverview(stats);
         setPopularDocs(popular);
-        setSuggestions(acqPage.items);
       })
       .catch((err) => {
         if (!active) return;
@@ -138,7 +141,45 @@ export default function ReportsScreen() {
     };
   }, [appliedFilter, revision]);
 
+  useEffect(() => {
+    if (!getAccessToken()) {
+      setAcqLoading(false);
+      return;
+    }
+    let active = true;
+    const departmentId = appliedFilter.departmentId !== "all" ? Number(appliedFilter.departmentId) : undefined;
+    setAcqLoading(true);
+
+    analyticsService
+      .getAcquisitionSuggestions(
+        undefined,
+        { page: acqPage, size: acqPageSize, sortBy: "queryCount", sortDir: "desc" },
+        departmentId,
+      )
+      .then((acqData) => {
+        if (!active) return;
+        setSuggestions(acqData.items);
+        setAcqTotalElements(acqData.totalElements);
+        setAcqTotalPages(acqData.totalPages);
+      })
+      .catch(() => {
+        if (active) {
+          setSuggestions([]);
+          setAcqTotalElements(0);
+          setAcqTotalPages(0);
+        }
+      })
+      .finally(() => {
+        if (active) setAcqLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [appliedFilter.departmentId, acqPage, acqPageSize, revision]);
+
   const applyFilters = () => {
+    setAcqPage(0);
     setAppliedFilter({
       periodKey: draftPeriod,
       departmentId: draftDepartmentId,
@@ -150,6 +191,7 @@ export default function ReportsScreen() {
     setDraftPeriod("30");
     setDraftDepartmentId("all");
     setDraftDocType("all");
+    setAcqPage(0);
     setAppliedFilter({ periodKey: "30", departmentId: "all", docType: "all" });
   };
 
@@ -497,9 +539,9 @@ export default function ReportsScreen() {
                 <h2>Truy vấn không có kết quả &amp; Đề xuất bổ sung</h2>
                 <p>Các nhu cầu tìm kiếm chưa được đáp ứng</p>
               </div>
-              <Badge tone="warning">{suggestions.length} ĐỀ XUẤT</Badge>
+              <Badge tone="warning">{acqTotalElements} ĐỀ XUẤT</Badge>
             </header>
-            {loading && !suggestions.length ? (
+            {acqLoading && !suggestions.length ? (
               <LoadingState variant="table" count={4} size="sm" title="Đang tải đề xuất bổ sung…" />
             ) : suggestions.length === 0 ? (
               <EmptyState
@@ -509,24 +551,40 @@ export default function ReportsScreen() {
                 description="Chưa có cụm truy vấn không có kết quả nào được ghi nhận."
               />
             ) : (
-              <div className="report-query-table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>Chủ đề / Từ khóa</th><th>Khoa / Ngành</th><th>Số lần tìm</th><th>Thời gian gần nhất</th><th>Trạng thái</th></tr>
-                  </thead>
-                  <tbody>
-                    {suggestions.map((item) => (
-                      <tr key={item.id}>
-                        <td><strong>“{item.topic}”</strong></td>
-                        <td>{item.departmentName || "—"}</td>
-                        <td><b>{item.queryCount}</b></td>
-                        <td>{formatDateTimeVi(item.updatedAt || item.createdAt)}</td>
-                        <td><Badge tone={item.queryCount >= 20 ? "error" : "warning"}>{item.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="report-query-table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Chủ đề / Từ khóa</th><th>Khoa / Ngành</th><th>Số lần tìm</th><th>Thời gian gần nhất</th><th>Trạng thái</th></tr>
+                    </thead>
+                    <tbody>
+                      {suggestions.map((item) => (
+                        <tr key={item.id}>
+                          <td><strong>“{item.topic}”</strong></td>
+                          <td>{item.departmentName || "—"}</td>
+                          <td><b>{item.queryCount}</b></td>
+                          <td>{formatDateTimeVi(item.updatedAt || item.createdAt)}</td>
+                          <td><Badge tone={item.queryCount >= 20 ? "error" : "warning"}>{item.status}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  variant="bar"
+                  page={acqPage + 1}
+                  totalPages={acqTotalPages}
+                  totalElements={acqTotalElements}
+                  pageSize={acqPageSize}
+                  itemLabel="đề xuất"
+                  ariaLabel="Phân trang đề xuất bổ sung"
+                  onPageChange={(nextPage) => setAcqPage(nextPage - 1)}
+                  onPageSizeChange={(nextSize) => {
+                    setAcqPageSize(nextSize);
+                    setAcqPage(0);
+                  }}
+                />
+              </>
             )}
           </section>
         </div>

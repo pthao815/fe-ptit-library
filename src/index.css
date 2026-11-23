@@ -2779,3 +2779,43 @@ form.filter-group > .btn[type="submit"] { width: 100%; margin-top: 2px; }
   .ui-skeleton-detail-cover { width: 112px; height: 152px; }
   .ui-skeleton-detail-blocks { grid-template-columns: 1fr; }
 }
+
+/* Base unified Pagination UI */
+.ui-pagination { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; background: transparent; color: var(--gray-600); font-size: 13px; }
+.ui-pagination-bar { padding: 14px 18px; border-top: 1px solid var(--gray-200); background: transparent; }
+.ui-pagination-card { margin-top: 20px; padding: 16px 0; border-top: 1px solid var(--gray-200); background: transparent; }
+.ui-pagination-compact { width: auto; padding: 0; border: 0; gap: 12px; background: transparent; }
+.ui-pagination-summary { margin: 0; color: var(--gray-500); font-size: 13px; white-space: nowrap; }
+.ui-pagination-summary strong { color: var(--gray-900); font-weight: 600; }
+.ui-pagination-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ui-pagination-nav { display: inline-flex; align-items: center; gap: 4px; }
+.ui-pagination-nav .icon-button { width: 34px; height: 34px; border: 0; background: transparent; }
+.ui-pagination-nav .icon-button:hover:not(:disabled) { color: var(--red-600); background: var(--red-50); }
+.ui-pagination-page { min-width: 34px; height: 34px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--gray-700); background: transparent; font-size: 13px; font-weight: 500; transition: background .14s ease, color .14s ease, border-color .14s ease; }
+.ui-pagination-page:hover { background: var(--gray-100); color: var(--gray-900); }
+.ui-pagination-page.active { border-color: var(--red-500); color: var(--white); background: var(--red-500); font-weight: 700; }
+.ui-pagination-gap { min-width: 24px; text-align: center; color: var(--gray-500); font-size: 13px; user-select: none; }
+.ui-pagination-size { display: inline-flex; align-items: center; gap: 8px; padding-left: 10px; border-left: 1px solid var(--gray-200); color: var(--gray-500); font-size: 12.5px; white-space: nowrap; }
+.ui-pagination-size .custom-select { width: 124px; }
+.ui-pagination-size .custom-select-trigger { height: 34px; padding: 0 10px; background: transparent; font-size: 12.5px; }
+.smart-limit-bar { margin-top: 20px; padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-top: 1px solid var(--gray-200); background: transparent; color: var(--gray-600); font-size: 13px; }
+.smart-limit-bar p { margin: 0; }
+.smart-limit-bar strong { color: var(--gray-900); }
+.smart-limit-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.smart-limit-controls label { display: inline-flex; align-items: center; gap: 8px; color: var(--gray-500); font-size: 12.5px; white-space: nowrap; }
+.smart-limit-controls .custom-select { width: 132px; }
+.smart-limit-controls .custom-select-trigger { height: 34px; padding: 0 10px; background: transparent; font-size: 12.5px; }
+
+@media (max-width: 820px) {
+  .ui-pagination { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .ui-pagination-controls { width: 100%; justify-content: space-between; }
+  .ui-pagination-size { padding-left: 0; border-left: 0; }
+}
+
+@media (max-width: 560px) {
+  .ui-pagination-bar { padding: 12px 14px; }
+  .ui-pagination-card, .smart-limit-bar { padding: 12px 0; }
+  .ui-pagination-controls { flex-direction: column; align-items: stretch; gap: 10px; }
+  .ui-pagination-nav { justify-content: center; flex-wrap: wrap; }
+  .ui-pagination-size { justify-content: space-between; }
+}

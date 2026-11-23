@@ -7,7 +7,12 @@ import { pipelineSteps } from "../../../constants/library-options";
 export default function DigitalProcessingPage() {
   const [jobs, setJobs] = useState(initialProcessingJobs);
   const [detailJob, setDetailJob] = useState<ProcessingJob | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const retry = (id: number) => setJobs((items) => items.map((item) => item.id === id ? { ...item, status: "Đang chờ", progress: 0, stage: "Đã thêm lại vào hàng đợi", completed: "—" } : item));
+  const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedJobs = jobs.slice((safePage - 1) * pageSize, safePage * pageSize);
   const counts = {
     waiting: jobs.filter((job) => job.status === "Đang chờ").length,
     processing: jobs.filter((job) => job.status === "Đang xử lý").length,
@@ -39,7 +44,7 @@ export default function DigitalProcessingPage() {
           />
         ) : (
           <div className="processing-table-wrap"><table className="processing-table"><thead><tr><th>Tài liệu</th><th>File</th><th>Dung lượng</th><th>Trạng thái</th><th>Tiến độ</th><th>Thời gian bắt đầu</th><th>Thời gian hoàn thành</th><th>Actions</th></tr></thead><tbody>
-            {jobs.map((job) => <tr key={job.id}>
+            {pagedJobs.map((job) => <tr key={job.id}>
               <td><div className="processing-title"><span><Icon name="document" /></span><div><strong>{job.title}</strong><small>{job.record}</small></div></div></td>
               <td><div className="processing-file"><strong>{job.file}</strong>{job.status === "Lỗi" && <small className="file-error">Không thể trích xuất văn bản</small>}</div></td>
               <td>{job.size}</td>
@@ -51,7 +56,26 @@ export default function DigitalProcessingPage() {
             </tr>)}
           </tbody></table></div>
         )}
-        <div className="processing-footnote"><span><Icon name="info" size={14} />Pipeline đang sử dụng cấu hình mặc định · 2 tác vụ chạy song song</span><Pagination /></div>
+        <div className="processing-footnote">
+          <span><Icon name="info" size={14} />Pipeline đang sử dụng cấu hình mặc định · 2 tác vụ chạy song song</span>
+          {jobs.length > 0 && (
+            <Pagination
+              variant="compact"
+              page={safePage}
+              totalPages={totalPages}
+              totalElements={jobs.length}
+              pageSize={pageSize}
+              pageSizeOptions={[5, 10, 20, 50]}
+              itemLabel="tác vụ"
+              ariaLabel="Phân trang danh sách tác vụ"
+              onPageChange={setPage}
+              onPageSizeChange={(nextSize) => {
+                setPageSize(nextSize);
+                setPage(1);
+              }}
+            />
+          )}
+        </div>
       </section>
 
       <Modal open={detailJob !== null} onClose={() => setDetailJob(null)} title="Chi tiết xử lý tài liệu">

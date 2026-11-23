@@ -9,6 +9,7 @@ import {
   Icon,
   IconButton,
   LoadingState,
+  Pagination,
 } from "../../../design-system";
 import { catalogService } from "../../../services/catalog.service";
 import { searchService } from "../../../services/search.service";
@@ -31,9 +32,11 @@ import {
   type UnifiedSearchItem,
 } from "./search-options";
 
-const KEYWORD_PAGE_SIZE = 10;
+const DEFAULT_KEYWORD_PAGE_SIZE = 10;
+const MAX_KEYWORD_PAGE_SIZE = 100;
 const SMART_LIMIT_STEP = 10;
 const SMART_LIMIT_MAX = 50;
+const SMART_LIMIT_OPTIONS = [10, 20, 30, 50];
 
 function parsePositiveInt(value: string): number | undefined {
   if (!/^[1-9][0-9]*$/.test(value)) return undefined;
@@ -97,6 +100,11 @@ function UnifiedBookSearch({
 
   const rawPage = Number(searchParams.get("page"));
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 && rawPage <= 2147483647 ? rawPage : 1;
+  const rawSize = Number(searchParams.get("size"));
+  const keywordPageSize =
+    Number.isSafeInteger(rawSize) && rawSize >= 1 && rawSize <= MAX_KEYWORD_PAGE_SIZE
+      ? rawSize
+      : DEFAULT_KEYWORD_PAGE_SIZE;
   const rawLimit = Number(searchParams.get("limit"));
   const smartLimit =
     Number.isSafeInteger(rawLimit) && rawLimit >= 1 && rawLimit <= SMART_LIMIT_MAX
@@ -239,7 +247,7 @@ function UnifiedBookSearch({
           authorName: applied.authorName.trim() || undefined,
           language: applied.language.trim() || undefined,
           page: page - 1,
-          size: KEYWORD_PAGE_SIZE,
+          size: keywordPageSize,
           sortBy,
           sortDir,
         })
@@ -303,7 +311,7 @@ function UnifiedBookSearch({
     return () => {
       active = false;
     };
-  }, [empty, mode, page, smartLimit, sort, submittedQuery, applied, revision]);
+  }, [empty, mode, page, keywordPageSize, smartLimit, sort, submittedQuery, applied, revision]);
 
   const displayedItems = useMemo(() => {
     if (mode !== "smart" || sort === "relevance") return items;
@@ -625,48 +633,53 @@ function UnifiedBookSearch({
               </div>
 
               {mode === "keyword" ? (
-                <div className="catalog-pagination">
-                  <p>
-                    Hiển thị{" "}
-                    <strong>
-                      {(page - 1) * KEYWORD_PAGE_SIZE + 1}–
-                      {Math.min(page * KEYWORD_PAGE_SIZE, displayTotal)}
-                    </strong>{" "}
-                    trong {displayTotal} kết quả
-                  </p>
-                  <nav aria-label="Phân trang kết quả">
-                    <IconButton
-                      label="Trang trước"
-                      icon="chevron-left"
-                      disabled={page === 1}
-                      onClick={() => updateSearch({ page: String(page - 1) })}
-                    />
-                    <span>
-                      Trang {page}/{Math.max(1, totalPages)}
-                    </span>
-                    <IconButton
-                      label="Trang sau"
-                      icon="chevron-right"
-                      disabled={page >= totalPages}
-                      onClick={() => updateSearch({ page: String(page + 1) })}
-                    />
-                  </nav>
-                </div>
+                <Pagination
+                  variant="card"
+                  page={page}
+                  totalPages={totalPages}
+                  totalElements={displayTotal}
+                  pageSize={keywordPageSize}
+                  itemLabel="kết quả"
+                  ariaLabel="Phân trang kết quả tìm kiếm"
+                  onPageChange={(nextPage) => updateSearch({ page: String(nextPage) })}
+                  onPageSizeChange={(nextSize) =>
+                    updateSearch({ size: String(nextSize), page: "1" })
+                  }
+                />
               ) : (
-                <div className="results-load-more">
-                  <p>Đang hiển thị {displayedItems.length} tài liệu khớp nhất theo nội dung</p>
-                  {canLoadMoreSmart && (
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        updateSearch({
-                          limit: String(Math.min(SMART_LIMIT_MAX, smartLimit + SMART_LIMIT_STEP)),
-                        })
-                      }
-                    >
-                      Xem thêm kết quả
-                    </Button>
-                  )}
+                <div className="smart-limit-bar">
+                  <p>
+                    Đang hiển thị <strong>{displayedItems.length}</strong> tài liệu khớp nhất theo nội dung
+                  </p>
+                  <div className="smart-limit-controls">
+                    <label>
+                      <span>Số kết quả tối đa</span>
+                      <CustomSelect
+                        aria-label="Số kết quả tìm kiếm thông minh tối đa"
+                        value={String(smartLimit)}
+                        onChange={(event) => updateSearch({ limit: event.target.value })}
+                      >
+                        {SMART_LIMIT_OPTIONS.map((option) => (
+                          <option key={option} value={String(option)}>
+                            Top {option} tài liệu
+                          </option>
+                        ))}
+                      </CustomSelect>
+                    </label>
+                    {canLoadMoreSmart && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          updateSearch({
+                            limit: String(Math.min(SMART_LIMIT_MAX, smartLimit + SMART_LIMIT_STEP)),
+                          })
+                        }
+                      >
+                        Xem thêm kết quả
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
             </>
