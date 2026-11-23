@@ -1,9 +1,11 @@
 import type {
   ContentSearchRequest,
   ContentSearchResultDto,
+  DocumentMatchesResponse,
   SmartSearchRequest,
   SmartSearchResponse,
 } from "../types/api";
+import { buildApiUrl } from "../config/env";
 import { ApiError, http } from "./http";
 
 export const searchService = {
@@ -22,6 +24,7 @@ export const searchService = {
       return items;
     });
   },
+
   smartSearch(payload: SmartSearchRequest): Promise<SmartSearchResponse> {
     const body: SmartSearchRequest = {
       query: payload.query.trim(),
@@ -39,5 +42,15 @@ export const searchService = {
       }
       return data;
     });
+  },
+
+  /** Vị trí các đoạn khớp với truy vấn trong một tài liệu (để tô sáng trên trình đọc). */
+  getDocumentMatches(documentId: string, query: string, limit = 20): Promise<DocumentMatchesResponse> {
+    return http.get<DocumentMatchesResponse>(`/api/search/document/${encodeURIComponent(documentId)}/matches`, { query, limit });
+  },
+
+  /** PDF bản số hiện hành của tài liệu (cần đăng nhập). */
+  getReadUrl(documentId: string): string {
+    return buildApiUrl(`/api/documents/${encodeURIComponent(documentId)}/read`);
   },
 };

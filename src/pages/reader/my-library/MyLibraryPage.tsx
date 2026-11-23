@@ -3,22 +3,73 @@ import { useEffect, useState } from "react";
 import { Badge, Breadcrumb, Button, EmptyState, Icon, LoadingState, Rating, Status, Toast } from "../../../design-system";
 import LibraryListCard from "../../../components/books/LibraryListCard";
 import { libraryTabs } from "../../../constants/library-options";
-import { loanBooks, reservedBooks, shelfGroups, loanHistory } from "../../../data/my-library";
+import { loanBooks, shelfGroups, loanHistory } from "../../../data/my-library";
 import { catalogService, removeTrackedFavoriteById } from "../../../services/catalog.service";
-import {
-  circulationService,
-  getTrackedHolds,
-  removeTrackedHold,
-} from "../../../services/circulation.service";
+import { circulationService } from "../../../services/circulation.service";
 import { getAccessToken } from "../../../services/session";
-import type { UserFinesSummaryDto } from "../../../types/api";
+import type { MyHoldItemDto, UserFinesSummaryDto } from "../../../types/api";
 import type { Book } from "../../../types/library";
 import {
   formatDateVi,
+  formatDocTypeLabel,
   mapCirculationItemToHistoryBook,
   mapCirculationItemToLoanBook,
   mapFavoriteDocumentToBook,
+  pickCoverByIndex,
 } from "../../../utils/mappers";
+
+function formatDateTimeVi(iso?: string | null): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function holdToBook(hold: MyHoldItemDto, index: number): Book {
+  return {
+    id: hold.holdId,
+    documentId: hold.documentId,
+    title: hold.documentTitle,
+    author: hold.publicationYear ? `Năm xuất bản ${hold.publicationYear}` : "Bản in",
+    year: hold.publicationYear ? String(hold.publicationYear) : "—",
+    type: formatDocTypeLabel(hold.docType ?? undefined),
+    rating: 0,
+    available: hold.status === "READY_FOR_PICKUP",
+    code: `HOLD-${hold.holdId}`,
+    cover: pickCoverByIndex(index, hold.coverUrl ?? undefined),
+  };
+}
+
+function ReservationCard({ hold, index, onCancel }: { hold: MyHoldItemDto; index: number; onCancel: (holdId: number) => void }) {
+  const navigate = useNavigate();
+  const ready = hold.status === "READY_FOR_PICKUP";
+  const shelf = [hold.shelfLocation, hold.callNumber].filter(Boolean).join(" · ");
+  return (
+    <LibraryListCard
+      book={holdToBook(hold, index)}
+      badge={ready ? "Sẵn sàng nhận" : "Đang chờ"}
+      badgeTone={ready ? "success" : "warning"}
+      status={ready ? "Đến quầy nhận sách" : `Vị trí #${hold.queuePosition ?? "—"}`}
+      statusHint={ready ? `Trước ${formatDateTimeVi(hold.pickupDeadline)}` : "Trong hàng chờ"}
+      statusTone={ready ? "success" : "warning"}
+      details={ready ? [
+        { label: "Mã vạch bản sách", value: hold.barcode ?? "—" },
+        { label: "Vị trí", value: shelf || "Quầy lưu thông" },
+        { label: "Hạn nhận", value: formatDateTimeVi(hold.pickupDeadline) },
+      ] : [
+        { label: "Ngày đặt trước", value: formatDateVi(hold.requestDate ?? undefined) },
+        { label: "Dự kiến có sách", value: formatDateVi(hold.estimatedAvailableDate ?? undefined) },
+        { label: "Vị trí hàng chờ", value: `#${hold.queuePosition ?? "—"}` },
+      ]}
+      actions={
+        <>
+          <Button size="sm" variant="secondary" onClick={() => navigate(`/reader/book-detail?id=${encodeURIComponent(hold.documentId)}`)}>Xem tài liệu</Button>
+          <Button variant="ghost" size="sm" onClick={() => onCancel(hold.holdId)}>Hủy đặt trước</Button>
+        </>
+      }
+    />
+  );
+}
 
 type LoanItem = typeof loanBooks[number] & {
   circulationId?: number;
@@ -198,7 +249,8 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
   const [loans, setLoans] = useState<LoanItem[]>([]);
   const [historyItems, setHistoryItems] = useState<typeof loanHistory>([]);
   const [finesSummary, setFinesSummary] = useState<UserFinesSummaryDto | null>(null);
-  const [reservations, setReservations] = useState<typeof reservedBooks>([]);
+  const [reservations, setReservations] = useState<MyHoldItemDto[]>([]);
+  const [holdsStatus, setHoldsStatus] = useState<"loading" | "error" | "ready">("loading");
   const [favoriteBooks, setFavoriteBooks] = useState<Book[]>([]);
   const [favoritesTotal, setFavoritesTotal] = useState(0);
   const [favoritesPage, setFavoritesPage] = useState(0);
@@ -274,27 +326,18 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         // Keep mock fine display
       });
 
-    const trackedHolds = getTrackedHolds();
-    if (trackedHolds.length > 0) {
-      setReservations(
-        trackedHolds.map((h) => ({
-          id: h.holdId,
-          title: h.documentTitle || `Tài liệu đặt trước #${h.holdId}`,
-          author: `Hàng chờ vị trí #${h.queuePosition}`,
-          cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400",
-          type: "Bản in",
-          year: "2024",
-          rating: 5,
-          available: false,
-          code: `HOLD-${h.holdId}`,
-          documentId: h.documentId,
-          status: h.status === "ACTIVE" ? "Đang chờ" : h.status,
-          position: `#${h.queuePosition}`,
-          reserved: h.requestDate ? formatDateVi(h.requestDate) : "Gần đây",
-          expiration: "Theo thông báo quầy",
-        })),
-      );
-    }
+    setHoldsStatus("loading");
+    circulationService
+      .getMyHolds("ACTIVE")
+      .then((items) => {
+        if (!active) return;
+        // Sách đã được giữ lên đầu, sau đó theo vị trí hàng chờ
+        setReservations([...items].sort((a, b) =>
+          Number(b.status === "READY_FOR_PICKUP") - Number(a.status === "READY_FOR_PICKUP")
+          || (a.queuePosition ?? 0) - (b.queuePosition ?? 0)));
+        setHoldsStatus("ready");
+      })
+      .catch(() => { if (active) setHoldsStatus("error"); });
 
     return () => {
       active = false;
@@ -342,8 +385,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
     if (getAccessToken()) {
       try {
         await circulationService.cancelHold(holdId, "Bạn đọc tự hủy trên cổng trực tuyến");
-        removeTrackedHold(holdId);
-        setReservations((items) => items.filter((item) => item.id !== holdId));
+        setReservations((items) => items.filter((item) => item.holdId !== holdId));
         setToastMsg("Đã hủy yêu cầu đặt trước tài liệu thành công.");
         return;
       } catch (err) {
@@ -375,6 +417,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
 
   const unpaidDebt = finesSummary ? finesSummary.totalUnpaidAmount : 0;
   const overdueCount = loans.filter((l) => l.days < 0).length;
+  const readyHolds = reservations.filter((hold) => hold.status === "READY_FOR_PICKUP").length;
 
   return (
     <div className="my-library-page">
@@ -388,7 +431,7 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         <section className="library-summary-grid" aria-label="Tổng quan tài khoản thư viện">
           <article><span className="summary-icon summary-brand"><Icon name="book" /></span><div><small>Đang mượn</small><strong>{String(loans.length).padStart(2, "0")}</strong><p>{loans.length} tài liệu đang lưu thông</p></div></article>
           <article><span className="summary-icon summary-warning"><Icon name="info" /></span><div><small>Sắp đến hạn</small><strong>{String(loans.filter((l) => l.days <= 7).length).padStart(2, "0")}</strong><p>{overdueCount} tài liệu đã quá hạn</p></div></article>
-          <article><span className="summary-icon summary-info"><Icon name="bookmark" /></span><div><small>Đặt trước</small><strong>{String(reservations.length).padStart(2, "0")}</strong><p>{reservations.length > 0 ? `${reservations.length} tài liệu trong hàng chờ` : "Chưa có lượt đặt trước"}</p></div></article>
+          <article><span className="summary-icon summary-info"><Icon name="bookmark" /></span><div><small>Đặt trước</small><strong>{String(reservations.length).padStart(2, "0")}</strong><p>{reservations.length === 0 ? "Chưa có lượt đặt trước" : readyHolds > 0 ? `${readyHolds} tài liệu sẵn sàng nhận` : `${reservations.length} tài liệu trong hàng chờ`}</p></div></article>
           <article><span className="summary-icon summary-error"><Icon name="error" /></span><div><small>Công nợ</small><strong>{`${unpaidDebt.toLocaleString("vi-VN")}đ`}</strong><p>{!finesSummary ? "Chưa tải được công nợ" : unpaidDebt > 0 ? "Cần hoàn tất thanh toán" : "Không có công nợ"}</p></div></article>
         </section>
 
@@ -518,7 +561,17 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
         {activeTab === "Đặt trước" && (
           <div className="library-tab-content">
             <div className="tab-content-heading"><div><h2>Tài liệu đã đặt trước</h2><p>Theo dõi vị trí hàng chờ và thời hạn nhận tài liệu.</p></div></div>
-            {!reservations.length ? (
+            {holdsStatus === "loading" ? (
+              <LoadingState surface="card" title="Đang tải danh sách đặt trước…" />
+            ) : holdsStatus === "error" ? (
+              <EmptyState
+                surface="card"
+                tone="error"
+                title="Không tải được danh sách đặt trước"
+                description="Kiểm tra kết nối rồi thử lại."
+                action={<Button size="sm" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+              />
+            ) : !reservations.length ? (
               <EmptyState
                 surface="card"
                 icon="bookmark"
@@ -527,22 +580,8 @@ export default function MyLibraryPage({ initialTab = "Đang mượn" }: { initia
                 action={<Button variant="secondary" size="sm" icon="search" onClick={() => navigate("/reader/search")}>Tìm tài liệu</Button>}
               />
             ) : (
-              <div className="loan-list">{reservations.map((reservation) => (
-                <LibraryListCard
-                  key={reservation.id}
-                  book={reservation}
-                  badge={reservation.type}
-                  badgeTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
-                  status={reservation.status}
-                  statusHint={reservation.status === "Chờ nhận" ? "Tài liệu đã sẵn sàng" : `Vị trí hàng chờ: ${reservation.position}`}
-                  statusTone={reservation.status === "Chờ nhận" ? "success" : "warning"}
-                  details={[
-                    { label: "Vị trí hàng chờ", value: reservation.position },
-                    { label: "Ngày đặt trước", value: reservation.reserved },
-                    { label: "Hạn nhận tài liệu", value: reservation.expiration },
-                  ]}
-                  actions={<><Button size="sm" disabled={reservation.status !== "Chờ nhận"}>Xem thông tin nhận</Button><Button variant="ghost" size="sm" onClick={() => handleCancelReservation(reservation.id)}>Hủy đặt trước</Button></>}
-                />
+              <div className="loan-list">{reservations.map((hold, index) => (
+                <ReservationCard key={hold.holdId} hold={hold} index={index} onCancel={handleCancelReservation} />
               ))}</div>
             )}
           </div>

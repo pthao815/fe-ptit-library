@@ -271,7 +271,6 @@ export default function PersonalProfilePage({ restricted = false }: { restricted
                 <div><dt>Mã thẻ</dt><dd>{displayCode}</dd></div>
                 <div><dt>Loại độc giả</dt><dd>{displayUserType}</dd></div>
                 <div><dt>Trạng thái thẻ</dt><dd><Status tone={isLocked ? "error" : "success"}>{isLocked ? "Đang bị khóa" : "Đang hoạt động"}</Status></dd></div>
-                <div><dt>Ngày cấp thẻ</dt><dd>01/09/2026</dd></div>
                 <div><dt>Ngày hết hạn</dt><dd>{cardExpiryText}</dd></div>
               </dl>
               <p className="library-card-note"><Icon name="info" size={14} />Thông tin thẻ được quản lý bởi thư viện. Vui lòng liên hệ nhân viên thư viện nếu cần điều chỉnh thông tin thẻ.</p>
