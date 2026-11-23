@@ -418,6 +418,111 @@ export interface HoldResponseDto {
   status: string;
 }
 
+export type HoldStatus = "WAITING" | "READY_FOR_PICKUP" | "FULFILLED" | "EXPIRED" | "CANCELLED";
+
+// GET /api/users/me/holds
+export interface MyHoldItemDto {
+  holdId: number;
+  documentId: string;
+  documentTitle: string;
+  docType?: string | null;
+  publicationYear?: number | null;
+  coverUrl?: string | null;
+  status: HoldStatus | string;
+  /** Chỉ có khi status = WAITING */
+  queuePosition?: number | null;
+  requestDate?: string | null;
+  estimatedAvailableDate?: string | null;
+  /** Có khi status = READY_FOR_PICKUP */
+  readyDate?: string | null;
+  pickupDeadline?: string | null;
+  barcode?: string | null;
+  callNumber?: string | null;
+  shelfLocation?: string | null;
+  cancelReason?: string | null;
+}
+
+// GET /api/holds (thủ thư)
+export interface StaffHoldItemDto {
+  holdId: number;
+  status: HoldStatus | string;
+  queuePosition?: number | null;
+  requestDate?: string | null;
+  readyDate?: string | null;
+  pickupDeadline?: string | null;
+  cancelReason?: string | null;
+  documentId: string;
+  documentTitle: string;
+  docType?: string | null;
+  publicationYear?: number | null;
+  userId: string;
+  userCode: string;
+  fullName: string;
+  email?: string | null;
+  phone?: string | null;
+  barcode?: string | null;
+  shelfLocation?: string | null;
+}
+
+// GET /api/circulation/copies/{barcode}
+export interface CopyLookupDto {
+  copyId: string;
+  barcode: string;
+  callNumber?: string | null;
+  shelfLocation?: string | null;
+  status: string;
+  documentId: string;
+  documentTitle: string;
+  authors: string[];
+  docType?: string | null;
+  publicationYear?: number | null;
+  activeLoan?: {
+    circulationId: number;
+    userCode: string;
+    fullName: string;
+    borrowDate: string;
+    dueDate: string;
+    renewalsCount: number;
+    overdueDays: number;
+    estimatedOverdueFine: number;
+  } | null;
+  reservedFor?: {
+    holdId: number;
+    userCode: string;
+    fullName: string;
+    pickupDeadline?: string | null;
+  } | null;
+}
+
+export type DigitalProcessingStatus = "PENDING" | "PROCESSING" | "INDEXED" | "LOW_QUALITY" | "FAILED";
+
+// GET /api/admin/digital-copies
+export interface DigitalProcessingItemDto {
+  digitalCopyId: string;
+  documentId?: string | null;
+  documentTitle?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  version?: string | null;
+  isCurrent?: boolean | null;
+  pageCount?: number | null;
+  extractionQuality?: number | null;
+  processingStatus: DigitalProcessingStatus | string;
+  uploadedAt?: string | null;
+  uploadedBy?: string | null;
+  jobId?: number | null;
+  jobStatus?: string | null;
+  attempts?: number | null;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+
+export interface DigitalProcessingListResponse {
+  statusCounts: Record<string, number>;
+  page: PageResponse<DigitalProcessingItemDto>;
+}
+
 export interface HoldCancelResponseDto {
   holdId: number;
   documentId: string;
@@ -428,10 +533,12 @@ export interface HoldCancelResponseDto {
 }
 
 // --- Module 4 & 5: Search & Recommendations ---
+export type SearchMode = "tfidf" | "vector" | "hybrid";
+
 export interface ContentSearchRequest {
   query: string;
   limit?: number;
-  searchMode?: "tfidf" | "vector" | "hybrid" | string;
+  searchMode?: SearchMode | string;
   searchType?: "VECTOR" | "BM25" | "HYBRID";
 }
 
@@ -448,17 +555,41 @@ export interface ContentSearchResultDto {
   shelfLocation?: string;
 }
 
+/** Vị trí một từ/cụm từ khớp trong PDF, dùng để tô sáng khi đọc. */
 export interface TextLocationDto {
-  page?: number;
-  printedPageLabel?: string;
-  paragraph?: number;
-  sentence?: number;
-  wordStart?: number;
-  wordEnd?: number;
-  text?: string;
-  rects?: number[][];
-  pageWidth?: number;
-  pageHeight?: number;
+  page: number;
+  printedPageLabel?: string | null;
+  paragraph: number;
+  sentence: number;
+  wordStart: number;
+  wordEnd: number;
+  text: string;
+  // [x0, y0, x1, y1] theo điểm PDF, gốc ở góc trên-trái trang
+  rects: number[][];
+  pageWidth: number;
+  pageHeight: number;
+}
+
+export interface DocumentMatchDto {
+  chunkIds: string[];
+  matchScore: number;
+  pageNumber?: number | null;
+  pageEnd?: number | null;
+  chapter?: string | null;
+  section?: string | null;
+  wordStart?: number | null;
+  wordEnd?: number | null;
+  snippet?: string | null;
+  locations: TextLocationDto[];
+}
+
+export interface DocumentMatchesResponse {
+  documentId: string;
+  query: string;
+  searchMode?: string;
+  booleanQuery: boolean;
+  highlightTerms: string[];
+  matches: DocumentMatchDto[];
 }
 
 export interface SmartSearchRequest {

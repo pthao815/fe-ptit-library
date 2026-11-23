@@ -87,6 +87,8 @@ export type ContentSearchResult = Book & {
   snippetMatch: string;
   snippetAfter: string;
   location: string;
+  // Trang của đoạn khớp, để mở trình đọc đúng chỗ
+  pageNumber?: number;
   copies: string;
   shelf: string;
   digital: boolean;

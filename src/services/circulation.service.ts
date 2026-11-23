@@ -2,63 +2,33 @@ import type {
   BorrowRequestDto,
   BorrowResponseDto,
   CirculationHistoryItemDto,
+  CopyLookupDto,
   FinePaymentResponseDto,
   HoldCancelResponseDto,
   HoldRequestDto,
   HoldResponseDto,
+  HoldStatus,
+  MyHoldItemDto,
   PageResponse,
   PaginationParams,
   RenewRequestDto,
   RenewResponseDto,
   ReturnRequestDto,
   ReturnResponseDto,
+  StaffHoldItemDto,
   UserFinesSummaryDto,
 } from "../types/api";
 import { ApiError, http } from "./http";
-import { getStoredUser } from "./session";
 
-const HOLDS_STORAGE_PREFIX = "ptit-library-holds";
-
-function getHoldsStorageKey(): string {
-  const userId = getStoredUser()?.id || "current";
-  return `${HOLDS_STORAGE_PREFIX}:${userId}`;
-}
-
-export function getTrackedHolds(): HoldResponseDto[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(getHoldsStorageKey());
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as HoldResponseDto[];
-    return Array.isArray(parsed)
-      ? parsed.filter((item) => Number.isSafeInteger(item?.holdId) && item.holdId > 0)
-      : [];
-  } catch {
-    return [];
+// Trước đây lượt đặt trước được lưu tạm trong localStorage; giờ đọc từ API, dọn khóa cũ cho sạch.
+try {
+  if (typeof window !== "undefined") {
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith("ptit-library-holds"))
+      .forEach((key) => window.localStorage.removeItem(key));
   }
-}
-
-export function getTrackedHoldByDocumentId(documentId: string): HoldResponseDto | undefined {
-  if (!documentId) return undefined;
-  return getTrackedHolds().find(
-    (item) => item.documentId?.toLowerCase() === documentId.toLowerCase(),
-  );
-}
-
-export function saveTrackedHold(hold: HoldResponseDto): void {
-  if (typeof window === "undefined" || !Number.isSafeInteger(hold?.holdId)) return;
-  const current = getTrackedHolds().filter(
-    (item) =>
-      item.holdId !== hold.holdId &&
-      item.documentId?.toLowerCase() !== hold.documentId?.toLowerCase(),
-  );
-  window.localStorage.setItem(getHoldsStorageKey(), JSON.stringify([hold, ...current]));
-}
-
-export function removeTrackedHold(holdId: number): void {
-  if (typeof window === "undefined") return;
-  const next = getTrackedHolds().filter((item) => item.holdId !== holdId);
-  window.localStorage.setItem(getHoldsStorageKey(), JSON.stringify(next));
+} catch {
+  // Trình duyệt chặn storage: bỏ qua
 }
 
 export const circulationService = {
@@ -136,8 +106,37 @@ export const circulationService = {
       if (!hold || !Number.isSafeInteger(hold.holdId) || hold.holdId < 1) {
         throw new ApiError("Backend không trả về mã đặt trước hợp lệ.", 0);
       }
-      saveTrackedHold(hold);
       return hold;
+    });
+  },
+
+  // status: bỏ trống = tất cả; "ACTIVE" = đang chờ + sẵn sàng nhận
+  getMyHolds(status?: "ACTIVE" | HoldStatus): Promise<MyHoldItemDto[]> {
+    return http.get<MyHoldItemDto[]>("/api/users/me/holds", { status }).then((items) => {
+      if (!Array.isArray(items)) {
+        throw new ApiError("Backend không trả về danh sách đặt trước hợp lệ.", 0);
+      }
+      return items;
+    });
+  },
+
+  // Thủ thư: danh sách đặt trước (mặc định đang chờ + sẵn sàng nhận)
+  searchHolds(params?: { status?: "ACTIVE" | HoldStatus; keyword?: string }): Promise<StaffHoldItemDto[]> {
+    return http.get<StaffHoldItemDto[]>("/api/holds", params).then((items) => {
+      if (!Array.isArray(items)) {
+        throw new ApiError("Backend không trả về danh sách đặt trước hợp lệ.", 0);
+      }
+      return items;
+    });
+  },
+
+  // Thủ thư: tra bản sách theo mã vạch (nhan đề, lượt mượn đang mở, lượt giữ)
+  lookupCopy(barcode: string): Promise<CopyLookupDto> {
+    return http.get<CopyLookupDto>(`/api/circulation/copies/${encodeURIComponent(barcode.trim())}`).then((copy) => {
+      if (!copy?.barcode) {
+        throw new ApiError("Backend không trả về thông tin bản sách hợp lệ.", 0);
+      }
+      return copy;
     });
   },
 
@@ -149,7 +148,6 @@ export const circulationService = {
       if (!result || !Number.isSafeInteger(result.holdId)) {
         throw new ApiError("Backend không xác nhận hủy lượt đặt trước.", 0);
       }
-      removeTrackedHold(holdId);
       return result;
     });
   },

@@ -4,7 +4,7 @@ import { Avatar, Badge, Breadcrumb, Button, EmptyState, Icon, LoadingState, Rati
 import BookCover from "../../../components/books/BookCover";
 import BookCard from "../../../components/books/BookCard";
 import { catalogService, syncFavoriteBook } from "../../../services/catalog.service";
-import { circulationService, getTrackedHoldByDocumentId } from "../../../services/circulation.service";
+import { circulationService } from "../../../services/circulation.service";
 import { recommendationService } from "../../../services/recommendation.service";
 import { authSession } from "../../../shared/auth/auth-session";
 import { getAccessToken } from "../../../services/session";
@@ -99,11 +99,13 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     }).finally(() => {
       if (active) setSimilarLoading(false);
     });
-    if (requestedDocId) {
-      const trackedHold = getTrackedHoldByDocumentId(requestedDocId);
-      if (trackedHold) {
-        setHoldStatus(`Vị trí hàng chờ #${trackedHold.queuePosition}`);
-      }
+    setHoldStatus(null);
+    if (getAccessToken() && !isStaff) {
+      circulationService.getMyHolds("ACTIVE").then((holds) => {
+        const hold = holds.find((item) => item.documentId.toLowerCase() === requestedDocId.toLowerCase());
+        if (!active || !hold) return;
+        setHoldStatus(hold.status === "READY_FOR_PICKUP" ? "Sẵn sàng nhận tại quầy" : `Vị trí hàng chờ #${hold.queuePosition ?? "—"}`);
+      }).catch(() => {});
     }
     if (getAccessToken()) {
       catalogService.checkFavoriteStatus(requestedDocId).then((data) => {
@@ -190,9 +192,7 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     }
   };
   const handleOpenDigital = () => {
-    if (detail.digitalCopyId) {
-      window.open(catalogService.getDigitalDownloadUrl(detail.digitalCopyId), "_blank", "noopener");
-    }
+    if (detail.digitalCopyId) navigate(`/reader/document/${encodeURIComponent(activeDocId)}`);
   };
   const writeReview = () => navigate("/reader/book-detail/review?id=" + encodeURIComponent(activeDocId), { state: { returnTo: resultsPath } });
   const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });

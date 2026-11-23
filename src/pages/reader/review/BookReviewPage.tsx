@@ -33,6 +33,7 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
   const [document, setDocument] = useState<DocumentDetailDto>();
   const [documentError, setDocumentError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [ratingSummary, setRatingSummary] = useState<{ average: number | null; total: number } | null>(null);
   useEffect(() => {
     let active = true;
     setDocument(undefined);
@@ -43,6 +44,10 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
     }).catch((error: unknown) => {
       if (active) setDocumentError(error instanceof Error ? error.message : "Không tải được tài liệu.");
     });
+    setRatingSummary(null);
+    catalogService.getDocumentReviews(documentId, { page: 0, size: 1 }).then((data) => {
+      if (active) setRatingSummary({ average: data.averageRating ?? null, total: data.totalReviews ?? data.totalElements });
+    }).catch(() => { /* Không có tóm tắt thì ẩn khối điểm */ });
     return () => { active = false; };
   }, [documentId, revision]);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -148,8 +153,13 @@ export default function MaterialReviewPage({ mode = "create" }: { mode?: "create
             <p>Tác giả: <strong>{detailBook.author}</strong></p>
             <dl><div><dt>Nhà xuất bản</dt><dd>{document.publisher || "—"}</dd></div><div><dt>Năm xuất bản</dt><dd>{detailBook.year}</dd></div></dl>
           </div>
-          <div className="reviewed-material-rating"><strong>4.3</strong><Rating value={4} /><span>28 lượt đánh giá</span></div>
-          <small>Dữ liệu minh họa cho giao diện</small>
+          {ratingSummary && (
+            <div className="reviewed-material-rating">
+              <strong>{ratingSummary.total > 0 && ratingSummary.average ? ratingSummary.average.toFixed(1) : "—"}</strong>
+              <Rating value={Math.round(ratingSummary.average ?? 0)} />
+              <span>{ratingSummary.total > 0 ? `${ratingSummary.total} lượt đánh giá` : "Chưa có đánh giá"}</span>
+            </div>
+          )}
         </section>
 
         {mode === "logged-out" ? (

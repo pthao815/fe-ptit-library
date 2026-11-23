@@ -174,7 +174,16 @@ export default function SearchResultCard({
               variant="secondary"
               size="sm"
               icon="document"
-              onClick={() => navigate(`/reader/document/${item.pageNumber}`)}
+              // Mở trình đọc đúng tài liệu, đúng trang, kèm truy vấn để tô sáng đoạn khớp
+              onClick={() =>
+                navigate(
+                  `/reader/document/${encodeURIComponent(item.documentId)}?${new URLSearchParams({
+                    page: String(item.pageNumber),
+                    q: query,
+                  })}`,
+                  returnState,
+                )
+              }
             >
               Đọc trang {item.pageNumber}
             </Button>
