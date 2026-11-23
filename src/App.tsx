@@ -57,8 +57,10 @@ export default function App({ restoration }: { restoration?: Promise<unknown> })
     return <Navigate replace to="/login" state={{ returnTo: target, expired: isSessionExpired() }} />;
   }
   if (access === "forbidden" || access === "missing") {
-    return <main className="reader-main empty-state" role="alert">
+    return <main className="reader-main empty-state access-state" role="alert">
+      <span className="access-state-icon">{access === "forbidden" ? "403" : "404"}</span>
       <h1>{access === "forbidden" ? "Bạn không có quyền truy cập" : "Không tìm thấy trang"}</h1>
+      <p>{access === "forbidden" ? "Tài khoản hiện tại không được phép mở trang này. Nếu cần quyền, hãy liên hệ quản trị viên." : "Đường dẫn không tồn tại hoặc đã được thay đổi."}</p>
       <Link className="btn btn-primary" to={home}>Về trang chủ</Link>
     </main>;
   }

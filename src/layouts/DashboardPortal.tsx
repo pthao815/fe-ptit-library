@@ -1,7 +1,7 @@
 import { workspacePaths } from "../constants/navigation";
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useRoutes } from "react-router-dom";
-import { IconButton, SearchInput } from "../design-system";
+import { Icon, IconButton, SearchInput, type IconName } from "../design-system";
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import UserMenu from "../components/common/UserMenu";
 import { logout } from "../utils/logout";
@@ -15,6 +15,15 @@ import ReservationManagementPage from "../pages/staff/reservations/ReservationMa
 import ReaderManagementPage from "../pages/staff/readers/ReaderManagementPage";
 import ReportsScreen from "../pages/staff/reports/ReportsScreen";
 import SettingsWorkspace from "../features/library-settings/components/SettingsWorkspace";
+
+// Lối tắt trên trang chủ quản trị
+const ADMIN_SHORTCUTS: { label: string; icon: IconName; description: string }[] = [
+  { label: "Chính sách mượn trả", icon: "settings", description: "Hạn mức, thời hạn mượn theo từng nhóm bạn đọc" },
+  { label: "Loại hình phạt", icon: "shield", description: "Danh mục vi phạm, đơn vị tính và mức phí" },
+  { label: "Cấu hình tra cứu", icon: "search", description: "Cấu hình bóc tách và chỉ mục tìm kiếm mặc định" },
+  { label: "Quản lý tài liệu", icon: "book", description: "Biên mục, bản giấy và tài liệu số" },
+  { label: "Bạn đọc", icon: "users", description: "Hồ sơ bạn đọc và trạng thái thẻ thư viện" },
+];
 
 export default function DashboardPortal({ role, path }: { role: "staff" | "admin"; path: string }) {
   const navigate = useNavigate();
@@ -45,11 +54,21 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
       { path: "reports", element: <ReportsScreen /> },
     ] : []),
     ...(!isStaff ? [
-      { index: true, element: <section className="materials-page">
-        <h1>Không gian quản trị</h1>
-        <nav className="detail-primary-actions" aria-label="Chức năng quản trị">
-          {["Chính sách mượn trả", "Loại hình phạt", "Cấu hình tra cứu", "Quản lý tài liệu", "Bạn đọc"].map((label) =>
-            <Link className="btn btn-secondary" key={label} to={"/admin/" + workspacePaths[label]}>{label}</Link>)}
+      { index: true, element: <section className="materials-page admin-home">
+        <div className="materials-page-heading">
+          <div>
+            <p className="eyebrow">QUẢN TRỊ HỆ THỐNG</p>
+            <h1>Không gian quản trị</h1>
+            <p>Cấu hình chính sách, tra cứu và quản lý dữ liệu dùng chung của thư viện.</p>
+          </div>
+        </div>
+        <nav className="admin-home-grid" aria-label="Chức năng quản trị">
+          {ADMIN_SHORTCUTS.map((item) =>
+            <Link className="admin-home-card" key={item.label} to={"/admin/" + workspacePaths[item.label]}>
+              <span className="admin-home-icon"><Icon name={item.icon} size={20} /></span>
+              <span className="admin-home-copy"><strong>{item.label}</strong><small>{item.description}</small></span>
+              <Icon name="chevron-right" size={16} />
+            </Link>)}
         </nav>
       </section> },
       { path: "workspace", element: <Navigate replace to="/admin" /> },
@@ -88,7 +107,6 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
           </div>
         </header>
         <main className="workspace-content-wrap">
-          {["digital-processing", "reservations", "reports"].includes(section) && <p role="status">Màn hình xem trước có thể hiển thị dữ liệu minh họa.</p>}
           {page}
         </main>
       </div>
