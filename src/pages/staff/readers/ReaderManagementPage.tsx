@@ -221,20 +221,61 @@ export default function ReaderManagementPage() {
           </>}
       </section>
 
-      <Modal open={Boolean(selectedReader)} onClose={() => setSelectedReader(undefined)} title="Hồ sơ bạn đọc" className="reader-detail-modal">
-        {selectedReader && <div className="reader-profile">
-          <dl className="reader-personal-info">
-            <div><dt>Họ tên</dt><dd>{selectedReader.fullName}</dd></div>
-            <div><dt>Mã bạn đọc</dt><dd>{selectedReader.userCode}</dd></div>
-            <div><dt>Email</dt><dd>{selectedReader.email}</dd></div>
-            <div><dt>Khoa/ngành</dt><dd>{selectedReader.departmentName || "—"}</dd></div>
-            <div><dt>Điện thoại</dt><dd>{selectedReader.phone || "—"}</dd></div>
-            <div><dt>Hạn thẻ</dt><dd>{formatDateVi(selectedReader.cardExpiry)}</dd></div>
-            <div><dt>Trạng thái</dt><dd>{labelFor(statuses, selectedReader.status)}</dd></div>
-            {selectedReader.lockReason && <div><dt>Lý do khóa</dt><dd>{selectedReader.lockReason}</dd></div>}
-          </dl>
-          {cardActionButton(selectedReader)}
-        </div>}
+      <Modal
+        open={Boolean(selectedReader)}
+        onClose={() => setSelectedReader(undefined)}
+        eyebrow="THÔNG TIN BẠN ĐỌC"
+        title="Hồ sơ bạn đọc"
+        className="reader-detail-modal"
+      >
+        {selectedReader && (
+          <div className="reader-profile">
+            <div className="reader-profile-header">
+              <Avatar name={selectedReader.fullName} size="lg" />
+              <div>
+                <div>
+                  <h2>{selectedReader.fullName}</h2>
+                  <Status tone={selectedReader.status === "ACTIVE" ? "success" : selectedReader.status === "LOCKED" ? "error" : "warning"}>
+                    {labelFor(statuses, selectedReader.status)}
+                  </Status>
+                </div>
+                <p>{selectedReader.userCode} · {labelFor(types, selectedReader.userType)}</p>
+              </div>
+            </div>
+
+            {selectedReader.status === "LOCKED" && selectedReader.lockReason && (
+              <div className="reader-lock-alert" role="status">
+                <div>
+                  <strong>Thẻ thư viện hiện đang bị khóa</strong>
+                  <p>Lý do: {selectedReader.lockReason}</p>
+                </div>
+              </div>
+            )}
+
+            <dl className="reader-personal-info">
+              <div><dt>Họ tên</dt><dd>{selectedReader.fullName}</dd></div>
+              <div><dt>Mã bạn đọc</dt><dd><code>{selectedReader.userCode}</code></dd></div>
+              <div><dt>Email</dt><dd>{selectedReader.email}</dd></div>
+              <div><dt>Khoa/ngành</dt><dd>{selectedReader.departmentName || "—"}</dd></div>
+              <div><dt>Điện thoại</dt><dd>{selectedReader.phone || "—"}</dd></div>
+              <div><dt>Hạn thẻ</dt><dd>{formatDateVi(selectedReader.cardExpiry)}</dd></div>
+              <div><dt>Loại bạn đọc</dt><dd>{labelFor(types, selectedReader.userType)}</dd></div>
+              <div><dt>Trạng thái thẻ</dt><dd>{labelFor(statuses, selectedReader.status)}</dd></div>
+            </dl>
+
+            <div className="modal-actions">
+              <Button variant="ghost" onClick={() => setSelectedReader(undefined)}>Đóng</Button>
+              {(selectedReader.status === "ACTIVE" || selectedReader.status === "LOCKED") && (
+                <Button
+                  variant={selectedReader.status === "LOCKED" ? "primary" : "danger"}
+                  onClick={() => askCardAction(selectedReader)}
+                >
+                  {selectedReader.status === "LOCKED" ? "Mở khóa thẻ" : "Khóa thẻ"}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
       <Modal open={Boolean(cardAction)} onClose={() => { if (!submitting.current) setCardAction(undefined); }} title={cardAction?.lock ? "Khóa thẻ bạn đọc" : "Mở khóa thẻ bạn đọc"}>
         <p>{cardAction?.reader.fullName} · {cardAction?.reader.userCode}</p>

@@ -148,6 +148,7 @@ export interface DocumentDetailDto {
   totalPhysicalCopies: number;
   availablePhysicalCopies: number;
   hasDigitalCopy: boolean;
+  physicalCopies?: PhysicalCopyDto[];
   digitalCopyId?: string;
   digitalFileName?: string;
   digitalProcessingStatus?: string;

@@ -73,6 +73,7 @@ export function mapDocumentSummaryToBook(dto: DocumentSummaryDto, index = 0): Bo
     available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
     code: dto.id.slice(0, 6).toUpperCase(),
     cover: pickCoverByIndex(index, dto.coverUrl),
+    coverUrl: dto.coverUrl,
   };
 }
 
@@ -89,6 +90,7 @@ export function mapFavoriteDocumentToBook(dto: FavoriteDocumentDto, index = 0): 
     available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
     code: docId.slice(0, 6).toUpperCase(),
     cover: pickCoverByIndex(index, dto.coverUrl),
+    coverUrl: dto.coverUrl,
   };
 }
 
@@ -105,6 +107,7 @@ export function mapDocumentDetailToBook(dto: DocumentDetailDto, index = 0): Book
     available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
     code: dto.classificationNumber || dto.id.slice(0, 6).toUpperCase(),
     cover: pickCoverByIndex(index, dto.coverUrl),
+    coverUrl: dto.coverUrl,
   };
 }
 
@@ -146,6 +149,7 @@ export function mapSimilarDocumentToBook(
     available: dto.availablePhysicalCopies > 0 || dto.hasDigitalCopy,
     code: dto.classificationNumber || dto.documentId.slice(0, 6).toUpperCase(),
     cover: pickCoverByIndex(index, dto.coverUrl),
+    coverUrl: dto.coverUrl,
   };
 }
 
@@ -364,7 +368,7 @@ export function mapMessageQueueToNotification(dto: MessageQueueDto): LibraryNoti
     ],
     relatedTitle: "Thư viện số thông minh PTIT",
     relatedSubtitle: dto.content,
-    actionLabel: "Xem tủ sách của tôi",
-    actionPath: "/reader/my-library",
+    actionLabel: isHold ? "Xem danh sách đặt trước" : "Xem tủ sách của tôi",
+    actionPath: isHold ? "/reader/my-library/reservations" : "/reader/my-library",
   };
 }

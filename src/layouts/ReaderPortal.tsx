@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Link, useLocation, useNavigate, useRoutes } from "react-router-dom";
 import { IconButton, SearchInput } from "../design-system";
 import { readerNavigation } from "../constants/navigation";
@@ -6,6 +6,8 @@ import { logout } from "../utils/logout";
 import Brand from "../components/common/Brand";
 import UserMenu from "../components/common/UserMenu";
 import { authSession } from "../shared/auth/auth-session";
+import { notificationService } from "../services/analytics.service";
+import { getAccessToken } from "../services/session";
 import NotificationDropdown from "../components/notifications/NotificationDropdown";
 import ReaderHome from "../pages/reader/home/ReaderHomePage";
 import GuidelinesPage from "../pages/reader/guidelines/GuidelinesPage";
@@ -25,6 +27,29 @@ export default function ReaderPortal({ path }: { path: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+  const refreshUnreadNotifications = useCallback(() => {
+    if (!isReader || !getAccessToken()) {
+      setHasUnreadNotifications(false);
+      return;
+    }
+    notificationService
+      .getMyNotifications({ page: 0, size: 5 })
+      .then((pageData) => {
+        setHasUnreadNotifications(pageData.items.some((item) => item.status !== "READ"));
+      })
+      .catch(() => {
+        setHasUnreadNotifications(false);
+      });
+  }, [isReader]);
+
+  useEffect(() => {
+    refreshUnreadNotifications();
+    const handleUpdate = () => refreshUnreadNotifications();
+    window.addEventListener("ptit:notifications-updated", handleUpdate);
+    return () => window.removeEventListener("ptit:notifications-updated", handleUpdate);
+  }, [refreshUnreadNotifications]);
 
   const page = useRoutes([
     { path: "profile/*", element: <PersonalProfilePage restricted={path.endsWith("/restricted")} /> },
@@ -68,8 +93,12 @@ export default function ReaderPortal({ path }: { path: string }) {
             }}><SearchInput name="keyword" className="reader-search" placeholder="Tìm tài liệu..." /></form>
             {isReader && <span className="notification">
               <IconButton label="Thông báo" icon="bell" onClick={() => setNotificationsOpen(!notificationsOpen)} />
-              <i />
-              <NotificationDropdown open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+              {hasUnreadNotifications && <i />}
+              <NotificationDropdown
+                open={notificationsOpen}
+                onClose={() => setNotificationsOpen(false)}
+                onSyncUnread={setHasUnreadNotifications}
+              />
             </span>}
             {isReader && <UserMenu open={userOpen} onToggle={() => setUserOpen(!userOpen)} onProfile={() => { setUserOpen(false); navigate("/reader/profile"); }} onLogout={() => { setUserOpen(false); logout(navigate); }} role="reader" />}
             {!isReader && <Link className="btn btn-secondary" to={session ? session.role === "ADMIN" ? "/admin" : "/staff" : "/login"}>{session ? "Về cổng nghiệp vụ" : "Đăng nhập"}</Link>}

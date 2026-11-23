@@ -6,10 +6,25 @@ import { notificationService } from "../../services/analytics.service";
 import { getAccessToken } from "../../services/session";
 import { mapMessageQueueToNotification } from "../../utils/mappers";
 
-export default function NotificationDropdown({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function NotificationDropdown({
+  open,
+  onClose,
+  onSyncUnread,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSyncUnread?: (hasUnread: boolean) => void;
+}) {
   const navigate = useNavigate();
   const [items, setItems] = useState<LibraryNotification[]>([]);
   const [status, setStatus] = useState<"loading" | "error" | "ready">("loading");
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setRefreshTick((value) => value + 1);
+    window.addEventListener("ptit:notifications-updated", handleUpdate);
+    return () => window.removeEventListener("ptit:notifications-updated", handleUpdate);
+  }, []);
 
   useEffect(() => {
     if (!open || !getAccessToken()) return;
@@ -20,8 +35,10 @@ export default function NotificationDropdown({ open, onClose }: { open: boolean;
       .getMyNotifications({ page: 0, size: 5 })
       .then((pageData) => {
         if (active) {
-          setItems(pageData.items.map(mapMessageQueueToNotification));
+          const mapped = pageData.items.map(mapMessageQueueToNotification);
+          setItems(mapped);
           setStatus("ready");
+          onSyncUnread?.(mapped.some((item) => item.unread));
         }
       })
       .catch(() => {
@@ -30,7 +47,7 @@ export default function NotificationDropdown({ open, onClose }: { open: boolean;
     return () => {
       active = false;
     };
-  }, [open]);
+  }, [open, refreshTick, onSyncUnread]);
 
   if (!open) return null;
 

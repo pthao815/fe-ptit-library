@@ -431,24 +431,54 @@ export default function CirculationScreen() {
       <div className="circulation-tabs" role="tablist">{circulationTabs.map((tab) => <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)} role="tab" aria-selected={activeTab === tab}>{tab === "Cho mượn" ? <Icon name="book" /> : tab === "Nhận trả" ? <Icon name="arrow-left" /> : <Icon name="sparkle" />}{tab}</button>)}</div>
       <section className="circulation-search-area">
         <div className="search-type-tabs">{["Mã bạn đọc", "Tên bạn đọc"].map((type) => <button key={type} className={searchType === type ? "active" : ""} onClick={() => { setSearchType(type); resetReaderLookup(); }}>{type}</button>)}</div>
-        <div className="staff-reader-search">
+        <form
+          className="staff-reader-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleFindReader();
+          }}
+        >
           <SearchInput
             value={readerQuery}
             onChange={(event) => { setReaderQuery(event.target.value); resetReaderLookup(); }}
             placeholder={searchType === "Mã bạn đọc" ? "Nhập hoặc quét mã bạn đọc..." : "Nhập họ tên bạn đọc..."}
           />
-          <Button icon="search" loading={findingReader} disabled={!readerQuery.trim()} onClick={handleFindReader}>Tìm bạn đọc</Button>
-        </div>
-        {readerResults.length > 0 && <fieldset>
-          <legend>Chọn đúng bạn đọc trước khi lập phiếu</legend>
-          {readerResults.map((reader) => <label key={reader.id} style={{ display: "block" }}>
-            <input type="radio" name="circulation-reader" checked={currentReader?.id === reader.id}
-              onChange={() => setCurrentReader(reader)} />{" "}
-            {reader.fullName} · {reader.userCode} {reader.departmentName ? "· " + reader.departmentName : ""}
-          </label>)}
-          {hasMoreReaders && <p>Chỉ hiển thị 10 kết quả đầu. Nhập mã bạn đọc để thu hẹp tìm kiếm.</p>}
-        </fieldset>}
+          <Button type="submit" icon="search" loading={findingReader} disabled={!readerQuery.trim()}>Tìm bạn đọc</Button>
+        </form>
         <span><Icon name="info" size={14} />Có thể sử dụng máy quét mã vạch tại quầy</span>
+        {readerResults.length > 0 && (
+          <fieldset className="reader-lookup-results">
+            <legend>Chọn đúng bạn đọc trước khi lập phiếu ({readerResults.length} kết quả)</legend>
+            <div className="reader-lookup-list">
+              {readerResults.map((reader) => {
+                const selected = currentReader?.id === reader.id;
+                return (
+                  <label key={reader.id} className={`reader-lookup-option ${selected ? "selected" : ""}`}>
+                    <input
+                      type="radio"
+                      name="circulation-reader"
+                      checked={selected}
+                      onChange={() => setCurrentReader(reader)}
+                    />
+                    <span className="reader-lookup-copy">
+                      <strong>{reader.fullName}</strong>
+                      <small>
+                        <code>{reader.userCode}</code>
+                        {reader.departmentName ? ` · ${reader.departmentName}` : ""}
+                      </small>
+                    </span>
+                    <Status tone={reader.status === "ACTIVE" ? "success" : "error"}>
+                      {reader.status === "ACTIVE" ? "Hoạt động" : reader.status}
+                    </Status>
+                  </label>
+                );
+              })}
+            </div>
+            {hasMoreReaders && (
+              <p className="reader-lookup-note">Chỉ hiển thị 10 kết quả đầu. Nhập mã bạn đọc để thu hẹp tìm kiếm.</p>
+            )}
+          </fieldset>
+        )}
       </section>
       {currentReader && <ReaderInformationCard reader={currentReader} />}
       <div className="circulation-content">

@@ -1,4 +1,5 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import type { MouseEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Badge, Button, Icon, Status } from "../../../design-system";
 import BookCover from "../../../components/books/BookCover";
 import { parseMarkedSnippet, type UnifiedSearchItem } from "./search-options";
@@ -40,8 +41,13 @@ export default function SearchResultCard({
   const returnState = { state: { returnTo: location.pathname + location.search } };
   const snippetParts = item.mode === "smart" ? parseMarkedSnippet(item.snippet) : [];
 
+  const handleCardClick = (event: MouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+    navigate(detailUrl, returnState);
+  };
+
   return (
-    <article className="search-result-card">
+    <article className="search-result-card clickable-card" onClick={handleCardClick}>
       <div className="result-cover-column">
         <BookCover book={item.book} />
         <Badge tone="brand">{item.docTypeLabel}</Badge>
@@ -62,7 +68,9 @@ export default function SearchResultCard({
               )}
             </div>
             <h2>
-              <HighlightText text={item.title} query={query} />
+              <Link to={detailUrl} state={returnState.state}>
+                <HighlightText text={item.title} query={query} />
+              </Link>
             </h2>
             <p className="result-author">
               {item.mode === "smart" ? (

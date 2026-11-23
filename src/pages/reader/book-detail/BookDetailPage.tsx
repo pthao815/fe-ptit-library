@@ -32,6 +32,21 @@ const sections = [
   { id: "detail-similar", label: "Sách tương tự" },
 ];
 
+type DetailToast = {
+  tone: "success" | "error" | "info";
+  title: string;
+  text: string;
+};
+
+function physicalConditionTone(condition?: string): "success" | "warning" | "error" | "neutral" {
+  const normalized = (condition || "").trim().toLowerCase();
+  if (!normalized) return "neutral";
+  if (/mới|tốt|nguyên|new|good/.test(normalized)) return "success";
+  if (/cũ|trầy|nhẹ|fair|worn/.test(normalized)) return "warning";
+  if (/hư|hỏng|rách|mất|damaged|lost/.test(normalized)) return "error";
+  return "neutral";
+}
+
 export default function BookDetailPage() {
   const [searchParams] = useSearchParams();
   const requestedDocId = searchParams.get("id") ?? "";
@@ -65,7 +80,14 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
   const [similarSaved, setSimilarSaved] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
   const [holdStatus, setHoldStatus] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [placingHold, setPlacingHold] = useState(false);
+  const [toast, setToast] = useState<DetailToast | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     let active = true;
@@ -170,25 +192,77 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     return { star, share: reviews.length ? Math.round((count / reviews.length) * 100) : 0 };
   });
 
+  const displayedCopies = copies && copies.length > 0 ? copies : (detail.physicalCopies ?? []);
+  const canPlaceHold = !holdStatus && !placingHold && totalCopies > 0 && !isAvailable;
+  const holdButtonLabel = holdStatus
+    ? `Đã đặt trước · ${holdStatus}`
+    : isAvailable
+      ? "Có sẵn tại quầy"
+      : totalCopies === 0
+        ? "Chưa có bản in"
+        : "Đặt trước";
+  const holdButtonTitle = holdStatus
+    ? "Bạn đã có yêu cầu đặt trước cho tài liệu này"
+    : isAvailable
+      ? "Tài liệu đang có bản sẵn trên kệ, bạn có thể mượn trực tiếp tại quầy"
+      : totalCopies === 0
+        ? "Tài liệu này chưa có bản in để đặt trước"
+        : "Đăng ký vào hàng chờ đặt trước tài liệu";
+
   const handleToggleFavorite = async () => {
-    if (!getAccessToken()) return setToastMessage("Vui lòng đăng nhập để lưu tài liệu.");
+    if (!getAccessToken()) {
+      setToast({ tone: "info", title: "Cần đăng nhập", text: "Vui lòng đăng nhập để lưu tài liệu vào tủ sách." });
+      return;
+    }
     try {
       const response = await catalogService.toggleFavorite(activeDocId);
       setSaved(response.isFavorite);
       syncFavoriteBook(currentBook, response.isFavorite);
-      setToastMessage(response.isFavorite ? "Đã lưu tài liệu vào tủ sách." : "Đã bỏ lưu tài liệu khỏi tủ sách.");
+      setToast({
+        tone: "success",
+        title: "Tủ sách cá nhân",
+        text: response.isFavorite ? "Đã lưu tài liệu vào tủ sách." : "Đã bỏ lưu tài liệu khỏi tủ sách.",
+      });
     } catch (error) {
-      setToastMessage(error instanceof Error ? error.message : "Không lưu được tài liệu.");
+      setToast({
+        tone: "error",
+        title: "Không lưu được tài liệu",
+        text: error instanceof Error ? error.message : "Không cập nhật được tủ sách.",
+      });
     }
   };
   const handlePlaceHold = async () => {
-    if (!getAccessToken()) return setToastMessage("Vui lòng đăng nhập để đặt trước.");
+    if (placingHold || holdStatus) return;
+    if (!getAccessToken()) {
+      setToast({ tone: "info", title: "Cần đăng nhập", text: "Vui lòng đăng nhập để đặt trước tài liệu." });
+      return;
+    }
+    if (isAvailable) {
+      setToast({
+        tone: "info",
+        title: "Tài liệu đang có sẵn",
+        text: "Sách hiện vẫn còn bản sẵn sàng trên kệ, bạn có thể mượn trực tiếp tại quầy.",
+      });
+      return;
+    }
+    setPlacingHold(true);
     try {
       const response = await circulationService.placeHold({ documentId: activeDocId });
       setHoldStatus("Vị trí hàng chờ #" + response.queuePosition);
-      setToastMessage("Đặt trước tài liệu thành công. Vị trí hàng chờ #" + response.queuePosition);
+      setToast({
+        tone: "success",
+        title: "Đặt trước thành công",
+        text: `Đã đăng ký đặt trước tài liệu. Vị trí hàng chờ #${response.queuePosition}.`,
+      });
+      window.dispatchEvent(new Event("ptit:notifications-updated"));
     } catch (error) {
-      setToastMessage(error instanceof Error ? error.message : "Không đặt trước được tài liệu.");
+      setToast({
+        tone: "error",
+        title: "Không thể đặt trước",
+        text: error instanceof Error ? error.message : "Không đặt trước được tài liệu.",
+      });
+    } finally {
+      setPlacingHold(false);
     }
   };
   const handleOpenDigital = () => {
@@ -249,7 +323,17 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
             </div>
             <div className="detail-primary-actions">
               <Button icon="document" disabled={!detail.digitalCopyId} onClick={handleOpenDigital}>Đọc tài liệu số</Button>
-              {readerActions && <Button variant="secondary" disabled={Boolean(holdStatus)} onClick={handlePlaceHold}>{holdStatus || "Đặt trước"}</Button>}
+              {readerActions && (
+                <Button
+                  variant="secondary"
+                  loading={placingHold}
+                  disabled={!canPlaceHold}
+                  title={holdButtonTitle}
+                  onClick={handlePlaceHold}
+                >
+                  {holdButtonLabel}
+                </Button>
+              )}
               {readerActions && <Button variant="ghost" icon="bookmark" onClick={handleToggleFavorite}>{saved ? "Đã lưu vào tủ sách" : "Lưu vào tủ sách"}</Button>}
               {isStaff && <Button variant="secondary" onClick={() => navigate(`/${session!.role === "ADMIN" ? "admin" : "staff"}/materials/edit/${activeDocId}`)}>Sửa biểu ghi</Button>}
             </div>
@@ -270,17 +354,17 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
 
             <section className="detail-section" id="detail-copies">
               <div className="detail-section-heading"><span>02</span><div><h2>Bản giấy</h2><p>Thông tin các bản in hiện có tại thư viện</p></div></div>
-              {copies && copies.length > 0 ? (
+              {displayedCopies.length > 0 ? (
                 <div className="detail-table-wrap">
                   <table className="detail-table">
                     <thead><tr><th>Mã vạch</th><th>Mã xếp giá</th><th>Vị trí kệ</th><th>Tình trạng vật lý</th><th>Trạng thái lưu thông</th></tr></thead>
-                    <tbody>{copies.map((copy) => {
+                    <tbody>{displayedCopies.map((copy) => {
                       const status = copyStatuses[copy.status ?? ""] ?? { label: copy.status || "—", tone: "neutral" as const };
                       return <tr key={copy.id}>
                         <td><strong>{copy.barcode}</strong></td>
                         <td>{copy.callNumber || "—"}</td>
                         <td>{copy.shelfLocation || "—"}</td>
-                        <td>{copy.condition ? <Status tone={copy.condition === "Tốt" ? "success" : "error"}>{copy.condition}</Status> : "—"}</td>
+                        <td>{copy.condition ? <Status tone={physicalConditionTone(copy.condition)}>{copy.condition}</Status> : "—"}</td>
                         <td><Badge tone={status.tone}>{status.label}</Badge></td>
                       </tr>;
                     })}</tbody>
@@ -376,7 +460,7 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
                       onSave={async () => {
                         if (!book.documentId) return;
                         if (!getAccessToken()) {
-                          setToastMessage("Vui lòng đăng nhập để lưu tài liệu.");
+                          setToast({ tone: "info", title: "Cần đăng nhập", text: "Vui lòng đăng nhập để lưu tài liệu." });
                           return;
                         }
                         try {
@@ -384,7 +468,11 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
                           setSimilarSaved((prev) => ({ ...prev, [book.documentId!]: res.isFavorite }));
                           syncFavoriteBook(book, res.isFavorite);
                         } catch (error) {
-                          setToastMessage(error instanceof Error ? error.message : "Không lưu được tài liệu.");
+                          setToast({
+                            tone: "error",
+                            title: "Không lưu được tài liệu",
+                            text: error instanceof Error ? error.message : "Không lưu được tài liệu.",
+                          });
                         }
                       }}
                     />
@@ -411,8 +499,8 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
           </aside>
         </div>
       </main>
-      {toastMessage && <div className="toast-position">
-        <Toast title="Thông báo thư viện" onClose={() => setToastMessage(null)}>{toastMessage}</Toast>
+      {toast && <div className="toast-position">
+        <Toast tone={toast.tone} title={toast.title} onClose={() => setToast(null)}>{toast.text}</Toast>
       </div>}
     </div>
   );

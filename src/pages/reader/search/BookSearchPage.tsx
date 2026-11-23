@@ -383,26 +383,6 @@ function UnifiedBookSearch({
       <section className="results-search-area">
         <div className="results-search-inner">
           <Breadcrumb items={[{ label: "Trang chủ", to: "/reader" }, "Khám phá"]} />
-          <div className="results-search-box">
-            <Icon name={mode === "smart" ? "sparkle" : "search"} size={22} />
-            <input
-              aria-label={mode === "smart" ? "Nội dung tìm kiếm thông minh" : "Từ khóa tìm kiếm"}
-              value={query}
-              placeholder={
-                mode === "smart"
-                  ? "Mô tả chủ đề, dán đoạn trích hoặc dùng toán tử AND / OR / NOT..."
-                  : "Tìm theo nhan đề tài liệu, tác giả, ISBN..."
-              }
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && submitSearch()}
-            />
-            {query && (
-              <IconButton label="Xóa từ khóa" icon="close" onClick={() => setQuery("")} />
-            )}
-            <Button icon={mode === "smart" ? "sparkle" : "search"} onClick={submitSearch}>
-              Tìm kiếm
-            </Button>
-          </div>
 
           <div className="search-summary">
             <div>
@@ -466,6 +446,27 @@ function UnifiedBookSearch({
               <Icon name="sparkle" size={15} />
               Tìm kiếm thông minh
             </button>
+          </div>
+
+          <div className="results-search-box">
+            <Icon name={mode === "smart" ? "sparkle" : "search"} size={22} />
+            <input
+              aria-label={mode === "smart" ? "Nội dung tìm kiếm thông minh" : "Từ khóa tìm kiếm"}
+              value={query}
+              placeholder={
+                mode === "smart"
+                  ? "Mô tả chủ đề, dán đoạn trích hoặc dùng toán tử AND / OR / NOT..."
+                  : "Tìm theo nhan đề tài liệu, tác giả, ISBN..."
+              }
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && submitSearch()}
+            />
+            {query && (
+              <IconButton label="Xóa từ khóa" icon="close" onClick={() => setQuery("")} />
+            )}
+            <Button icon={mode === "smart" ? "sparkle" : "search"} onClick={submitSearch}>
+              Tìm kiếm
+            </Button>
           </div>
         </div>
       </section>

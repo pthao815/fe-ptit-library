@@ -247,7 +247,15 @@ export default function ReaderHome() {
                   ? `/reader/book-detail?id=${encodeURIComponent(book.documentId)}`
                   : undefined;
                 return (
-                  <article className="recommendation-card" key={book.id}>
+                  <article
+                    className={`recommendation-card ${detailPath ? "clickable-card" : ""}`}
+                    key={book.id}
+                    onClick={(event) => {
+                      if (!detailPath) return;
+                      if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+                      navigate(detailPath);
+                    }}
+                  >
                     {detailPath ? (
                       <Link to={detailPath} style={{ display: "flex", flexShrink: 0 }} aria-label={`Xem chi tiết ${book.title}`}>
                         <BookCover book={book} compact />

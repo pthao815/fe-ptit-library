@@ -26,4 +26,5 @@ export type Book = {
   available: boolean;
   code: string;
   cover: string;
+  coverUrl?: string;
 };
