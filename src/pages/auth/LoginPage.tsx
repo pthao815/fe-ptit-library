@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type * as React from "react";
 import { useLocation } from "react-router-dom";
 import { Button, Icon } from "../../design-system";
 import Brand from "../../components/common/Brand";
 import { authService } from "../../services/auth.service";
 import { ApiError } from "../../services/http";
+import {
+  acquireMicrosoftIdToken,
+  completeMicrosoftRedirect,
+  isMicrosoftAuthConfigured,
+} from "../../services/microsoft-auth";
+import { mapMicrosoftAuthError } from "../../utils/microsoft-auth";
 
 type LoginMessage =
   | { tone: "error" | "info"; text: string }
@@ -58,13 +64,66 @@ export default function LoginPage() {
     }
   };
 
-  const startMicrosoftLogin = () => {
+  useEffect(() => {
+    let active = true;
+    void completeMicrosoftRedirect()
+      .then(async (redirectResult) => {
+        if (!active || !redirectResult) return;
+        setLoading("microsoft");
+        setMessage(null);
+        await authService.loginWithMicrosoft(redirectResult.idToken, redirectResult.remember);
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (error instanceof ApiError) {
+          const text =
+            error.status !== 0
+              ? error.message
+              : "Không thể kết nối máy chủ thư viện để hoàn tất đăng nhập Microsoft.";
+          setMessage({ tone: "error", text });
+        } else {
+          setMessage(mapMicrosoftAuthError(error));
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const startMicrosoftLogin = async () => {
+    if (loading) return;
     setMessage(null);
+    if (!isMicrosoftAuthConfigured()) {
+      setMessage({
+        tone: "info",
+        text: "Chức năng đăng nhập bằng tài khoản Microsoft chưa được cấu hình trên trình duyệt (thiếu VITE_MICROSOFT_CLIENT_ID).",
+      });
+      return;
+    }
+
     setLoading("microsoft");
-    window.setTimeout(() => {
+    try {
+      const idToken = await acquireMicrosoftIdToken(remember);
+      if (!idToken) {
+        return;
+      }
+      await authService.loginWithMicrosoft(idToken, remember);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const text =
+          error.status !== 0
+            ? error.message
+            : "Không thể kết nối máy chủ thư viện để hoàn tất đăng nhập Microsoft.";
+        setMessage({ tone: "error", text });
+      } else {
+        setMessage(mapMicrosoftAuthError(error));
+      }
+    } finally {
       setLoading(null);
-      setMessage({ tone: "error", text: "Không thể đăng nhập bằng tài khoản Microsoft. Vui lòng thử lại hoặc sử dụng phương thức đăng nhập khác." });
-    }, 800);
+    }
   };
 
   return (

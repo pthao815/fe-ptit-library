@@ -27,6 +27,16 @@ export const API_TIMEOUT_MS =
     ? Number(import.meta.env.VITE_API_TIMEOUT)
     : DEFAULT_TIMEOUT_MS;
 
+const DEFAULT_MICROSOFT_AUTHORITY = "https://login.microsoftonline.com/organizations";
+
+export const MICROSOFT_CLIENT_ID = (import.meta.env.VITE_MICROSOFT_CLIENT_ID || "").trim();
+
+export const MICROSOFT_AUTHORITY = normalizeBaseUrl(
+  import.meta.env.VITE_MICROSOFT_AUTHORITY || DEFAULT_MICROSOFT_AUTHORITY,
+);
+
+export const MICROSOFT_REDIRECT_URI = (import.meta.env.VITE_MICROSOFT_REDIRECT_URI || "").trim();
+
 export function buildApiUrl(path: string): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${cleanPath}`;

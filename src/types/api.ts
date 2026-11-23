@@ -51,6 +51,10 @@ export interface LoginRequest {
   loginMethod?: string;
 }
 
+export interface MicrosoftLoginRequest {
+  idToken: string;
+}
+
 export interface RegisterRequest {
   userCode: string;
   fullName: string;

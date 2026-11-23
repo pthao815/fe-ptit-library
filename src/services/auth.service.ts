@@ -1,5 +1,6 @@
 import type {
   LoginRequest,
+  MicrosoftLoginRequest,
   RegisterRequest,
   TokenResponse,
   UserDto,
@@ -10,6 +11,15 @@ import { remembersSession, saveAuthSession, updateStoredUser } from "./session";
 export const authService = {
   async login(payload: LoginRequest, remember = true): Promise<TokenResponse> {
     const tokenData = await http.post<TokenResponse>("/api/auth/login", payload, {
+      skipAuth: true,
+    });
+    saveAuthSession(tokenData, remember);
+    return tokenData;
+  },
+
+  async loginWithMicrosoft(idToken: string, remember = true): Promise<TokenResponse> {
+    const payload: MicrosoftLoginRequest = { idToken };
+    const tokenData = await http.post<TokenResponse>("/api/auth/microsoft", payload, {
       skipAuth: true,
     });
     saveAuthSession(tokenData, remember);
