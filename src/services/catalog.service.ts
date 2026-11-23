@@ -15,6 +15,8 @@ import type {
   PhysicalCopyDto,
   PhysicalCopyRequestDto,
   ProcessingStatusResponse,
+  DigitalProcessingItemDto,
+  DigitalProcessingListResponse,
   ReviewDto,
   ReviewRequestDto,
 } from "../types/api";
@@ -226,6 +228,20 @@ export const catalogService = {
 
   getProcessingStatus(jobId: number): Promise<ProcessingStatusResponse> {
     return http.get<ProcessingStatusResponse>("/api/admin/digital-copies/processing-status", { jobId });
+  },
+
+  // Danh sách bản số kèm tiến trình bóc tách (thủ thư / quản trị)
+  listDigitalProcessing(params: { status?: string; keyword?: string; page?: number; size?: number }): Promise<DigitalProcessingListResponse> {
+    return http.get<DigitalProcessingListResponse>("/api/admin/digital-copies", params).then((result) => {
+      if (!result?.page || !Array.isArray(result.page.items)) {
+        throw new ApiError("Backend không trả về danh sách bản số hợp lệ.", 0);
+      }
+      return result;
+    });
+  },
+
+  reprocessDigitalCopy(digitalCopyId: string): Promise<DigitalProcessingItemDto> {
+    return http.post<DigitalProcessingItemDto>(`/api/admin/digital-copies/${encodeURIComponent(digitalCopyId)}/reprocess`);
   },
 
   getDigitalDownloadUrl(digitalCopyId: string): string {

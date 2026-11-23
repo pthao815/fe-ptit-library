@@ -10,7 +10,11 @@ import { catalogService, getTrackedFavorites, syncFavoriteBook } from "../../../
 import { recommendationService } from "../../../services/recommendation.service";
 import { getAccessToken, getStoredUser } from "../../../services/session";
 import type { Book } from "../../../types/library";
-import { mapDocumentSummaryToBook, mapRecommendationToBook } from "../../../utils/mappers";
+import { mapDocumentSummaryToBook, mapMessageQueueToNotification, mapRecommendationToBook } from "../../../utils/mappers";
+import { notificationService } from "../../../services/analytics.service";
+import type { LibraryNotification } from "../../../data/notifications";
+
+const NOTICE_TONE: Record<LibraryNotification["tone"], string> = { warning: "notice-warning", success: "notice-success", brand: "" };
 
 function useHomeCatalog(departmentId?: number, latest = false) {
   const [state, setState] = useState<{ books?: Book[]; error?: string }>({});
@@ -50,6 +54,17 @@ export default function ReaderHome() {
   const majorBooks = useHomeCatalog(departmentId);
   const latestBooks = useHomeCatalog(undefined, true);
   const [recommendations, setRecommendations] = useState(recommendationBooks);
+  const [notices, setNotices] = useState<{ status: "loading" | "error" | "ready"; items: LibraryNotification[] }>({ status: "loading", items: [] });
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let active = true;
+    notificationService
+      .getMyNotifications({ page: 0, size: 4 })
+      .then((page) => { if (active) setNotices({ status: "ready", items: page.items.map(mapMessageQueueToNotification) }); })
+      .catch(() => { if (active) setNotices({ status: "error", items: [] }); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -270,14 +285,27 @@ export default function ReaderHome() {
           {renderCatalog(latestBooks)}
         </HomeSection>
 
-        <HomeSection title="Thông báo thư viện" action="Xem tất cả thông báo">
-          <div className="notice-list">
-            <article className="notice-item notice-warning"><span><Icon name="book" /></span><div><Badge tone="warning">SẮP ĐẾN HẠN</Badge><h3>01 tài liệu cần trả trước ngày 28/06/2025</h3><p>Giáo trình “Cấu trúc dữ liệu và giải thuật” sắp đến hạn trả.</p></div><Icon name="chevron-right" /></article>
-            <article className="notice-item notice-success"><span><Icon name="bookmark" /></span><div><Badge tone="success">ĐÃ SẴN SÀNG</Badge><h3>Sách đặt trước của bạn đã sẵn sàng</h3><p>Vui lòng nhận tài liệu tại quầy lưu thông trong vòng 48 giờ.</p></div><Icon name="chevron-right" /></article>
-            <article className="notice-item"><span><Icon name="bell" /></span><div><Badge tone="info">THƯ VIỆN</Badge><h3>Điều chỉnh thời gian phục vụ cuối tuần</h3><p>Thư viện mở cửa từ 08:00 đến 17:00 vào thứ Bảy tuần này.</p></div><Icon name="chevron-right" /></article>
-            <article className="notice-item notice-error"><span><Icon name="error" /></span><div><Badge tone="error">CÔNG NỢ</Badge><h3>Bạn có một khoản phí cần xử lý</h3><p>Phí quá hạn tài liệu hiện tại là 20.000đ. Liên hệ quầy để được hỗ trợ.</p></div><Icon name="chevron-right" /></article>
-          </div>
-        </HomeSection>
+        {getAccessToken() && (
+          <HomeSection title="Thông báo thư viện" action="Xem tất cả thông báo" onAction={() => navigate("/reader/notifications")}>
+            {notices.status === "loading" ? (
+              <LoadingState surface="card" title="Đang tải thông báo…" />
+            ) : notices.status === "error" ? (
+              <EmptyState surface="card" tone="error" title="Không tải được thông báo" description="Vui lòng thử lại sau." />
+            ) : !notices.items.length ? (
+              <EmptyState surface="card" icon="bell" title="Chưa có thông báo nào" description="Nhắc hạn trả, sách đặt trước sẵn sàng… sẽ hiện tại đây." />
+            ) : (
+              <div className="notice-list">
+                {notices.items.map((item) => (
+                  <Link key={item.id} className={`notice-item ${NOTICE_TONE[item.tone]}`} to={`/reader/notifications/${item.id}`}>
+                    <span><Icon name={item.icon} /></span>
+                    <div><Badge tone={item.tone === "brand" ? "info" : item.tone}>{item.category}</Badge><h3>{item.title}</h3><p>{item.intro}</p></div>
+                    <Icon name="chevron-right" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </HomeSection>
+        )}
       </main>
 
       <footer className="reader-footer">

@@ -418,6 +418,111 @@ export interface HoldResponseDto {
   status: string;
 }
 
+export type HoldStatus = "WAITING" | "READY_FOR_PICKUP" | "FULFILLED" | "EXPIRED" | "CANCELLED";
+
+// GET /api/users/me/holds
+export interface MyHoldItemDto {
+  holdId: number;
+  documentId: string;
+  documentTitle: string;
+  docType?: string | null;
+  publicationYear?: number | null;
+  coverUrl?: string | null;
+  status: HoldStatus | string;
+  /** Chỉ có khi status = WAITING */
+  queuePosition?: number | null;
+  requestDate?: string | null;
+  estimatedAvailableDate?: string | null;
+  /** Có khi status = READY_FOR_PICKUP */
+  readyDate?: string | null;
+  pickupDeadline?: string | null;
+  barcode?: string | null;
+  callNumber?: string | null;
+  shelfLocation?: string | null;
+  cancelReason?: string | null;
+}
+
+// GET /api/holds (thủ thư)
+export interface StaffHoldItemDto {
+  holdId: number;
+  status: HoldStatus | string;
+  queuePosition?: number | null;
+  requestDate?: string | null;
+  readyDate?: string | null;
+  pickupDeadline?: string | null;
+  cancelReason?: string | null;
+  documentId: string;
+  documentTitle: string;
+  docType?: string | null;
+  publicationYear?: number | null;
+  userId: string;
+  userCode: string;
+  fullName: string;
+  email?: string | null;
+  phone?: string | null;
+  barcode?: string | null;
+  shelfLocation?: string | null;
+}
+
+// GET /api/circulation/copies/{barcode}
+export interface CopyLookupDto {
+  copyId: string;
+  barcode: string;
+  callNumber?: string | null;
+  shelfLocation?: string | null;
+  status: string;
+  documentId: string;
+  documentTitle: string;
+  authors: string[];
+  docType?: string | null;
+  publicationYear?: number | null;
+  activeLoan?: {
+    circulationId: number;
+    userCode: string;
+    fullName: string;
+    borrowDate: string;
+    dueDate: string;
+    renewalsCount: number;
+    overdueDays: number;
+    estimatedOverdueFine: number;
+  } | null;
+  reservedFor?: {
+    holdId: number;
+    userCode: string;
+    fullName: string;
+    pickupDeadline?: string | null;
+  } | null;
+}
+
+export type DigitalProcessingStatus = "PENDING" | "PROCESSING" | "INDEXED" | "LOW_QUALITY" | "FAILED";
+
+// GET /api/admin/digital-copies
+export interface DigitalProcessingItemDto {
+  digitalCopyId: string;
+  documentId?: string | null;
+  documentTitle?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  version?: string | null;
+  isCurrent?: boolean | null;
+  pageCount?: number | null;
+  extractionQuality?: number | null;
+  processingStatus: DigitalProcessingStatus | string;
+  uploadedAt?: string | null;
+  uploadedBy?: string | null;
+  jobId?: number | null;
+  jobStatus?: string | null;
+  attempts?: number | null;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+
+export interface DigitalProcessingListResponse {
+  statusCounts: Record<string, number>;
+  page: PageResponse<DigitalProcessingItemDto>;
+}
+
 export interface HoldCancelResponseDto {
   holdId: number;
   documentId: string;

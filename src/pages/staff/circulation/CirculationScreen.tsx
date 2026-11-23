@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
-import { Avatar, Badge, Breadcrumb, Button, EmptyState, Field, Icon, IconButton, Modal, SearchInput, SelectField, Status, Toast } from "../../../design-system";
+import { Avatar, Badge, Breadcrumb, Button, EmptyState, Field, Icon, IconButton, LoadingState, Modal, SearchInput, SelectField, Status, Toast } from "../../../design-system";
 import { circulationTabs } from "../../../constants/library-options";
 import { circulationService } from "../../../services/circulation.service";
 import { getAccessToken } from "../../../services/session";
 import { userService } from "../../../services/user.service";
-import type { BookReturnCondition, FineItemDto, UserDto } from "../../../types/api";
+import type { BookReturnCondition, CopyLookupDto, FineItemDto, UserDto } from "../../../types/api";
 
 function ReaderInformationCard({ reader }: { reader: UserDto | null }) {
   const fullName = reader?.fullName || "—";
@@ -52,39 +52,52 @@ function ValidationPanel() {
 
 type ScannedBookRow = {
   barcode: string;
-  title: string;
-  author: string;
-  borrowDate: string;
-  dueDate: string;
-  warning?: boolean;
+  /** Kết quả tra cứu bản sách; undefined = đang tra cứu */
+  copy?: CopyLookupDto;
+  error?: string;
 };
 
-const initialScannedBooks: ScannedBookRow[] = [
-  {
-    barcode: "PTIT-24-01842",
-    title: "Nhập môn Trí tuệ nhân tạo",
-    author: "Nguyễn Thanh Thủy · 2024",
-    borrowDate: "22/06/2025",
-    dueDate: "19/11/2025",
-  },
-  {
-    barcode: "PTIT-23-01108",
-    title: "Cấu trúc dữ liệu và giải thuật",
-    author: "Nguyễn Đức Nghĩa · 2023",
-    borrowDate: "22/06/2025",
-    dueDate: "19/11/2025",
-    warning: true,
-  },
-];
+const COPY_STATUS_LABEL: Record<string, string> = {
+  AVAILABLE: "Sẵn sàng cho mượn",
+  BORROWED: "Đang được mượn",
+  RESERVED: "Đang giữ đặt trước",
+  DAMAGED: "Hư hỏng",
+  LOST: "Đã mất",
+  MAINTENANCE: "Đang bảo trì",
+};
+
+// Đánh giá một dòng trong phiếu mượn đối với bạn đọc đang chọn
+function loanRowState(row: ScannedBookRow, readerCode?: string): { tone: "success" | "warning" | "error" | "neutral"; label: string; blocking: boolean } {
+  if (row.error) return { tone: "error", label: row.error.startsWith("Không tìm thấy") ? "Không tìm thấy mã này" : "Lỗi tra cứu", blocking: true };
+  if (!row.copy) return { tone: "neutral", label: "Đang tra cứu…", blocking: true };
+  const { status, reservedFor } = row.copy;
+  if (status === "AVAILABLE") return { tone: "success", label: COPY_STATUS_LABEL.AVAILABLE, blocking: false };
+  if (status === "RESERVED" && reservedFor) {
+    return reservedFor.userCode === readerCode
+      ? { tone: "success", label: "Đang giữ cho bạn đọc này", blocking: false }
+      : { tone: "warning", label: `Đang giữ cho ${reservedFor.fullName}`, blocking: true };
+  }
+  return { tone: "error", label: COPY_STATUS_LABEL[status] ?? status, blocking: true };
+}
+
+type ReturnLookup = { status: "idle" | "loading" | "error" | "ready"; copy?: CopyLookupDto; error?: string };
+
+function formatViDate(iso?: string | null) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 function LoanTransaction({
   items,
+  readerCode,
   onAddBarcode,
   onRemoveBarcode,
   onClear,
   onConfirm,
 }: {
   items: ScannedBookRow[];
+  readerCode?: string;
   onAddBarcode: (barcode: string) => void;
   onRemoveBarcode: (barcode: string) => void;
   onClear: () => void;
@@ -123,20 +136,27 @@ function LoanTransaction({
               description="Quét hoặc nhập mã cá biệt ở ô phía trên để thêm tài liệu cần cho mượn."
             />
           ) : (
-            <div className="transaction-table-wrap"><table className="transaction-table"><thead><tr><th>Tài liệu</th><th>Mã cá biệt</th><th>Ngày mượn</th><th>Hạn trả</th><th>Tình trạng</th><th /></tr></thead><tbody>
-              {items.map((item) => (
-                <tr key={item.barcode} className={item.warning ? "transaction-warning-row" : ""}>
-                  <td><div className="transaction-book"><span><Icon name="book" /></span><div><strong>{item.title}</strong><small>{item.author}</small></div></div></td>
-                  <td><code>{item.barcode}</code></td>
-                  <td>{item.borrowDate}</td>
-                  <td><strong>{item.dueDate}</strong><small>150 ngày</small></td>
-                  <td><Status tone={item.warning ? "warning" : "neutral"}>{item.warning ? "Có lượt đặt trước" : "Chờ kiểm tra"}</Status></td>
-                  <td><IconButton label="Xóa" icon="close" onClick={() => onRemoveBarcode(item.barcode)} /></td>
-                </tr>
-              ))}
+            <div className="transaction-table-wrap"><table className="transaction-table"><thead><tr><th>Tài liệu</th><th>Mã cá biệt</th><th>Vị trí</th><th>Tình trạng</th><th /></tr></thead><tbody>
+              {items.map((item) => {
+                const state = loanRowState(item, readerCode);
+                const copy = item.copy;
+                const byline = copy ? [copy.authors.join(", "), copy.publicationYear].filter(Boolean).join(" · ") : "";
+                return (
+                  <tr key={item.barcode} className={state.blocking && item.copy ? "transaction-warning-row" : ""}>
+                    <td><div className="transaction-book"><span><Icon name="book" /></span><div><strong>{copy?.documentTitle ?? (item.error ? "Không tra cứu được" : "Đang tra cứu…")}</strong><small>{byline || "—"}</small></div></div></td>
+                    <td><code>{item.barcode}</code></td>
+                    <td>{copy ? [copy.shelfLocation, copy.callNumber].filter(Boolean).join(" · ") || "—" : "—"}</td>
+                    <td><Status tone={state.tone}>{state.label}</Status></td>
+                    <td><IconButton label="Xóa" icon="close" onClick={() => onRemoveBarcode(item.barcode)} /></td>
+                  </tr>
+                );
+              })}
             </tbody></table></div>
           )}
-          <div className="transaction-footer"><div><span>Tổng tài liệu</span><strong>{String(items.length).padStart(2, "0")} cuốn</strong></div><Button icon="success" disabled={items.length === 0} onClick={onConfirm}>Xác nhận cho mượn</Button></div>
+          <div className="transaction-footer">
+            <div><span>Tổng tài liệu</span><strong>{String(items.length).padStart(2, "0")} cuốn</strong>{items.some((item) => loanRowState(item, readerCode).blocking) && <small>Bỏ các tài liệu không sẵn sàng trước khi xác nhận</small>}</div>
+            <Button icon="success" disabled={items.length === 0 || items.some((item) => loanRowState(item, readerCode).blocking)} onClick={onConfirm}>Xác nhận cho mượn</Button>
+          </div>
         </section>
       </div>
       <ValidationPanel />
@@ -147,6 +167,9 @@ function LoanTransaction({
 function ReturnTransaction({
   barcode,
   onBarcodeChange,
+  lookup,
+  onLookup,
+  onCancel,
   condition,
   onConditionChange,
   onConfirm,
@@ -158,6 +181,9 @@ function ReturnTransaction({
 }: {
   barcode: string;
   onBarcodeChange: (val: string) => void;
+  lookup: ReturnLookup;
+  onLookup: () => void;
+  onCancel: () => void;
   condition: string;
   onConditionChange: (val: string) => void;
   onConfirm: () => void;
@@ -167,11 +193,14 @@ function ReturnTransaction({
   onPayFine: (fineId: number) => void;
   payingFineId: number | null;
 }) {
+  const copy = lookup.copy;
+  const loan = copy?.activeLoan;
+  const overdueFine = loan?.estimatedOverdueFine ?? 0;
   return (
     <div className="return-transaction">
       <div className="transaction-scan">
         <div><p className="eyebrow">NHẬN TRẢ TÀI LIỆU</p><h2>Quét tài liệu hoàn trả</h2><p>Hệ thống tự động đối chiếu giao dịch và tính phí quá hạn.</p></div>
-        <div className="scan-input">
+        <form className="scan-input" onSubmit={(event) => { event.preventDefault(); onLookup(); }}>
           <Icon name="book" />
           <input
             value={barcode}
@@ -179,19 +208,32 @@ function ReturnTransaction({
             placeholder="Quét mã cá biệt cần nhận trả..."
             aria-label="Mã cá biệt nhận trả"
           />
-          <Button>Kiểm tra</Button>
-        </div>
+          <Button type="submit" loading={lookup.status === "loading"} disabled={!barcode.trim()}>Kiểm tra</Button>
+        </form>
       </div>
+      {lookup.status === "idle" ? (
+        <EmptyState surface="card" icon="arrow-left" title="Quét mã cá biệt để bắt đầu" description="Hệ thống sẽ hiện bạn đọc đang mượn, hạn trả và phí quá hạn dự kiến trước khi bạn xác nhận nhận trả." />
+      ) : lookup.status === "loading" ? (
+        <LoadingState surface="card" title="Đang tra cứu bản sách…" />
+      ) : lookup.status === "error" ? (
+        <EmptyState surface="card" tone="error" title="Không tra cứu được bản sách" description={lookup.error ?? "Kiểm tra lại mã cá biệt."} />
+      ) : copy && !loan ? (
+        <EmptyState surface="card" icon="book" title={copy.documentTitle} description={`Mã ${copy.barcode} hiện không có lượt mượn nào đang mở (${COPY_STATUS_LABEL[copy.status] ?? copy.status}).`} />
+      ) : copy && loan && (
       <section className="return-card">
-        <div className="return-book-heading"><div className="transaction-book"><span><Icon name="book" /></span><div><Badge tone="error">QUÁ HẠN 3 NGÀY</Badge><h2>Mạng máy tính và hệ thống phân tán</h2><p>{`Lê Nhật Quang · ${barcode || "PTIT-24-02016"}`}</p></div></div><strong>20.000đ</strong></div>
+        <div className="return-book-heading"><div className="transaction-book"><span><Icon name="book" /></span><div>{loan.overdueDays > 0 ? <Badge tone="error">{`QUÁ HẠN ${loan.overdueDays} NGÀY`}</Badge> : <Badge tone="success">TRONG HẠN</Badge>}<h2>{copy.documentTitle}</h2><p>{`${loan.fullName} · ${loan.userCode} · ${copy.barcode}`}</p></div></div><strong>{`${overdueFine.toLocaleString("vi-VN")}đ`}</strong></div>
         <div className="return-details-grid">
-          <Field label="Ngày trả" type="date" defaultValue="2025-06-22" />
+          <Field label="Ngày mượn" value={formatViDate(loan.borrowDate)} readOnly />
+          <Field label="Hạn trả" value={`${formatViDate(loan.dueDate)}${loan.renewalsCount ? ` · đã gia hạn ${loan.renewalsCount} lần` : ""}`} readOnly />
           <SelectField label="Tình trạng tài liệu khi trả" value={condition} onChange={(event) => onConditionChange(event.target.value)}><option value="good">Tốt — không hư hỏng</option><option value="light">Hư hỏng nhẹ</option><option value="heavy">Hư hỏng nặng</option><option value="lost">Mất tài liệu</option></SelectField>
-          <Field label="Tiền phạt quá hạn" defaultValue="20.000đ" readOnly />
-          <SelectField label="Hư hỏng / mất" defaultValue="none"><option value="none">Không phát sinh</option><option value="damage">Lập biên bản hư hỏng</option><option value="lost">Lập biên bản mất tài liệu</option></SelectField>
+          <Field label="Tiền phạt quá hạn (dự kiến)" value={`${overdueFine.toLocaleString("vi-VN")}đ`} readOnly />
         </div>
-        <div className="return-debt-summary"><div><Icon name="error" /><span><strong>Công nợ phát sinh</strong><small>Phí trả muộn: 2.000đ/cuốn/ngày · Phí tồn trước đó: 14.000đ</small></span></div><strong>20.000đ</strong></div>
+        <div className="return-debt-summary"><div><Icon name="error" /><span><strong>Công nợ phát sinh khi nhận trả</strong><small>{condition === "good" ? "Chỉ tính phí quá hạn (nếu có)." : "Phí hư hỏng / mất sách được cộng thêm theo danh mục loại hình phạt."}</small></span></div><strong>{`${overdueFine.toLocaleString("vi-VN")}đ${condition === "good" ? "" : " +"}`}</strong></div>
         <label className="staff-checkbox"><input type="checkbox" checked={payImmediately} onChange={(event) => onPayImmediatelyChange(event.target.checked)} /><span>Bạn đọc thanh toán công nợ ngay tại quầy</span></label>
+        <div className="return-actions"><Button variant="ghost" onClick={onCancel}>Hủy giao dịch</Button><Button icon="success" onClick={onConfirm}>Nhận trả</Button></div>
+      </section>
+      )}
+      {recentFines.length > 0 && <section className="return-card">
         {recentFines.length > 0 && (
           <div className="debt-section">
             <p><strong>Các khoản phạt vừa phát sinh:</strong></p>
@@ -220,24 +262,7 @@ function ReturnTransaction({
             ))}
           </div>
         )}
-        <div className="return-actions"><Button variant="ghost">Hủy giao dịch</Button><Button icon="success" onClick={onConfirm}>Nhận trả</Button></div>
-      </section>
-    </div>
-  );
-}
-
-function RenewalTransaction({ onConfirm }: { onConfirm: () => void }) {
-  return (
-    <div className="renewal-transaction">
-      <section className="transaction-table-panel">
-        <div className="transaction-panel-heading"><div><h2>Tài liệu đang mượn</h2><p>Chọn các tài liệu đủ điều kiện để gia hạn.</p></div><Badge tone="info">06 TÀI LIỆU</Badge></div>
-        <div className="transaction-table-wrap"><table className="transaction-table renewal-table"><thead><tr><th><input type="checkbox" aria-label="Chọn tất cả" /></th><th>Tài liệu</th><th>Ngày mượn</th><th>Hạn trả hiện tại</th><th>Hạn trả mới</th><th>Điều kiện</th></tr></thead><tbody>
-          <tr><td><input type="checkbox" defaultChecked aria-label="Chọn tài liệu" /></td><td><div className="transaction-book"><span><Icon name="book" /></span><div><strong>Nhập môn Khoa học dữ liệu</strong><small>PTIT-23-01564</small></div></div></td><td>08/06/2025</td><td>06/07/2025</td><td><strong className="new-due-date">03/08/2025</strong></td><td><Status tone="success">Có thể gia hạn</Status></td></tr>
-          <tr><td><input type="checkbox" disabled aria-label="Không thể chọn" /></td><td><div className="transaction-book"><span><Icon name="book" /></span><div><strong>Mạng máy tính và hệ thống phân tán</strong><small>PTIT-24-02016</small></div></div></td><td>28/05/2025</td><td><strong className="overdue-date">25/06/2025</strong></td><td>—</td><td><Status tone="error">Đang quá hạn</Status></td></tr>
-          <tr><td><input type="checkbox" disabled aria-label="Không thể chọn" /></td><td><div className="transaction-book"><span><Icon name="book" /></span><div><strong>Cấu trúc dữ liệu và giải thuật</strong><small>PTIT-23-01108</small></div></div></td><td>12/06/2025</td><td>10/07/2025</td><td>—</td><td><Status tone="warning">Có người đặt trước</Status></td></tr>
-        </tbody></table></div>
-        <div className="transaction-footer"><div><span>Đã chọn</span><strong>01 tài liệu</strong><small>Thời hạn gia hạn: 28 ngày</small></div><Button icon="success" onClick={onConfirm}>Gia hạn</Button></div>
-      </section>
+      </section>}
     </div>
   );
 }
@@ -253,6 +278,7 @@ export default function CirculationScreen() {
   const [currentReader, setCurrentReader] = useState<UserDto | null>(null);
   const [loanItems, setLoanItems] = useState<ScannedBookRow[]>([]);
   const [returnBarcode, setReturnBarcode] = useState("");
+  const [returnLookup, setReturnLookup] = useState<ReturnLookup>({ status: "idle" });
   const [renewBarcode, setRenewBarcode] = useState("");
   const [processing, setProcessing] = useState(false);
   const [returnCondition, setReturnCondition] = useState("good");
@@ -311,19 +337,34 @@ export default function CirculationScreen() {
   };
 
   const handleAddLoanBarcode = (barcode: string) => {
-    setLoanItems((prev) => {
-      if (prev.some((item) => item.barcode === barcode)) return prev;
-      return [
-        ...prev,
-        {
-          barcode,
-          title: `Tài liệu mã cá biệt ${barcode}`,
-          author: "Kho lưu thông PTIT",
-          borrowDate: new Date().toLocaleDateString("vi-VN"),
-          dueDate: "Theo chính sách mượn",
-        },
-      ];
-    });
+    if (loanItems.some((item) => item.barcode.toLowerCase() === barcode.toLowerCase())) return;
+    setLoanItems((prev) => [...prev, { barcode }]);
+    circulationService
+      .lookupCopy(barcode)
+      .then((copy) => setLoanItems((prev) => prev.map((item) => (item.barcode === barcode ? { barcode: copy.barcode, copy } : item))))
+      .catch((error: unknown) => setLoanItems((prev) => prev.map((item) => (item.barcode === barcode
+        ? { barcode, error: error instanceof Error ? error.message : "Không tra cứu được mã này" }
+        : item))));
+  };
+
+  const returnLookupSeq = useRef(0);
+  const handleReturnLookup = async () => {
+    const code = returnBarcode.trim();
+    if (!code) return;
+    const seq = ++returnLookupSeq.current;
+    setReturnLookup({ status: "loading" });
+    try {
+      const copy = await circulationService.lookupCopy(code);
+      if (seq === returnLookupSeq.current) setReturnLookup({ status: "ready", copy });
+    } catch (error) {
+      if (seq === returnLookupSeq.current) setReturnLookup({ status: "error", error: error instanceof Error ? error.message : undefined });
+    }
+  };
+  const resetReturn = () => {
+    returnLookupSeq.current++;
+    setReturnBarcode("");
+    setReturnLookup({ status: "idle" });
+    setReturnCondition("good");
   };
 
   const executeConfirmedTransaction = async () => {
@@ -370,7 +411,7 @@ export default function CirculationScreen() {
           }
         }
         setToastMsg(msg);
-        setReturnBarcode("");
+        resetReturn();
       } else if (mode === "renew") {
         const result = await circulationService.renewLoan({ barcode: renewBarcode.trim() });
         setToastMsg(result.message || (result.renewalStatus === "SUCCESS" ? "Đã gia hạn tài liệu." : "Yêu cầu gia hạn bị từ chối."));
@@ -414,6 +455,7 @@ export default function CirculationScreen() {
         {activeTab === "Cho mượn" && (
           <LoanTransaction
             items={loanItems}
+            readerCode={currentReader?.userCode}
             onAddBarcode={handleAddLoanBarcode}
             onRemoveBarcode={(code) =>
               setLoanItems((prev) => prev.filter((item) => item.barcode !== code))
@@ -425,7 +467,10 @@ export default function CirculationScreen() {
         {activeTab === "Nhận trả" && (
           <ReturnTransaction
             barcode={returnBarcode}
-            onBarcodeChange={setReturnBarcode}
+            onBarcodeChange={(value) => { setReturnBarcode(value); if (returnLookup.status !== "idle") { returnLookupSeq.current++; setReturnLookup({ status: "idle" }); } }}
+            lookup={returnLookup}
+            onLookup={handleReturnLookup}
+            onCancel={resetReturn}
             condition={returnCondition}
             onConditionChange={setReturnCondition}
             onConfirm={() => setConfirmation("return")}
@@ -444,7 +489,7 @@ export default function CirculationScreen() {
       <Modal open={confirmation !== null} onClose={() => { if (!processing) setConfirmation(null); }} title={actionLabel}>
         <div className="transaction-confirmation">
           <span><Icon name={confirmation === "return" ? "arrow-left" : confirmation === "renew" ? "sparkle" : "book"} size={25} /></span>
-          <div><strong>{confirmation === "loan" ? `Cho mượn ${String(loanItems.length).padStart(2, "0")} tài liệu cho ${currentReader?.fullName ?? ""}?` : confirmation === "return" ? "Nhận trả mã " + returnBarcode + "?" : "Gia hạn mã " + renewBarcode + "?"}</strong><p>Kiểm tra mã vạch và thông tin bạn đọc trước khi xác nhận.</p></div>
+          <div><strong>{confirmation === "loan" ? `Cho mượn ${String(loanItems.length).padStart(2, "0")} tài liệu cho ${currentReader?.fullName ?? ""}?` : confirmation === "return" ? `Nhận trả "${returnLookup.copy?.documentTitle ?? returnBarcode}" (${returnBarcode})?` : "Gia hạn mã " + renewBarcode + "?"}</strong><p>Kiểm tra mã vạch và thông tin bạn đọc trước khi xác nhận.</p></div>
         </div>
         <label className="staff-checkbox confirmation-checkbox"><input type="checkbox" defaultChecked /><span>Tôi đã kiểm tra thông tin và tình trạng tài liệu</span></label>
         <div className="modal-actions"><Button variant="ghost" onClick={() => setConfirmation(null)}>Quay lại</Button><Button loading={processing} onClick={executeConfirmedTransaction}>{actionLabel}</Button></div>
