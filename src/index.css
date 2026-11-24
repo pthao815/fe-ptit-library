@@ -178,10 +178,13 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 
 /* Application shells */
 .portal-brand { display: flex; align-items: center; gap: 10px; min-width: max-content; }
-.portal-brand-mark { width: 38px; height: 38px; display: grid; place-items: center; color: var(--white); background: var(--red-500); border-radius: var(--radius-md); box-shadow: 0 5px 14px rgba(173, 23, 28, .18); }
+.portal-brand-link { color: inherit; text-decoration: none; cursor: pointer; }
+.portal-brand-link:hover .portal-brand-copy strong { color: var(--red-500); }
+.portal-brand-mark { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; color: var(--white); background: var(--red-500); border-radius: var(--radius-md); box-shadow: 0 5px 14px rgba(173, 23, 28, .18); }
+.portal-brand-copy { min-width: 0; }
 .portal-brand-copy strong, .portal-brand-copy small { display: block; line-height: 1.15; }
-.portal-brand-copy strong { font-size: 14px; letter-spacing: .015em; }
-.portal-brand-copy small { margin-top: 4px; color: var(--gray-500); font-size: 12px; font-weight: 600; letter-spacing: .12em; }
+.portal-brand-copy strong { font-size: 14px; letter-spacing: .015em; transition: color .15s ease; }
+.portal-brand-copy small { margin-top: 4px; color: var(--gray-500); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; }
 .portal-brand.compact .portal-brand-mark { width: 34px; height: 34px; }
 .reader-portal { min-height: 100vh; background: var(--gray-50); }
 .reader-header { height: 76px; position: sticky; top: 0; z-index: 30; background: rgba(255, 255, 255, .96); border-bottom: 1px solid var(--gray-200); backdrop-filter: blur(16px); }
@@ -227,7 +230,9 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .workspace-portal { min-height: 100vh; --workspace-sidebar: 260px; }
 .workspace-portal.sidebar-collapsed { --workspace-sidebar: 78px; }
 .workspace-sidebar { width: var(--workspace-sidebar); position: fixed; inset: 0 auto 0 0; z-index: 40; display: flex; flex-direction: column; background: var(--white); border-right: 1px solid var(--gray-200); transition: width .2s ease, transform .2s ease; }
-.workspace-brand-row { height: 76px; flex: 0 0 auto; padding: 0 20px; display: flex; align-items: center; border-bottom: 1px solid var(--gray-200); overflow: hidden; }
+.workspace-brand-row { height: 76px; flex: 0 0 auto; padding: 0 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--gray-200); overflow: hidden; }
+.workspace-brand-row .portal-brand { min-width: 0; max-width: 100%; }
+.workspace-brand-row .portal-brand-copy strong, .workspace-brand-row .portal-brand-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-brand-row > .icon-button { display: none; margin-left: auto; }
 .workspace-label { flex: 0 0 auto; margin: 14px 14px 10px; padding: 11px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--gray-25); overflow: hidden; white-space: nowrap; }
 .workspace-label small, .workspace-label strong { display: block; }

@@ -71,10 +71,10 @@ export default function ReaderPortal({ path }: { path: string }) {
       <header className={mobileOpen ? "reader-header menu-open" : "reader-header"}>
         <div className="reader-header-inner">
           <IconButton label="Mở điều hướng" icon="menu" onClick={() => setMobileOpen(true)} />
-          <Brand />
+          <Brand to="/reader" />
           <nav className={`reader-nav ${mobileOpen ? "open" : ""}`} aria-label="Điều hướng bạn đọc">
             <div className="reader-mobile-head">
-              <Brand compact />
+              <Brand compact to="/reader" onClick={() => setMobileOpen(false)} />
               <IconButton label="Đóng điều hướng" icon="close" onClick={() => setMobileOpen(false)} />
             </div>
             {readerNavigation.filter((item) => isReader || !item.path.includes("/my-library")).map((item) => {

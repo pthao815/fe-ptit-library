@@ -404,7 +404,7 @@ export default function ReaderHome() {
       </main>
 
       <footer className="reader-footer">
-        <div><Brand compact /><p>Học viện Công nghệ Bưu chính Viễn thông</p></div>
+        <div><Brand compact to="/reader" /><p>Học viện Công nghệ Bưu chính Viễn thông</p></div>
         <nav aria-label="Liên kết chân trang"><button onClick={() => { navigate("/reader/guidelines"); }}>Hướng dẫn sử dụng</button><button onClick={() => { navigate("/reader/guidelines"); }}>Quy định thư viện</button><button>Liên hệ hỗ trợ</button></nav>
         <small>© 2025 PTIT Library</small>
       </footer>

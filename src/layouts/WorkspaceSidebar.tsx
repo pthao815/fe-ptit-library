@@ -25,7 +25,7 @@ export default function WorkspaceSidebar({
   return (
     <aside className={`workspace-sidebar ${collapsed ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`}>
       <div className="workspace-brand-row">
-        <Brand />
+        <Brand to={role === "admin" ? "/admin" : "/staff"} onClick={onMobileClose} />
         <IconButton label="Đóng điều hướng" icon="close" onClick={onMobileClose} />
       </div>
       <nav className="workspace-nav" aria-label={role === "staff" ? "Điều hướng nhân viên" : "Điều hướng quản trị"}>

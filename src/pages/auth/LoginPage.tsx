@@ -129,7 +129,7 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <section className="login-brand-panel" aria-label="Giới thiệu PTIT Library">
-        <div className="login-brand-top"><Brand /></div>
+        <div className="login-brand-top"><Brand to="/reader" /></div>
         <div className="login-brand-content">
           <div className="login-illustration" aria-hidden="true">
             <span className="illustration-orbit orbit-one" />
@@ -153,7 +153,7 @@ export default function LoginPage() {
       </section>
 
       <section className="login-form-panel">
-        <div className="login-mobile-brand"><Brand compact /></div>
+        <div className="login-mobile-brand"><Brand compact to="/reader" /></div>
         <main className="login-card">
           <div className="login-heading">
             <p className="eyebrow">ĐĂNG NHẬP HỆ THỐNG</p>
