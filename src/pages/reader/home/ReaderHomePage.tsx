@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, EmptyState, Icon, IconButton, LoadingState, Rating } from "../../../design-system";
+import { Badge, Button, EmptyState, Icon, IconButton, LoadingState, Rating, Toast } from "../../../design-system";
 import Brand from "../../../components/common/Brand";
 import HomeSection from "../../../components/common/HomeSection";
 import BookCard from "../../../components/books/BookCard";
@@ -43,11 +43,18 @@ export default function ReaderHome() {
   const [searchInput, setSearchInput] = useState("");
   const [saved, setSaved] = useState<number[]>(() => {
     const tracked = getTrackedFavorites();
-    return tracked.length > 0 ? tracked.map((b) => b.id) : [2];
+    return tracked.length > 0 ? tracked.map((b) => b.id) : [];
   });
   const [hiddenRecommendations, setHiddenRecommendations] = useState<number[]>([]);
-  const [catalogSaved, setCatalogSaved] = useState<Record<string, boolean>>({});
-  const [catalogActionError, setCatalogActionError] = useState("");
+  const [catalogSaved, setCatalogSaved] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    for (const item of getTrackedFavorites()) {
+      if (item.documentId) map[item.documentId.toLowerCase()] = true;
+    }
+    return map;
+  });
+  const [savingDocIds, setSavingDocIds] = useState<Record<string, boolean>>({});
+  const [toast, setToast] = useState<{ tone: "success" | "info" | "error"; title: string; text: string } | null>(null);
   const pendingFavorites = useRef(new Set<string>());
   const recommendationTrackRef = useRef<HTMLDivElement | null>(null);
   const departmentId = getStoredUser()?.departmentId;
@@ -55,6 +62,32 @@ export default function ReaderHome() {
   const latestBooks = useHomeCatalog(undefined, true);
   const [recommendations, setRecommendations] = useState(recommendationBooks);
   const [notices, setNotices] = useState<{ status: "loading" | "error" | "ready"; items: LibraryNotification[] }>({ status: "loading", items: [] });
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let active = true;
+    catalogService
+      .getMyFavorites({ page: 0, size: 100 })
+      .then((page) => {
+        if (!active) return;
+        const map: Record<string, boolean> = {};
+        for (const item of page.items) {
+          const id = item.documentId || item.id;
+          if (id) map[id.toLowerCase()] = true;
+        }
+        setCatalogSaved(map);
+      })
+      .catch(() => {
+        // Keep tracked favorites fallback when API call fails
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!getAccessToken()) return;
@@ -118,21 +151,53 @@ export default function ReaderHome() {
     }
   };
 
-  async function toggleCatalogFavorite(documentId: string) {
+  async function toggleCatalogFavorite(book: Book) {
+    const documentId = book.documentId;
+    if (!documentId) return;
     if (!getAccessToken()) {
-      setCatalogActionError("Vui lòng đăng nhập để lưu tài liệu.");
+      setToast({
+        tone: "info",
+        title: "Cần đăng nhập",
+        text: "Vui lòng đăng nhập để lưu tài liệu vào tủ sách yêu thích.",
+      });
       return;
     }
-    if (pendingFavorites.current.has(documentId)) return;
-    pendingFavorites.current.add(documentId);
-    setCatalogActionError("");
+    const key = documentId.toLowerCase();
+    if (pendingFavorites.current.has(key)) return;
+    pendingFavorites.current.add(key);
+    const wasSaved = Boolean(catalogSaved[key]);
+    setSavingDocIds((current) => ({ ...current, [key]: true }));
+    setCatalogSaved((current) => ({ ...current, [key]: !wasSaved }));
     try {
       const result = await catalogService.toggleFavorite(documentId);
-      setCatalogSaved((current) => ({ ...current, [documentId]: result.isFavorite }));
+      setCatalogSaved((current) => ({ ...current, [key]: result.isFavorite }));
+      syncFavoriteBook(book, result.isFavorite);
+      setSaved((items) =>
+        result.isFavorite
+          ? (items.includes(book.id) ? items : [...items, book.id])
+          : items.filter((item) => item !== book.id),
+      );
+      setToast({
+        tone: result.isFavorite ? "success" : "info",
+        title: result.isFavorite ? "Đã lưu tài liệu" : "Đã bỏ lưu tài liệu",
+        text: result.isFavorite
+          ? `Đã thêm “${book.title}” vào tủ sách yêu thích.`
+          : `Đã xóa “${book.title}” khỏi tủ sách yêu thích.`,
+      });
     } catch (error) {
-      setCatalogActionError(error instanceof Error ? error.message : "Không cập nhật được tài liệu đã lưu.");
+      setCatalogSaved((current) => ({ ...current, [key]: wasSaved }));
+      setToast({
+        tone: "error",
+        title: "Không cập nhật được tủ sách",
+        text: error instanceof Error ? error.message : "Không cập nhật được tài liệu đã lưu.",
+      });
     } finally {
-      pendingFavorites.current.delete(documentId);
+      pendingFavorites.current.delete(key);
+      setSavingDocIds((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
     }
   }
 
@@ -161,10 +226,19 @@ export default function ReaderHome() {
       );
     }
     return <div className="book-grid">
-      {catalog.books.map((book) => <BookCard key={book.documentId ?? book.id} book={book}
-        detailPath={book.documentId ? "/reader/book-detail?id=" + encodeURIComponent(book.documentId) : undefined}
-        saved={Boolean(book.documentId && catalogSaved[book.documentId])}
-        onSave={() => { if (book.documentId) void toggleCatalogFavorite(book.documentId); }} />)}
+      {catalog.books.map((book) => {
+        const key = book.documentId?.toLowerCase() ?? "";
+        return (
+          <BookCard
+            key={book.documentId ?? book.id}
+            book={book}
+            detailPath={book.documentId ? "/reader/book-detail?id=" + encodeURIComponent(book.documentId) : undefined}
+            saved={Boolean(key && catalogSaved[key])}
+            saving={Boolean(key && savingDocIds[key])}
+            onSave={() => { void toggleCatalogFavorite(book); }}
+          />
+        );
+      })}
     </div>;
   };
 
@@ -218,7 +292,6 @@ export default function ReaderHome() {
       </section>
 
       <main className="reader-home-content">
-        {catalogActionError && <p role="alert">{catalogActionError}</p>}
         <HomeSection
           title={departmentId ? "Tài liệu theo khoa/ngành" : "Khám phá danh mục"}
           action="Xem tất cả"
@@ -270,7 +343,21 @@ export default function ReaderHome() {
                       <Rating value={book.rating} />
                       <div className="recommendation-reason"><Icon name="info" size={15} />{book.reason}</div>
                       <div className="recommendation-actions">
-                        <Button variant={saved.includes(book.id) ? "secondary" : "ghost"} size="sm" icon="bookmark" onClick={() => toggleSave(book)}>{saved.includes(book.id) ? "Đã lưu" : "Lưu"}</Button>
+                        {(() => {
+                          const docKey = book.documentId?.toLowerCase();
+                          const isSaved = docKey ? Boolean(catalogSaved[docKey]) : saved.includes(book.id);
+                          return (
+                            <Button
+                              variant={isSaved ? "secondary" : "ghost"}
+                              size="sm"
+                              icon="bookmark"
+                              disabled={Boolean(docKey && savingDocIds[docKey])}
+                              onClick={() => (book.documentId ? void toggleCatalogFavorite(book) : toggleSave(book))}
+                            >
+                              {isSaved ? "Đã lưu" : "Lưu"}
+                            </Button>
+                          );
+                        })()}
                         <button onClick={() => setHiddenRecommendations((items) => [...items, book.id])}>Không quan tâm</button>
                       </div>
                     </div>
@@ -321,6 +408,14 @@ export default function ReaderHome() {
         <nav aria-label="Liên kết chân trang"><button onClick={() => { navigate("/reader/guidelines"); }}>Hướng dẫn sử dụng</button><button onClick={() => { navigate("/reader/guidelines"); }}>Quy định thư viện</button><button>Liên hệ hỗ trợ</button></nav>
         <small>© 2025 PTIT Library</small>
       </footer>
+
+      {toast && (
+        <div className="toast-position">
+          <Toast tone={toast.tone} title={toast.title} onClose={() => setToast(null)}>
+            {toast.text}
+          </Toast>
+        </div>
+      )}
     </div>
   );
 }

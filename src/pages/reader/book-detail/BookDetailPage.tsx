@@ -78,6 +78,7 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
   const [similarLoading, setSimilarLoading] = useState(true);
   const [similarError, setSimilarError] = useState("");
   const [similarSaved, setSimilarSaved] = useState<Record<string, boolean>>({});
+  const [similarSaving, setSimilarSaving] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
   const [holdStatus, setHoldStatus] = useState<string | null>(null);
   const [placingHold, setPlacingHold] = useState(false);
@@ -132,6 +133,15 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
     if (getAccessToken()) {
       catalogService.checkFavoriteStatus(requestedDocId).then((data) => {
         if (active) setSaved(data.isFavorite);
+      }).catch(() => {});
+      catalogService.getMyFavorites({ page: 0, size: 100 }).then((page) => {
+        if (!active) return;
+        const map: Record<string, boolean> = {};
+        for (const item of page.items) {
+          const id = item.documentId || item.id;
+          if (id) map[id.toLowerCase()] = true;
+        }
+        setSimilarSaved(map);
       }).catch(() => {});
     }
     // Danh sách bản giấy chỉ có API cho cán bộ thư viện
@@ -451,32 +461,54 @@ function DocumentDetail({ requestedDocId }: { requestedDocId: string }) {
                 <div className="summary-content"><p>Chưa có tài liệu tương tự.</p></div>
               ) : (
                 <div className="related-book-grid">
-                  {similarBooks.map((book) => (
-                    <BookCard
-                      key={book.documentId ?? book.id}
-                      book={book}
-                      detailPath={book.documentId ? `/reader/book-detail?id=${encodeURIComponent(book.documentId)}` : undefined}
-                      saved={Boolean(book.documentId && similarSaved[book.documentId])}
-                      onSave={async () => {
-                        if (!book.documentId) return;
-                        if (!getAccessToken()) {
-                          setToast({ tone: "info", title: "Cần đăng nhập", text: "Vui lòng đăng nhập để lưu tài liệu." });
-                          return;
-                        }
-                        try {
-                          const res = await catalogService.toggleFavorite(book.documentId);
-                          setSimilarSaved((prev) => ({ ...prev, [book.documentId!]: res.isFavorite }));
-                          syncFavoriteBook(book, res.isFavorite);
-                        } catch (error) {
-                          setToast({
-                            tone: "error",
-                            title: "Không lưu được tài liệu",
-                            text: error instanceof Error ? error.message : "Không lưu được tài liệu.",
-                          });
-                        }
-                      }}
-                    />
-                  ))}
+                  {similarBooks.map((book) => {
+                    const key = book.documentId?.toLowerCase() ?? "";
+                    const isSimilarSaved = Boolean(key && similarSaved[key]);
+                    const isSimilarSaving = Boolean(key && similarSaving[key]);
+                    return (
+                      <BookCard
+                        key={book.documentId ?? book.id}
+                        book={book}
+                        detailPath={book.documentId ? `/reader/book-detail?id=${encodeURIComponent(book.documentId)}` : undefined}
+                        saved={isSimilarSaved}
+                        saving={isSimilarSaving}
+                        onSave={async () => {
+                          if (!book.documentId || isSimilarSaving) return;
+                          if (!getAccessToken()) {
+                            setToast({ tone: "info", title: "Cần đăng nhập", text: "Vui lòng đăng nhập để lưu tài liệu." });
+                            return;
+                          }
+                          setSimilarSaving((prev) => ({ ...prev, [key]: true }));
+                          setSimilarSaved((prev) => ({ ...prev, [key]: !isSimilarSaved }));
+                          try {
+                            const res = await catalogService.toggleFavorite(book.documentId);
+                            setSimilarSaved((prev) => ({ ...prev, [key]: res.isFavorite }));
+                            syncFavoriteBook(book, res.isFavorite);
+                            setToast({
+                              tone: res.isFavorite ? "success" : "info",
+                              title: res.isFavorite ? "Đã lưu tài liệu" : "Đã bỏ lưu tài liệu",
+                              text: res.isFavorite
+                                ? `Đã thêm “${book.title}” vào tủ sách yêu thích.`
+                                : `Đã xóa “${book.title}” khỏi tủ sách yêu thích.`,
+                            });
+                          } catch (error) {
+                            setSimilarSaved((prev) => ({ ...prev, [key]: isSimilarSaved }));
+                            setToast({
+                              tone: "error",
+                              title: "Không lưu được tài liệu",
+                              text: error instanceof Error ? error.message : "Không lưu được tài liệu.",
+                            });
+                          } finally {
+                            setSimilarSaving((prev) => {
+                              const next = { ...prev };
+                              delete next[key];
+                              return next;
+                            });
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </section>

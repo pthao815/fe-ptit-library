@@ -347,8 +347,10 @@ main { max-width: 1440px; margin: 0 auto; padding: 26px 32px 80px; }
 .book-card { min-width: 0; overflow: hidden; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); background: var(--white); box-shadow: var(--shadow-sm); transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .book-card:hover { border-color: var(--red-200); box-shadow: var(--shadow-md); transform: translateY(-3px); }
 .book-cover-wrap { min-height: 240px; position: relative; padding: 24px; display: grid; place-items: center; background: var(--gray-50); border-bottom: 1px solid var(--gray-100); }
-.book-cover-wrap .icon-button { position: absolute; right: 11px; top: 11px; background: rgba(255, 255, 255, .92); box-shadow: var(--shadow-sm); }
-.book-cover-wrap .icon-button.saved { color: var(--red-500); background: var(--red-50); }
+.book-cover-wrap .icon-button { position: absolute; right: 11px; top: 11px; z-index: 2; border: 1px solid transparent; background: rgba(255, 255, 255, .94); box-shadow: var(--shadow-sm); cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease, transform .12s ease; }
+.book-cover-wrap .icon-button:hover:not(:disabled) { color: var(--red-500); background: var(--white); border-color: var(--red-200); }
+.book-cover-wrap .icon-button.saved, .book-cover-wrap .icon-button.saved:hover:not(:disabled) { color: var(--red-500); background: var(--red-50); border-color: var(--red-200); }
+.book-cover-wrap .icon-button.saved .ds-icon { fill: currentColor; }
 .book-cover { width: 142px; aspect-ratio: .7; position: relative; padding: 18px 15px; display: flex; flex-direction: column; color: var(--white); border-radius: 3px 8px 8px 3px; box-shadow: -5px 7px 16px rgba(31, 31, 31, .18); overflow: hidden; }
 .book-cover::before { content: ""; width: 3px; position: absolute; inset: 0 auto 0 7px; background: rgba(255, 255, 255, .17); }
 .book-cover::after { content: ""; width: 90px; height: 90px; position: absolute; right: -36px; bottom: 18px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 50%; box-shadow: 0 0 0 15px rgba(255, 255, 255, .05); }

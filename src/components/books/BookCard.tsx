@@ -7,11 +7,13 @@ import BookCover from "./BookCover";
 export default function BookCard({
   book,
   saved,
+  saving = false,
   onSave,
   detailPath,
 }: {
   book: Book;
   saved: boolean;
+  saving?: boolean;
   onSave: () => void;
   detailPath?: string;
 }) {
@@ -37,9 +39,13 @@ export default function BookCard({
           <BookCover book={book} />
         )}
         <IconButton
+          type="button"
           label={saved ? "Bỏ lưu tài liệu" : "Lưu tài liệu"}
           icon="bookmark"
+          aria-pressed={saved}
+          disabled={saving}
           onClick={(event) => {
+            event.preventDefault();
             event.stopPropagation();
             onSave();
           }}
