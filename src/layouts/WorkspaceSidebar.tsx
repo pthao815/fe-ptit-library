@@ -28,10 +28,6 @@ export default function WorkspaceSidebar({
         <Brand />
         <IconButton label="Đóng điều hướng" icon="close" onClick={onMobileClose} />
       </div>
-      <div className="workspace-label">
-        <small>{role === "staff" ? "KHÔNG GIAN NGHIỆP VỤ" : "KHÔNG GIAN QUẢN TRỊ"}</small>
-        <strong>{role === "staff" ? "Thư viện" : "Hệ thống"}</strong>
-      </div>
       <nav className="workspace-nav" aria-label={role === "staff" ? "Điều hướng nhân viên" : "Điều hướng quản trị"}>
         <p>ĐIỀU HƯỚNG CHÍNH</p>
         {navigation.map((item) => (

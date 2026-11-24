@@ -327,6 +327,9 @@ export interface ReturnRequestDto {
   barcode: string;
   condition?: BookReturnCondition;
   returnNote?: string;
+  additionalPenaltyTypeId?: number;
+  additionalFineAmount?: number;
+  additionalFineNote?: string;
 }
 
 export interface FineItemDto {

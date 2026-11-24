@@ -32,7 +32,10 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
   const [userOpen, setUserOpen] = useState(false);
   const isStaff = role === "staff";
   const section = path.split("/")[1] ?? "";
-  const active = Object.keys(workspacePaths).find((label) => workspacePaths[label] === section) ?? "";
+  const active =
+    section === "policies" || section === "penalty-types"
+      ? "Chính sách & Hình phạt"
+      : Object.keys(workspacePaths).find((label) => workspacePaths[label] === section) ?? "";
   const changeWorkspace = (label: string) => {
     const segment = workspacePaths[label];
     if (segment !== undefined) navigate(segment ? "/" + role + "/" + segment : "/" + role);

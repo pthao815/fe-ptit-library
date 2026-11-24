@@ -15,8 +15,7 @@ export const staffNavigation: Array<{ label: string; icon: NavIcon }> = [
   { label: "Đặt trước", icon: "bookmark" },
   { label: "Bạn đọc", icon: "users" },
   { label: "Thống kê & báo cáo", icon: "chart" },
-  { label: "Chính sách mượn trả", icon: "settings" },
-  { label: "Loại hình phạt", icon: "shield" },
+  { label: "Chính sách & Hình phạt", icon: "settings" },
   { label: "Thông tin cá nhân", icon: "user" },
 ];
 
@@ -24,8 +23,7 @@ export const adminNavigation: Array<{ label: string; icon: NavIcon }> = [
   { label: "Tổng quan", icon: "dashboard" },
   { label: "Bạn đọc", icon: "users" },
   { label: "Quản lý tài liệu", icon: "book" },
-  { label: "Chính sách mượn trả", icon: "settings" },
-  { label: "Loại hình phạt", icon: "shield" },
+  { label: "Chính sách & Hình phạt", icon: "settings" },
   { label: "Cấu hình tra cứu", icon: "search" },
   { label: "Thông tin cá nhân", icon: "user" },
 ];
@@ -38,6 +36,7 @@ export const workspacePaths: Readonly<Record<string, string>> = {
   "Đặt trước": "reservations",
   "Bạn đọc": "readers",
   "Thống kê & báo cáo": "reports",
+  "Chính sách & Hình phạt": "policies",
   "Chính sách mượn trả": "policies",
   "Loại hình phạt": "penalty-types",
   "Cấu hình tra cứu": "search-configs",

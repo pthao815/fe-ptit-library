@@ -11,6 +11,7 @@ import type {
   MyHoldItemDto,
   PageResponse,
   PaginationParams,
+  PenaltyTypeResponse,
   RenewRequestDto,
   RenewResponseDto,
   ReturnRequestDto,
@@ -137,6 +138,38 @@ export const circulationService = {
         throw new ApiError("Backend không trả về thông tin bản sách hợp lệ.", 0);
       }
       return copy;
+    });
+  },
+
+  // Thủ thư & Quản trị: xem lịch sử mượn trả của một bạn đọc bất kỳ
+  getUserCirculationHistory(
+    userId: string,
+    status?: "BORROWING" | "RETURNED" | "OVERDUE" | string,
+    params?: PaginationParams,
+  ): Promise<PageResponse<CirculationHistoryItemDto>> {
+    return http
+      .get<PageResponse<CirculationHistoryItemDto>>(
+        `/api/circulation/users/${encodeURIComponent(userId)}/history`,
+        {
+          status,
+          ...params,
+        },
+      )
+      .then((page) => {
+        if (!Array.isArray(page?.items)) {
+          throw new ApiError("Backend không trả về lịch sử mượn trả hợp lệ.", 0);
+        }
+        return page;
+      });
+  },
+
+  // Thủ thư & Quản trị: lấy danh mục loại hình phạt để ước tính và chọn phạt bổ sung tại quầy
+  getPenaltyTypes(): Promise<PenaltyTypeResponse[]> {
+    return http.get<PenaltyTypeResponse[]>("/api/admin/penalty-types").then((items) => {
+      if (!Array.isArray(items)) {
+        throw new ApiError("Backend không trả về danh mục loại hình phạt hợp lệ.", 0);
+      }
+      return items;
     });
   },
 
