@@ -179,7 +179,6 @@ export default function LoginPage() {
               <button type="button" onClick={() => setMessage({ tone: "info", text: "Vui lòng liên hệ nhân viên thư viện để được hỗ trợ khôi phục mật khẩu." })}>Quên mật khẩu?</button>
             </div>
             <Button className="login-submit" type="submit" loading={loading === "library"} disabled={loading !== null}>Đăng nhập</Button>
-            <p className="login-helper"><Icon name="info" size={14} />Tài khoản và mật khẩu ban đầu được cấp bởi nhân viên thư viện.</p>
           </form>
 
           <div className="login-divider"><span>HOẶC</span></div>
@@ -189,11 +188,6 @@ export default function LoginPage() {
             Đăng nhập bằng tài khoản Microsoft
           </Button>
           <p className="microsoft-helper">Sử dụng tài khoản Outlook do Học viện cấp để đăng nhập. Khả năng truy cập phụ thuộc vào cấu hình Microsoft của hệ thống và chính sách tài khoản của Học viện.</p>
-
-          <div className="login-assistance">
-            <span><Icon name="info" size={18} /></span>
-            <div><strong>Chưa có thông tin đăng nhập?</strong><p>Vui lòng liên hệ nhân viên thư viện để được cấp tài khoản hoặc hỗ trợ truy cập.</p><button type="button">Hướng dẫn đăng nhập</button></div>
-          </div>
         </main>
         <footer className="login-footer">
           <p>© PTIT Library – Học viện Công nghệ Bưu chính Viễn thông</p>

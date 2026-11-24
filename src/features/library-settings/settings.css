@@ -24,9 +24,9 @@
 .configuration-table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; text-align: left; }
 .configuration-table thead { background: var(--gray-50); color: var(--gray-600); }
 .configuration-table th, .configuration-table td { padding: 17px 20px; border-top: 1px solid var(--gray-100); vertical-align: middle; }
-.configuration-table thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .035em; white-space: nowrap; }
+.configuration-table thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .035em; white-space: nowrap; }
 .configuration-table tbody th { font-weight: 600; }
-.configuration-table small { display: block; font-size: 10px; color: var(--gray-500); margin-top: 4px; font-weight: 400; }
+.configuration-table small { display: block; font-size: 12px; color: var(--gray-500); margin-top: 4px; font-weight: 400; }
 .configuration-table code { font-size: 12px; }
 .configuration-table tbody tr:hover { background: var(--gray-25); }
 .configuration-table .configuration-active-row { background: var(--success-bg); }
