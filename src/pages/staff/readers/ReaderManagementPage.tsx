@@ -278,8 +278,7 @@ export default function ReaderManagementPage() {
                   <td><Status tone={reader.status === "ACTIVE" ? "success" : reader.status === "LOCKED" ? "error" : "warning"}>{labelFor(statuses, reader.status)}</Status></td>
                   <td>
                     <div className="managed-reader-actions">
-                      <Button variant="ghost" size="sm" onClick={() => openReaderModal(reader, "info")}>Xem hồ sơ</Button>
-                      <Button variant="secondary" size="sm" onClick={() => openReaderModal(reader, "history")}>Lịch sử mượn</Button>
+                      <Button variant="secondary" size="sm" onClick={() => openReaderModal(reader, "info")}>Xem hồ sơ</Button>
                       {cardActionButton(reader)}
                     </div>
                   </td>

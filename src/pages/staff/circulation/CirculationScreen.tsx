@@ -556,9 +556,6 @@ function ReturnTransaction({
               <p>Chọn bạn đọc để tick nhanh nhiều cuốn cần trả, hoặc quét trực tiếp mã cá biệt ở ô bên dưới.</p>
             </div>
           </div>
-          <Button variant="secondary" size="sm" icon="search" onClick={onOpenReaderPicker}>
-            Chọn bạn đọc
-          </Button>
         </div>
       )}
 
@@ -1331,17 +1328,6 @@ export default function CirculationScreen() {
           />
           <Button type="submit" icon="search" loading={findingReader}>
             Tìm bạn đọc
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            icon="users"
-            onClick={() => {
-              setReaderPickerInitialQuery(readerQuery.trim());
-              setReaderPickerOpen(true);
-            }}
-          >
-            Chọn bạn đọc
           </Button>
         </form>
         <span>
