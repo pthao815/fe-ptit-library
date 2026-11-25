@@ -5,6 +5,7 @@ export type NavIcon =
   | "circulation"
   | "book"
   | "bookmark"
+  | "bell"
   | "document"
   | "users"
   | "user"

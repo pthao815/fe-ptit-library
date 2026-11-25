@@ -21,12 +21,16 @@ export default function ReaderPickerModal({
   open,
   initialQuery = "",
   selectedReaderId,
+  title = "Chọn bạn đọc tại quầy",
+  resultHint = "Nhấn chọn để mở hồ sơ tại quầy.",
   onClose,
   onSelect,
 }: {
   open: boolean;
   initialQuery?: string;
   selectedReaderId?: string;
+  title?: string;
+  resultHint?: string;
   onClose: () => void;
   onSelect: (reader: UserDto) => void;
 }) {
@@ -85,7 +89,7 @@ export default function ReaderPickerModal({
       open={open}
       onClose={onClose}
       eyebrow="TRA CỨU BẠN ĐỌC"
-      title="Chọn bạn đọc tại quầy"
+      title={title}
       className="circulation-picker-modal"
     >
       <div className="picker-modal-body">
@@ -132,7 +136,7 @@ export default function ReaderPickerModal({
         ) : (
           <>
             <p className="picker-result-meta">
-              Tìm thấy <strong>{result.totalElements.toLocaleString("vi-VN")}</strong> bạn đọc. Nhấn chọn để mở hồ sơ tại quầy.
+              Tìm thấy <strong>{result.totalElements.toLocaleString("vi-VN")}</strong> bạn đọc. {resultHint}
             </p>
             <div className="picker-reader-list">
               {result.items.map((reader) => {

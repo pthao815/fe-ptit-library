@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Avatar, Badge, Breadcrumb, Button, EmptyState, LoadingState, Modal, Pagination, SearchInput, SelectField, Status } from "../../../design-system";
 import { circulationService } from "../../../services/circulation.service";
 import { userService } from "../../../services/user.service";
@@ -39,6 +39,7 @@ function loanStatusMeta(status: string): { tone: "success" | "warning" | "error"
 
 export default function ReaderManagementPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdminPortal = location.pathname.startsWith("/admin");
   const [params, setParams] = useSearchParams();
   const [revision, setRevision] = useState(0);
@@ -466,6 +467,23 @@ export default function ReaderManagementPage() {
 
             <div className="modal-actions">
               <Button variant="ghost" onClick={() => setSelectedReader(undefined)}>Đóng</Button>
+              <Button
+                variant="secondary"
+                icon="bell"
+                onClick={() => {
+                  const target = selectedReader;
+                  setSelectedReader(undefined);
+                  const query = new URLSearchParams({
+                    userId: target.id,
+                    userCode: target.userCode || "",
+                    fullName: target.fullName || "",
+                    email: target.email || "",
+                  });
+                  navigate(`/${isAdminPortal ? "admin" : "staff"}/notifications?${query.toString()}`);
+                }}
+              >
+                Gửi thông báo
+              </Button>
               {(selectedReader.status === "ACTIVE" || selectedReader.status === "LOCKED") && (
                 <Button
                   variant={selectedReader.status === "LOCKED" ? "primary" : "danger"}

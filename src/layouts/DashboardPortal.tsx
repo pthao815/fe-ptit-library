@@ -13,6 +13,7 @@ import MaterialsManagementPage from "../pages/staff/materials/MaterialsManagemen
 import DigitalProcessingPage from "../pages/staff/digital-processing/DigitalProcessingPage";
 import ReservationManagementPage from "../pages/staff/reservations/ReservationManagementPage";
 import ReaderManagementPage from "../pages/staff/readers/ReaderManagementPage";
+import NotificationManagementPage from "../pages/staff/notifications/NotificationManagementPage";
 import ReportsScreen from "../pages/staff/reports/ReportsScreen";
 import SettingsWorkspace from "../features/library-settings/components/SettingsWorkspace";
 
@@ -23,6 +24,7 @@ const ADMIN_SHORTCUTS: { label: string; icon: IconName; description: string }[] 
   { label: "Cấu hình tra cứu", icon: "search", description: "Cấu hình bóc tách và chỉ mục tìm kiếm mặc định" },
   { label: "Quản lý tài liệu", icon: "book", description: "Biên mục, bản giấy và tài liệu số" },
   { label: "Bạn đọc", icon: "users", description: "Hồ sơ bạn đọc và trạng thái thẻ thư viện" },
+  { label: "Thông báo", icon: "bell", description: "Soạn và gửi thông báo tới bạn đọc hoặc toàn hệ thống" },
 ];
 
 export default function DashboardPortal({ role, path }: { role: "staff" | "admin"; path: string }) {
@@ -48,6 +50,7 @@ export default function DashboardPortal({ role, path }: { role: "staff" | "admin
     { path: "penalty-types", element: <SettingsWorkspace key={`${role}-penalty-types`} kind="penalty-types" portal={role} /> },
     { path: "search-configs", element: <SettingsWorkspace key={`${role}-search-configs`} kind="search-configs" portal={role} /> },
     { path: "readers", element: <ReaderManagementPage /> },
+    { path: "notifications", element: <NotificationManagementPage /> },
     { path: "profile", element: <WorkProfilePage role={role} /> },
     ...(isStaff ? [
       { index: true, element: <StaffDashboard /> },

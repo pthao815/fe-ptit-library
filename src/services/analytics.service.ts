@@ -1,7 +1,9 @@
 import type {
   AcquisitionSuggestionDto,
+  AdminNotificationItemDto,
   AnalyticsOverviewQuery,
   LibraryOverviewStatsDto,
+  MarkNotificationsReadResponse,
   MessageQueueDto,
   PageResponse,
   PaginationParams,
@@ -10,6 +12,9 @@ import type {
   PopularDocumentDto,
   PopularDocumentsQuery,
   SearchConfigResponse,
+  SendNotificationRequest,
+  SendNotificationResponse,
+  UnreadNotificationCountDto,
 } from "../types/api";
 import { ApiError, http } from "./http";
 
@@ -81,6 +86,37 @@ export const notificationService = {
       });
   },
 
+  getMyUnreadCount(): Promise<UnreadNotificationCountDto> {
+    return http.get<UnreadNotificationCountDto>("/api/notifications/my-messages/unread-count");
+  },
+
+  getMyNotificationById(notificationId: string | number): Promise<MessageQueueDto> {
+    return http.get<MessageQueueDto>(`/api/notifications/my-messages/${notificationId}`).then((item) => {
+      if (item && item.id !== undefined) {
+        notificationItemCache.set(String(item.id), item);
+      }
+      return item;
+    });
+  },
+
+  markAsRead(notificationId: string | number): Promise<MessageQueueDto> {
+    return http.patch<MessageQueueDto>(`/api/notifications/${notificationId}/read`).then((item) => {
+      if (item && item.id !== undefined) {
+        notificationItemCache.set(String(item.id), item);
+      }
+      return item;
+    });
+  },
+
+  markAllAsRead(): Promise<MarkNotificationsReadResponse> {
+    return http.patch<MarkNotificationsReadResponse>("/api/notifications/my-messages/read-all").then((res) => {
+      notificationItemCache.forEach((entry, key) => {
+        notificationItemCache.set(key, { ...entry, status: "READ" });
+      });
+      return res;
+    });
+  },
+
   async findMyNotificationById(
     notificationId: string,
     preferredPage = 0,
@@ -119,6 +155,33 @@ export const notificationService = {
     }
 
     return { item: null, page: preferredPage, pageData: firstPageData };
+  },
+
+  sendAdminNotification(payload: SendNotificationRequest): Promise<SendNotificationResponse> {
+    return http.post<SendNotificationResponse>("/api/notifications/admin/send", payload);
+  },
+
+  getAdminNotifications(params?: {
+    keyword?: string;
+    messageType?: string;
+    status?: string;
+    page?: number;
+    size?: number;
+  }): Promise<PageResponse<AdminNotificationItemDto>> {
+    return http
+      .get<PageResponse<AdminNotificationItemDto>>("/api/notifications/admin", {
+        keyword: params?.keyword,
+        messageType: params?.messageType,
+        status: params?.status,
+        page: params?.page,
+        size: params?.size,
+      })
+      .then((page) => {
+        if (!page || !Array.isArray(page.items)) {
+          throw new ApiError("Backend không trả về lịch sử thông báo hợp lệ.", 0);
+        }
+        return page;
+      });
   },
 };
 

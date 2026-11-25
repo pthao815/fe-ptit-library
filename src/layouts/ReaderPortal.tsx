@@ -35,12 +35,19 @@ export default function ReaderPortal({ path }: { path: string }) {
       return;
     }
     notificationService
-      .getMyNotifications({ page: 0, size: 5 })
-      .then((pageData) => {
-        setHasUnreadNotifications(pageData.items.some((item) => item.status !== "READ"));
+      .getMyUnreadCount()
+      .then((res) => {
+        setHasUnreadNotifications((res?.unreadCount ?? 0) > 0);
       })
       .catch(() => {
-        setHasUnreadNotifications(false);
+        notificationService
+          .getMyNotifications({ page: 0, size: 5 })
+          .then((pageData) => {
+            setHasUnreadNotifications(pageData.items.some((item) => item.status !== "READ"));
+          })
+          .catch(() => {
+            setHasUnreadNotifications(false);
+          });
       });
   }, [isReader]);
 

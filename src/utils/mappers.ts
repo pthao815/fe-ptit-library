@@ -341,33 +341,84 @@ export function mapUserDtoToManagedReader(
   };
 }
 
+export function parseNotificationContent(rawContent: string): { title?: string; body: string } {
+  const normalized = (rawContent || "").replace(/\r\n/g, "\n").trim();
+  const newlineIndex = normalized.indexOf("\n");
+  if (newlineIndex > 0) {
+    const firstLine = normalized.slice(0, newlineIndex).trim();
+    const rest = normalized.slice(newlineIndex + 1).trim();
+    if (firstLine && rest) {
+      return { title: firstLine, body: rest };
+    }
+  }
+  return { body: normalized };
+}
+
+function defaultNotificationTitle(typeUpper: string): string {
+  if (typeUpper.includes("OVERDUE") || typeUpper.includes("DUE")) return "Thông báo nhắc hạn trả tài liệu";
+  if (typeUpper.includes("HOLD") || typeUpper.includes("READY")) return "Thông báo đặt trước tài liệu";
+  if (typeUpper.includes("MAINTENANCE")) return "Thông báo bảo trì hệ thống";
+  if (typeUpper.includes("REMINDER")) return "Nhắc nhở từ Thư viện số PTIT";
+  if (typeUpper.includes("LIBRARY_NOTICE")) return "Thông báo hoạt động thư viện";
+  return "Thông báo từ Thư viện số PTIT";
+}
+
+function notificationStatusLabel(status?: string): string {
+  switch ((status || "").toUpperCase()) {
+    case "READ":
+      return "Đã đọc";
+    case "SENT":
+      return "Chưa đọc";
+    case "PENDING":
+      return "Chờ gửi";
+    case "FAILED":
+      return "Gửi lỗi";
+    default:
+      return status || "Chưa đọc";
+  }
+}
+
 export function mapMessageQueueToNotification(dto: MessageQueueDto): LibraryNotification {
   const typeUpper = (dto.messageType || "").toUpperCase();
   const isOverdue = typeUpper.includes("OVERDUE") || typeUpper.includes("DUE");
   const isHold = typeUpper.includes("HOLD") || typeUpper.includes("READY");
+  const isMaintenance = typeUpper.includes("MAINTENANCE");
+  const isReminder = typeUpper.includes("REMINDER");
+  const parsed = parseNotificationContent(dto.content);
+
+  const category = isOverdue
+    ? "MƯỢN VÀ TRẢ TÀI LIỆU"
+    : isHold
+      ? "ĐẶT TRƯỚC TÀI LIỆU"
+      : isMaintenance
+        ? "BẢO TRÌ HỆ THỐNG"
+        : isReminder
+          ? "NHẮC NHỞ BẠN ĐỌC"
+          : "THÔNG BÁO THƯ VIỆN";
+
+  const tone: LibraryNotification["tone"] =
+    isOverdue || isMaintenance || isReminder ? "warning" : isHold ? "brand" : "success";
+
+  const icon: LibraryNotification["icon"] = isOverdue ? "book" : isHold ? "bookmark" : "success";
 
   return {
     id: String(dto.id),
-    title: isOverdue
-      ? "Thông báo nhắc hạn trả tài liệu"
-      : isHold
-        ? "Thông báo đặt trước tài liệu"
-        : "Thông báo từ Thư viện số PTIT",
-    category: isOverdue ? "MƯỢN VÀ TRẢ TÀI LIỆU" : "THÔNG BÁO HỆ THỐNG",
+    title: parsed.title || defaultNotificationTitle(typeUpper),
+    category,
     relativeTime: formatDateVi(dto.sentAt || dto.createdAt),
     sentAt: formatDateTimeVi(dto.sentAt || dto.createdAt),
     unread: dto.status !== "READ",
-    icon: isOverdue ? "book" : isHold ? "bookmark" : "success",
-    tone: isOverdue ? "warning" : isHold ? "brand" : "success",
-    intro: dto.content,
+    icon,
+    tone,
+    intro: parsed.body,
     details: [
       { label: "Mã thông báo", value: `#MSG-${dto.id}` },
-      { label: "Kênh gửi", value: dto.channel || "Hệ thống" },
+      { label: "Kênh gửi", value: dto.channel === "IN_APP" ? "Trên hệ thống" : dto.channel || "Hệ thống" },
       { label: "Thời gian", value: formatDateTimeVi(dto.sentAt || dto.createdAt) },
-      { label: "Trạng thái", value: dto.status || "Đã gửi" },
+      { label: "Trạng thái", value: notificationStatusLabel(dto.status) },
     ],
     relatedTitle: "Thư viện số thông minh PTIT",
-    relatedSubtitle: dto.content,
+    relatedSubtitle: parsed.body,
     actionLabel: isHold ? "Xem danh sách đặt trước" : "Xem tủ sách của tôi",
     actionPath: isHold ? "/reader/my-library/reservations" : "/reader/my-library",
   };

@@ -92,11 +92,18 @@ export default function ReaderHome() {
   useEffect(() => {
     if (!getAccessToken()) return;
     let active = true;
-    notificationService
-      .getMyNotifications({ page: 0, size: 4 })
-      .then((page) => { if (active) setNotices({ status: "ready", items: page.items.map(mapMessageQueueToNotification) }); })
-      .catch(() => { if (active) setNotices({ status: "error", items: [] }); });
-    return () => { active = false; };
+    const loadHomeNotices = () => {
+      notificationService
+        .getMyNotifications({ page: 0, size: 4 })
+        .then((page) => { if (active) setNotices({ status: "ready", items: page.items.map(mapMessageQueueToNotification) }); })
+        .catch(() => { if (active) setNotices({ status: "error", items: [] }); });
+    };
+    loadHomeNotices();
+    window.addEventListener("ptit:notifications-updated", loadHomeNotices);
+    return () => {
+      active = false;
+      window.removeEventListener("ptit:notifications-updated", loadHomeNotices);
+    };
   }, []);
 
   useEffect(() => {

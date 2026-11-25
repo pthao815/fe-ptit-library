@@ -794,6 +794,56 @@ export interface MessageQueueDto {
   updatedAt?: string;
 }
 
+export type NotificationTargetScope =
+  | "SINGLE_USER"
+  | "ALL_READERS"
+  | "DEPARTMENT"
+  | "USER_TYPE";
+
+export interface SendNotificationRequest {
+  targetScope: NotificationTargetScope;
+  userId?: string;
+  departmentId?: number;
+  userType?: string;
+  messageType?: string;
+  title?: string;
+  content: string;
+  channel?: string;
+}
+
+export interface SendNotificationResponse {
+  recipientCount: number;
+  targetScope: NotificationTargetScope | string;
+  messageType: string;
+  channel: string;
+  title?: string | null;
+  content: string;
+  sentAt: string;
+}
+
+export interface AdminNotificationItemDto {
+  id: number;
+  userId?: string;
+  userCode?: string;
+  fullName?: string;
+  email?: string;
+  channel?: string;
+  messageType?: string;
+  content: string;
+  status?: string;
+  scheduledAt?: string;
+  sentAt?: string;
+  createdAt?: string;
+}
+
+export interface UnreadNotificationCountDto {
+  unreadCount: number;
+}
+
+export interface MarkNotificationsReadResponse {
+  updatedCount: number;
+}
+
 export interface PolicyResponse {
   id: number;
   userType: string;

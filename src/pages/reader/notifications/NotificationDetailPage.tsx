@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Breadcrumb, Button, EmptyState, LoadingState, Pagination } from "../../../design-system";
+import { Badge, Breadcrumb, Button, EmptyState, LoadingState, Pagination } from "../../../design-system";
 import { notificationService } from "../../../services/analytics.service";
 import type { MessageQueueDto, PageResponse } from "../../../types/api";
 import { mapMessageQueueToNotification } from "../../../utils/mappers";
@@ -13,6 +13,8 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
   const pageSize = Number.isSafeInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 100 ? requestedSize : 20;
   const [response, setResponse] = useState<PageResponse<MessageQueueDto>>();
   const [selectedItem, setSelectedItem] = useState<MessageQueueDto | null>(null);
+  const [detailLoaded, setDetailLoaded] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
 
@@ -25,20 +27,42 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
     setError("");
     setResponse(undefined);
     setSelectedItem(null);
+    setDetailLoaded(false);
 
     if (notificationId) {
       notificationService
-        .findMyNotificationById(notificationId, page, pageSize)
-        .then((res) => {
+        .getMyNotificationById(notificationId)
+        .catch(() =>
+          notificationService
+            .findMyNotificationById(notificationId, page, pageSize)
+            .then((res) => res.item),
+        )
+        .then(async (foundItem) => {
           if (!active) return;
-          setResponse(res.pageData);
-          setSelectedItem(res.item);
-          if (!res.item) {
+          if (!foundItem) {
+            setDetailLoaded(true);
             setError("Không tìm thấy thông báo hoặc bạn không có quyền truy cập thông báo này.");
+            return;
           }
+
+          let finalItem = foundItem;
+          if ((foundItem.status || "").toUpperCase() !== "READ") {
+            try {
+              finalItem = await notificationService.markAsRead(foundItem.id);
+              window.dispatchEvent(new Event("ptit:notifications-updated"));
+            } catch {
+              // Giữ dữ liệu đã tải nếu cập nhật trạng thái thất bại tạm thời
+            }
+          }
+          if (!active) return;
+          setSelectedItem(finalItem);
+          setDetailLoaded(true);
         })
         .catch((cause: unknown) => {
-          if (active) setError(cause instanceof Error ? cause.message : "Không tải được thông báo.");
+          if (active) {
+            setDetailLoaded(true);
+            setError(cause instanceof Error ? cause.message : "Không tải được thông báo.");
+          }
         });
     } else {
       notificationService
@@ -57,14 +81,42 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
   }, [notificationId, page, pageSize, revision]);
 
   const items = response?.items.map(mapMessageQueueToNotification) ?? [];
-  const selected = selectedItem ? mapMessageQueueToNotification(selectedItem) : items.find((item) => item.id === notificationId);
+  const hasUnreadInList = items.some((item) => item.unread);
+  const selected = selectedItem ? mapMessageQueueToNotification(selectedItem) : null;
   const list = `/reader/notifications?page=${page}&size=${pageSize}`;
+  const isLoading = notificationId ? !detailLoaded : !response;
+
+  const handleMarkAllRead = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    try {
+      await notificationService.markAllAsRead();
+      setResponse((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((item) => ({ ...item, status: "READ" })),
+            }
+          : prev,
+      );
+      window.dispatchEvent(new Event("ptit:notifications-updated"));
+    } finally {
+      setMarkingAll(false);
+    }
+  };
 
   return (
     <main className="notification-detail-container">
       <Breadcrumb items={notificationId ? ["Trang chủ", "Thông báo", "Chi tiết"] : ["Trang chủ", "Thông báo"]} />
       {notificationId && <Link className="btn btn-ghost" to={list}>Về danh sách thông báo</Link>}
-      <h1>{notificationId ? "Chi tiết thông báo" : "Thông báo"}</h1>
+      <div className="notification-list-heading">
+        <h1>{notificationId ? "Chi tiết thông báo" : "Thông báo"}</h1>
+        {!notificationId && hasUnreadInList && (
+          <Button variant="secondary" size="sm" loading={markingAll} onClick={handleMarkAllRead}>
+            Đánh dấu tất cả đã đọc
+          </Button>
+        )}
+      </div>
       {error ? (
         <EmptyState
           surface="card"
@@ -73,7 +125,7 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
           description={error}
           action={<Button onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
         />
-      ) : !response ? (
+      ) : isLoading ? (
         <LoadingState
           variant={notificationId ? "detail" : "list"}
           count={4}
@@ -108,9 +160,16 @@ export default function NotificationDetailPage({ notificationId }: { notificatio
       ) : items.length ? (
         <ul className="notification-list-simple">
           {items.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className={item.unread ? "unread" : ""}>
               <Link to={item.id + "?page=" + page}>
-                <strong>{item.title}</strong> · <time>{item.sentAt}</time>
+                <div className="notification-list-meta">
+                  <div>
+                    <strong>{item.title}</strong> · <time>{item.sentAt}</time>
+                  </div>
+                  <Badge tone={item.unread ? "brand" : "neutral"}>
+                    {item.unread ? "Chưa đọc" : "Đã đọc"}
+                  </Badge>
+                </div>
                 <p>{item.intro}</p>
               </Link>
             </li>
